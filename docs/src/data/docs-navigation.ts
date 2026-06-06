@@ -23,6 +23,14 @@ export const navGroups: NavGroup[] = [
     ]
   },
   {
+    label: 'Async Services',
+    items: [
+      { label: 'Async', href: '#', status: 'Roadmap' },
+      { label: 'Event', href: '#', status: 'Roadmap' },
+      { label: 'Scheduler', href: '#', status: 'Roadmap' }
+    ]
+  },
+  {
     label: 'Foundation',
     items: [
       { label: 'TestData', href: '/test-data' },
@@ -42,14 +50,6 @@ export const navGroups: NavGroup[] = [
     items: [
       { label: 'DML', href: '#', status: 'Draft' },
       { label: 'Query', href: '#', status: 'Draft' }
-    ]
-  },
-  {
-    label: 'Async Services',
-    items: [
-      { label: 'Async', href: '#', status: 'Roadmap' },
-      { label: 'Event', href: '#', status: 'Roadmap' },
-      { label: 'Scheduler', href: '#', status: 'Roadmap' }
     ]
   }
 ];
