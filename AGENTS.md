@@ -42,28 +42,68 @@ treat every roadmap note as an implemented contract.
   impact.
 - Current rough edges may be noticed, but do not fix unrelated issues unless
   they are clearly in scope or qualify as a tiny obvious fix.
-- Apex and metadata edits are not finished when files are written. Save the
-  files, run Salesforce validation, fix task-related validation errors
-  autonomously, and rerun validation before handing work back.
+- Prefer the smallest useful change set. Keep edits narrow, avoid broad repo
+  searches, and do not rewrite unrelated files while working a local task.
 
-### Salesforce CLI Validation
+## Token Efficiency
 
-Use `sf-bedrock` as the target org alias for Salesforce CLI work in this repo.
+- Prefer Apex and JavaScript work. Do not create new Salesforce metadata files
+  in the agent unless the task explicitly requires it.
+- If a task needs a new object, field, custom metadata type, or similar schema
+  file, tell the user what is needed and let them scaffold it manually.
+- Keep output tight. Prefer the smallest relevant file set, the shortest
+  useful explanation, and the narrowest validation possible.
+- When test work is involved, change only the targeted test method or helper,
+  deploy only the touched source, and run only the specific tests that cover
+  the change.
+
+### Salesforce MCP Validation
+
+Use `sf-bedrock` as the target org alias for Salesforce org work in this repo.
 Do not rely on a default org being configured in the agent environment.
 
-- After changing Apex or Salesforce metadata, run a dry-run deploy against the
-  changed source before considering the edit complete:
-  `sf project deploy start --source-dir <changed-source> --target-org sf-bedrock`.
-- If the dry run reports compile, metadata, or test validation errors caused by
-  the current task, fix them autonomously and rerun the dry run.
+Prefer the Salesforce DX MCP tools over raw Salesforce CLI commands when an
+equivalent tool is available. The expected MCP tool invocations are:
+
+- Deploy metadata: `mcp__salesforce_dx.deploy_metadata`
+- Retrieve metadata: `mcp__salesforce_dx.retrieve_metadata`
+- Run Apex tests: `mcp__salesforce_dx.run_apex_test`
+- Run SOQL queries: `mcp__salesforce_dx.run_soql_query`
+- Resolve an unclear org alias: `mcp__salesforce_dx.get_username`
+- Resume a long-running org operation: `mcp__salesforce_dx.resume_tool_operation`
+
+Validation workflow:
+
+- After changing Apex or Salesforce metadata, deploy the changed source and
+  validate the result before considering the edit complete. Use the MCP
+  `mcp__salesforce_dx.deploy_metadata` tool for deploy operations when a real
+  deploy is intended.
+- If validation reports compile, metadata, or test errors caused by the current
+  task, fix them autonomously and rerun the deploy once the change is narrow and
+  targeted.
 - Treat Salesforce deploy errors as the compiler's source of truth. Update the
   code in response to concrete deploy feedback rather than guessing around it.
-- If Salesforce CLI access fails because of keychain, org auth, or sandbox
-  permissions, retry with the approved escalation flow. Only report validation
-  as blocked after the escalated command also cannot access the org or the org
-  itself is unavailable.
-- Brief Salesforce CLI command examples are allowed in this guide when they
-  prevent repeated validation mistakes.
+- If Salesforce org access fails because of keychain, org auth, or sandbox
+  permissions, retry with the approved escalation flow when using a CLI
+  fallback. Only report validation as blocked after the MCP tool or escalated
+  fallback also cannot access the org or the org itself is unavailable.
+- Brief CLI command examples are allowed in this guide only when there is no
+  MCP equivalent or when they prevent repeated validation mistakes. Keep CLI
+  output tight and scoped to the files or checks that matter.
+
+### Salesforce Tool Timeout Policy
+
+To avoid wasting tokens on slow Salesforce org responses:
+
+- For synchronous Salesforce MCP tools or CLI fallback commands, allow up to 10
+  seconds of waiting when the tool supports bounded waiting.
+- If the operation does not complete within 10 seconds, stop polling and report
+  that it is taking too long.
+- After 10 seconds, provide the exact MCP tool name or fallback command so the
+  user can run it directly if they want to keep waiting.
+- Do not continue repeated progress checks after the 10 second limit.
+- Do not switch to async or resume-based workflows unless the user explicitly
+  asks for that.
 
 ## Architecture Layers
 
@@ -134,17 +174,16 @@ Test class conventions:
 - Use the `Assert` class for assertions. Do not use `System.assert*`.
 - Every assertion must include a meaningful message that explains the expected
   behavior or artifact.
-- When adding or changing unit tests, dry-run deploy the changed production
-  classes, mocks, and tests before running the test. If a new test references a
-  new helper or mock class, include that helper or mock in the deploy source so
-  the test compiles in the org.
-- Remember that a dry-run deploy validates source but does not update the org.
-  If you need the org test run to reflect your latest test changes, perform a
-  real deploy of the changed source before running `sf apex run test`.
-- After dry-run validation succeeds, run the relevant Apex test by name with
-  `--target-org sf-bedrock` and verify it passes before considering the test
-  work finished. Fix task-related test failures autonomously and rerun the
-  test.
+- When adding or changing unit tests, deploy the changed production classes,
+  mocks, and tests before running the test. If a new test references a new
+  helper or mock class, include that helper or mock in the deploy source so the
+  test compiles in the org.
+- When a test changes, prefer running only the specific test method or the
+  smallest relevant test set rather than the entire class or suite.
+- After the deploy succeeds, run the relevant Apex test by name with
+  `mcp__salesforce_dx.run_apex_test` against `sf-bedrock` and verify it passes
+  before considering the test work finished. Fix task-related test failures
+  autonomously and rerun the test.
 
 Metadata version conventions:
 
@@ -152,13 +191,15 @@ Metadata version conventions:
 - Non-test Apex classes and other metadata should use API version `65.0` unless
   a task explicitly requires something else.
 
-Salesforce CLI workflow notes:
+Salesforce org workflow notes:
 
-- Use the `sf-bedrock` alias explicitly in every CLI command.
-- If `sf` cannot find the alias or auth inside the sandbox, retry with the
-  approved escalation flow before treating validation as blocked. In this repo,
-  that commonly means sandboxed access cannot reach the stored org auth even
-  though the org itself is available.
+- Use the `sf-bedrock` alias explicitly in every Salesforce MCP tool invocation.
+- Use CLI fallbacks only when an MCP tool is unavailable for the needed
+  operation, such as check-only deploy validation.
+- If a CLI fallback cannot find the alias or auth inside the sandbox, retry
+  with the approved escalation flow before treating validation as blocked. In
+  this repo, that commonly means sandboxed access cannot reach the stored org
+  auth even though the org itself is available.
 
 Test data conventions:
 
@@ -263,6 +304,36 @@ Current shape:
 - Convert generic data into typed `SObject` records.
 - Override `mapping()` and `transform()` for reusable transformations.
 
+### PlatformCache and PlatformCacheMock
+
+`PlatformCache` is the cache dependency injection layer for Salesforce Platform
+Cache. It provides small `Org` and `Session` adapters so production code can
+use platform cache directly while tests can substitute a mock partition.
+
+Current shape:
+
+- `PlatformCache` is an abstract base exposing `get`, `put`, and `remove`.
+- `PlatformCache.Partition` is the concrete cache adapter that talks to
+  `Cache.Org` or `Cache.Session` based on scope.
+- `PlatformCache.Org` and `PlatformCache.Session` are thin virtual wrappers
+  over `PlatformCache.Partition` so feature-specific cache classes can extend
+  them with a fixed partition name.
+- `PlatformCache.PartitionRegistry` resolves org and session partitions and can
+  return a registered mock partition for either scope.
+- `PlatformCache.setMock(...)` currently registers a partition mock by
+  partition name for tests.
+- `PlatformCacheMock` extends `PlatformCache.Partition`, stores values in
+  memory, and records `gets`, `puts`, and `removes` for assertions.
+
+Testing notes:
+
+- Tests should usually verify org and session behaviors in distinct units such
+  as `testOrg_get` and `testSession_put`, rather than combining the entire
+  happy path in one method.
+- When mocking, remember that the current registry is partition-name based, so
+  direct org/session adapters and subclasses that share a partition name will
+  use the same registered mock.
+
 ### RecordBuffer
 
 `RecordBuffer` stages DML between services in a trigger context. It is designed
@@ -304,6 +375,20 @@ Apex base implementing `Queueable`, `Finalizer`, and `Database.AllowsCallouts`,
 with an `AsyncException` type. Do not assume the planned framework behavior
 exists in this class.
 
+### FeatureFlag
+
+`FeatureFlag` provides feature-toggle lookups backed by `Feature_Flag__mdt`.
+It caches lookups by name for the current transaction and exposes test-only
+helpers to seed or clear cached values.
+
+Current shape:
+
+- `isEnabled(String)` fails closed for blank names and missing records.
+- `get(String)` reads `Feature_Flag__mdt` by `Name__c` and caches the result
+  in memory.
+- `set(String, Boolean)` is test-visible and seeds the cache directly.
+- `clearCache()` is test-visible and clears the in-memory cache.
+
 ## Roadmap and Proposed Tools
 
 These concepts capture intended architecture. They are not finalized APIs.
@@ -328,12 +413,11 @@ Do not choose the final API name without asking. A future implementation should
 probably compare the readability of `Once` against the architectural meaning of
 `Gateway`.
 
-### Selector.Cached and PlatformCache
+### Selector.Cached
 
 `Selector.Cached` is planned as an extension of the one-query selector behavior
-that stores records in Salesforce Platform Cache. `PlatformCache` should be an
-abstraction around Salesforce Platform Cache, used by cached selectors and any
-future code that needs cache dependency injection or safer cache access.
+that stores records in Salesforce Platform Cache by building on the implemented
+`PlatformCache` abstraction.
 
 ### Async Framework
 
@@ -421,11 +505,6 @@ Intended direction:
   run.
 - Keep this human/developer-first: prefer clear state, explainable behavior,
   and maintainable recovery over opaque automation.
-
-### FeatureFlag
-
-`FeatureFlag` is planned as a basic Apex/Salesforce feature management
-framework. Keep it simple unless future requirements demand more.
 
 ## Implementation Philosophy
 
