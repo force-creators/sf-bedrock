@@ -108,18 +108,9 @@ pre code {
   text-decoration: none;
 }
 
-.brand-mark {
-  display: grid;
-  width: 2.15rem;
-  height: 2.15rem;
+.brand-logo {
+  width: 2.65rem;
   flex: 0 0 auto;
-  place-items: center;
-  border-radius: 0.25rem;
-  background: white;
-}
-
-.brand-mark img {
-  width: 1.48rem;
   height: auto;
 }
 

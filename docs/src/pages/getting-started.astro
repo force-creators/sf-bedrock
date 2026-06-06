@@ -1,6 +1,6 @@
 ---
 import DocsLayout from '../layouts/DocsLayout.astro';
-import CodeBlock from '../components/CodeBlock.astro';
+import { Code } from 'astro:components';
 
 const codeRunLocally = `cd docs
 npm install
@@ -36,7 +36,7 @@ const sections = [
       The documentation site lives in <code>docs/</code>. Install dependencies in
       that folder, then start the Astro preview server.
     </p>
-    <CodeBlock code={codeRunLocally} lang="bash" title="Terminal" subtitle="docs workspace" />
+    <Code code={codeRunLocally} lang="bash" />
   </section>
 
   <section class="doc-section" id="authoring-shape">
@@ -99,7 +99,7 @@ const sections = [
       Build the docs before shipping layout changes. The build is fast and catches
       invalid Astro markup, broken imports, and accidental client-only assumptions.
     </p>
-    <CodeBlock code={codeValidation} lang="bash" title="Terminal" subtitle="from docs/" />
+    <Code code={codeValidation} lang="bash" />
     <div class="callout">
       <strong>Keep docs trustworthy</strong>
       <p>
