@@ -34,22 +34,23 @@ export const navGroups: NavGroup[] = [
     label: 'Foundation',
     items: [
       { label: 'TestData', href: '/test-data' },
-      { label: 'Generic', href: '#', status: 'Draft' },
-      { label: 'FeatureFlag', href: '#', status: 'Draft' }
+      { label: 'Generic', href: '/generic' },
+      { label: 'FeatureFlag', href: '/feature-flag' },
+      { label: 'PlatformCache', href: '/platform-cache' }
     ]
   },
   {
     label: 'Automation',
     items: [
-      { label: 'TriggerHandler', href: '#', status: 'Draft' },
-      { label: 'RecordBuffer', href: '#', status: 'Draft' }
+      { label: 'TriggerHandler', href: '/trigger-handler' },
+      { label: 'RecordBuffer', href: '/record-buffer' }
     ]
   },
   {
     label: 'Dependency Injection',
     items: [
-      { label: 'DML', href: '#', status: 'Draft' },
-      { label: 'Query', href: '#', status: 'Draft' }
+      { label: 'DML', href: '/dml' },
+      { label: 'Query', href: '/query' }
     ]
   }
 ];
