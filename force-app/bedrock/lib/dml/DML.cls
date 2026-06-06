@@ -58,6 +58,7 @@ public virtual inherited sharing class DML extends Service {
     public interface Contract {
         void insertRecords(List<SObject> records);
         void updateRecords(List<SObject> records);
+        void upsertRecords(List<SObject> records);
         void upsertRecords(List<SObject> records, SObjectField externalIdField);
         void deleteRecords(List<SObject> records);
         void undeleteRecords(List<SObject> records);

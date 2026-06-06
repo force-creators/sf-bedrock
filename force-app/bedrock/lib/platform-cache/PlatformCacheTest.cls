@@ -18,6 +18,12 @@ private class PlatformCacheTest {
         return cacheMock;
     }
 
+    private static PlatformCacheMock sessionCacheMock() {
+        PlatformCacheMock cacheMock = new PlatformCacheMock('Bedrock');
+        PlatformCache.setSessionMock(cacheMock);
+        return cacheMock;
+    }
+
     @istest static void testOrg_put() {
         PlatformCacheMock cacheMock = cacheMock();
 
@@ -66,7 +72,7 @@ private class PlatformCacheTest {
     }
 
     @istest static void testSession_get() {
-        PlatformCacheMock cacheMock = cacheMock();
+        PlatformCacheMock cacheMock = sessionCacheMock();
         cacheMock.valuesByKey.put('greeting', 'hello');
 
         Object value = new PlatformCache.Session('Bedrock').get('greeting');
@@ -82,7 +88,7 @@ private class PlatformCacheTest {
     }
 
     @istest static void testSession_put() {
-        PlatformCacheMock cacheMock = cacheMock();
+        PlatformCacheMock cacheMock = sessionCacheMock();
 
         new PlatformCache.Session('Bedrock').put('greeting', 'hello');
 
@@ -97,7 +103,7 @@ private class PlatformCacheTest {
     }
 
     @istest static void testSession_remove() {
-        PlatformCacheMock cacheMock = cacheMock();
+        PlatformCacheMock cacheMock = sessionCacheMock();
         cacheMock.valuesByKey.put('greeting', 'hello');
 
         new PlatformCache.Session('Bedrock').remove('greeting');
@@ -127,7 +133,7 @@ private class PlatformCacheTest {
     }
 
     @istest static void testSubclassSession_get() {
-        PlatformCacheMock cacheMock = cacheMock();
+        PlatformCacheMock cacheMock = sessionCacheMock();
         cacheMock.valuesByKey.put('greeting', 'hello');
 
         Object value = new ExampleSessionCache().get('greeting');
@@ -146,18 +152,26 @@ private class PlatformCacheTest {
         Assert.areEqual('Bedrock', cacheMock.partitionName, 'Expected the registered partition mock to retain its configured partition name.');
     }
 
-    @istest static void testRemoveAcrossCacheTypesUsesSharedRegisteredPartitionMock() {
-        PlatformCacheMock cacheMock = cacheMock();
-        PlatformCache directOrgCache = new PlatformCache.Org('Bedrock');
-        directOrgCache.put('greeting', 'hello');
+    @istest static void testOrgAndSessionMocksAreScopedSeparately() {
+        PlatformCacheMock orgCacheMock = cacheMock();
+        PlatformCacheMock sessionCacheMock = sessionCacheMock();
+        orgCacheMock.valuesByKey.put('greeting', 'org hello');
+        sessionCacheMock.valuesByKey.put('greeting', 'session hello');
 
-        new ExampleSessionCache().remove('greeting');
+        Object orgValue = new PlatformCache.Org('Bedrock').get('greeting');
+        Object sessionValue = new ExampleSessionCache().get('greeting');
 
-        Assert.areEqual(null, directOrgCache.get('greeting'), 'Expected remove through a cache subclass to delete the mocked value.');
+        Assert.areEqual('org hello', orgValue, 'Expected org cache reads to use the org-scoped mock for the partition.');
+        Assert.areEqual('session hello', sessionValue, 'Expected session cache reads to use the session-scoped mock for the partition.');
         Assert.areEqual(
             new List<String>{ 'greeting' },
-            cacheMock.removes,
-            'Expected remove through a cache subclass to be recorded on the shared registered partition mock.'
+            orgCacheMock.gets,
+            'Expected org cache reads to be recorded only on the org-scoped mock.'
+        );
+        Assert.areEqual(
+            new List<String>{ 'greeting' },
+            sessionCacheMock.gets,
+            'Expected session cache reads to be recorded only on the session-scoped mock.'
         );
     }
 }

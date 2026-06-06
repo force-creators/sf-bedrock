@@ -1,6 +1,6 @@
 public virtual inherited sharing class TriggerHandler {
     protected void run() {
-        if (!Trigger.isExecuting) return;
+        if (!this.isExecuting()) return;
         this.stageBuffers();
         this.dispatch();
         this.flushBuffers();
@@ -15,7 +15,7 @@ public virtual inherited sharing class TriggerHandler {
     }
 
     void dispatch() {
-        switch on Trigger.operationType {
+        switch on this.operationType() {
             when BEFORE_INSERT {
                 this.beforeInsert(this.newRecords());
             }
@@ -40,23 +40,27 @@ public virtual inherited sharing class TriggerHandler {
         }
     }
 
-    System.TriggerOperation operationType() {
+    protected virtual Boolean isExecuting() {
+        return Trigger.isExecuting;
+    }
+
+    protected virtual System.TriggerOperation operationType() {
         return Trigger.operationType;
     }
 
-    List<SObject> newRecords() {
+    protected virtual List<SObject> newRecords() {
         return Trigger.new == null ? new List<SObject>() : Trigger.new;
     }
 
-    List<SObject> oldRecords() {
+    protected virtual List<SObject> oldRecords() {
         return Trigger.old == null ? new List<SObject>() : Trigger.old;
     }
 
-    Map<Id, SObject> newRecordsById() {
+    protected virtual Map<Id, SObject> newRecordsById() {
         return Trigger.newMap == null ? new Map<Id, SObject>() : Trigger.newMap;
     }
 
-    Map<Id, SObject> oldRecordsById() {
+    protected virtual Map<Id, SObject> oldRecordsById() {
         return Trigger.oldMap == null ? new Map<Id, SObject>() : Trigger.oldMap;
     }
 

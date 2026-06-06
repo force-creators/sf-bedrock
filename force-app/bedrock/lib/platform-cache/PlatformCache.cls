@@ -6,6 +6,14 @@ public abstract inherited sharing class PlatformCache {
         partition.setMock(partitionMock);
     }
 
+    @testvisible static void setOrgMock(PlatformCache.Partition partitionMock) {
+        partition.setOrgMock(partitionMock);
+    }
+
+    @testvisible static void setSessionMock(PlatformCache.Partition partitionMock) {
+        partition.setSessionMock(partitionMock);
+    }
+
     public abstract Object get(String key);
     public abstract void put(String key, Object value);
     public abstract void remove(String key);
@@ -86,23 +94,35 @@ public abstract inherited sharing class PlatformCache {
         Map<String, PlatformCache.Partition> partitions = new Map<String, PlatformCache.Partition>();
 
         void setMock(PlatformCache.Partition partitionMock) {
-            this.partitions.put(partitionMock.partitionName, partitionMock);
+            this.setOrgMock(partitionMock);
+        }
+
+        void setOrgMock(PlatformCache.Partition partitionMock) {
+            this.partitions.put(this.key(partitionMock.partitionName, PlatformCache.consts.ORG_SCOPE), partitionMock);
+        }
+
+        void setSessionMock(PlatformCache.Partition partitionMock) {
+            this.partitions.put(this.key(partitionMock.partitionName, PlatformCache.consts.SESSION_SCOPE), partitionMock);
         }
 
         PlatformCache.Partition org(String partitionName) {
-            PlatformCache.Partition partitionMock = this.get(partitionName);
+            PlatformCache.Partition partitionMock = this.get(partitionName, PlatformCache.consts.ORG_SCOPE);
             if (partitionMock != null) return partitionMock;
             return new PlatformCache.Partition(partitionName);
         }
 
         PlatformCache.Partition session(String partitionName) {
-            PlatformCache.Partition partitionMock = this.get(partitionName);
+            PlatformCache.Partition partitionMock = this.get(partitionName, PlatformCache.consts.SESSION_SCOPE);
             if (partitionMock != null) return partitionMock;
             return new PlatformCache.Partition(partitionName, PlatformCache.consts.SESSION_SCOPE);
         }
 
-        PlatformCache.Partition get(String partitionName) {
-            return this.partitions.get(partitionName);
+        PlatformCache.Partition get(String partitionName, String scope) {
+            return this.partitions.get(this.key(partitionName, scope));
+        }
+
+        String key(String partitionName, String scope) {
+            return scope + ':' + partitionName;
         }
     }
 
