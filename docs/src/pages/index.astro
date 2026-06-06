@@ -1,116 +1,289 @@
 ---
 import DocsLayout from '../layouts/DocsLayout.astro';
+import { Code } from 'astro:components';
 
 const sections = [
-  { label: 'What Bedrock Is', href: '#what-bedrock-is' },
-  { label: 'Layer Map', href: '#layer-map' },
-  { label: 'Implemented Tools', href: '#implemented-tools' },
-  { label: 'Documentation Rules', href: '#documentation-rules' }
+  { label: 'Why Bedrock', href: '#why-bedrock' },
+  { label: 'Battle-Tested', href: '#battle-tested' },
+  { label: 'See It In Action', href: '#see-it-in-action' },
+  { label: 'The Toolkit', href: '#the-toolkit' },
+  { label: 'Designed in Layers', href: '#designed-in-layers' },
+  { label: 'Built to Grow', href: '#built-to-grow' },
+  { label: 'Start Building', href: '#start-building' }
 ];
+
+const codeFastTest = `@istest
+static void testAssignsTier_forHighRevenueAccounts() {
+    // In-memory records — no insert, no SOQL, no governor cost.
+    List<Account> accounts = (List<Account>) new TestData(Account.sObjectType)
+        .put(Account.AnnualRevenue, 25000000)
+        .mockIds()
+        .count(200)
+        .build();
+
+    // Swap the data layer for mocks. Production code never changes.
+    Query.setMock(new QueryMock(accounts));
+    DMLMock dml = new DMLMock();
+    DML.setMock(dml);
+
+    new AccountTierService().assignTiers();
+
+    Assert.areEqual(200, dml.updates[0].size(),
+        'Every high-revenue account should be re-tiered in one bulk update.');
+}`;
+
+const codeTrigger = `// The handler: context is unpacked for you, you write the intent.
+public class AccountTriggerHandler extends TriggerHandler {
+    public void execute() { this.run(); }
+
+    protected override void beforeInsert(List<SObject> records) {
+        for (Account account : (List<Account>) records) {
+            if (String.isBlank(account.ShippingCountry)) {
+                account.ShippingCountry = 'USA';
+            }
+        }
+    }
+}
+
+// The trigger: one line of real work.
+trigger AccountTrigger on Account (before insert, before update) {
+    new AccountTriggerHandler().execute();
+}`;
 ---
 
 <DocsLayout
-  title="sf-bedrock technical docs"
-  description="Technical documentation for the sf-bedrock Salesforce architecture toolkit."
-  eyebrow="Overview"
+  title="sf-bedrock — enterprise Apex that stays readable"
+  description="sf-bedrock is a developer-first Salesforce architecture toolkit: dependency injection, memory-speed tests, and trigger hygiene, battle-tested in Fortune 100 orgs."
+  eyebrow="Salesforce Architecture Toolkit"
   sections={sections}
 >
   <Fragment slot="header">
-    <h1>Build cleaner Salesforce automation.</h1>
+    <h1>Apex that scales without the ceremony.</h1>
     <p class="lede">
-      sf-bedrock is a base layer for stable Apex architecture: dependency injection
-      for data access and DML, efficient tests, trigger hygiene, and service
-      patterns that keep enterprise automation understandable.
+      sf-bedrock is a developer-first foundation for enterprise Salesforce —
+      dependency injection, memory-speed tests, and trigger hygiene that protect
+      high-volume orgs while staying readable to the engineers who own them. The
+      patterns at its core are battle-tested in Fortune 100 Salesforce orgs.
     </p>
+    <div class="pill-row" style="margin-top: 1.25rem;">
+      <span class="pill">Dependency Injection</span>
+      <span class="pill">Memory-Speed Tests</span>
+      <span class="pill">Trigger Hygiene</span>
+      <span class="pill">Human-Maintainable</span>
+    </div>
+    <div class="pill-row" style="margin-top: 1.5rem; gap: 0.6rem;">
+      <a class="button button-primary" href="/getting-started">Get Started</a>
+      <a class="button button-secondary" href="/test-data">Explore the API</a>
+    </div>
   </Fragment>
 
-  <section class="doc-section" id="what-bedrock-is">
-    <h2>What Bedrock Is</h2>
+  <section class="doc-section" id="why-bedrock">
+    <h2>Why Bedrock</h2>
     <p>
-      Bedrock gives Salesforce teams a small set of predictable framework seams.
-      Production code stays direct and readable, while tests can replace DML,
-      query behavior, cache access, and staged trigger work without building a
-      heavy test harness.
-    </p>
-    <div class="callout">
-      <strong>Design principle</strong>
-      <p>
-        Start with the implemented library in <code>force-app/bedrock/lib</code>.
-        Roadmap topics should be marked clearly until the API exists.
-      </p>
-    </div>
-  </section>
-
-  <section class="doc-section" id="layer-map">
-    <h2>Layer Map</h2>
-    <p>
-      The architecture separates record lifecycle automation from reusable query
-      logic, UI adapters, and service coordination. The docs should make those
-      boundaries visible before diving into individual classes.
+      Enterprise Salesforce automation usually forces a trade: heavy frameworks
+      that make code testable but obscure, or lean code that is readable until
+      the test suite grinds to a halt against the database. Bedrock refuses the
+      trade. It is a small set of dependency-injection seams that keep production
+      code direct and your tests fast — without a rewrite of how your team works.
     </p>
     <div class="doc-grid">
       <article class="doc-card">
-        <h3>Domain</h3>
-        <p>Triggers and record lifecycle behavior live here, coordinated by small handlers.</p>
+        <h3>Memory-speed tests</h3>
+        <p>
+          Inject mocks for DML, SOQL, and cache so unit tests never touch the
+          database. Suites that crawled for minutes finish in seconds.
+        </p>
       </article>
       <article class="doc-card">
-        <h3>Selector</h3>
-        <p>Query logic belongs behind reusable selectors that build on <code>Query</code>.</p>
+        <h3>Readable by humans</h3>
+        <p>
+          Minimalist, low-ceremony Apex. The seams live in your tests, not
+          tangled through your business logic.
+        </p>
       </article>
       <article class="doc-card">
-        <h3>Service</h3>
-        <p>Cross-record orchestration and meaningful business behavior belong in services.</p>
+        <h3>Safe at volume</h3>
+        <p>
+          Bulk-safe staged DML, grouped upserts, and recursion-minded trigger
+          design built for high-throughput orgs.
+        </p>
       </article>
       <article class="doc-card">
-        <h3>UI Layer</h3>
-        <p>Controllers should adapt component needs and delegate meaningful complexity.</p>
+        <h3>Composable, not monolithic</h3>
+        <p>
+          Adopt one tool or all of them. Each composes cleanly; none demands you
+          surrender your architecture to it.
+        </p>
       </article>
     </div>
   </section>
 
-  <section class="doc-section" id="implemented-tools">
-    <h2>Implemented Tools</h2>
+  <section class="doc-section" id="battle-tested">
+    <h2>Battle-Tested Foundations</h2>
     <p>
-      The first documentation pass should focus on the APIs already present in
-      the library. That gives readers a reliable path before introducing planned
-      Selector, Async, Event, Scheduler, or LimitsService work.
+      Bedrock is not a whiteboard exercise. The patterns at its core have run in
+      Fortune 100 Salesforce orgs — among the highest-volume, highest-scrutiny
+      environments on the platform — where flaky tests, recursive triggers, and
+      governor limits are not theoretical. Bedrock distills what survived that
+      pressure into a foundation any team can adopt.
     </p>
+    <div class="callout">
+      <strong>Developer-first, by design</strong>
+      <p>
+        The mission is high-service automation that protects the org while
+        staying understandable to the people who own it. Every abstraction earns
+        its place — if it makes everyday development heavier, it does not ship.
+      </p>
+    </div>
     <ul class="token-list">
       <li>
-        <strong>TestData</strong>
-        <span>Builds mockable or insertable records with focused field setup and generated Ids.</span>
+        <strong>Proven at scale</strong>
+        <span>Born in orgs with millions of records and unforgiving daily volume.</span>
       </li>
       <li>
-        <strong>DML</strong>
-        <span>Centralizes DML through an injectable service and captures operations in tests.</span>
+        <strong>Test-obsessed</strong>
+        <span>Assertions prove behavior and mutations — not coverage theater.</span>
       </li>
       <li>
-        <strong>Query</strong>
-        <span>Provides a static facade over virtual query behavior for predictable data access tests.</span>
-      </li>
-      <li>
-        <strong>RecordBuffer</strong>
-        <span>Stages inserts and updates during trigger flows so services can cooperate safely.</span>
+        <strong>Org-protective</strong>
+        <span>Designed to keep automation inside platform limits, not race against them.</span>
       </li>
     </ul>
   </section>
 
-  <section class="doc-section" id="documentation-rules">
-    <h2>Documentation Rules</h2>
+  <section class="doc-section" id="see-it-in-action">
+    <h2>See It In Action</h2>
     <p>
-      Each page should name the production contract, show the smallest useful
-      example, and call out test behavior. Keep roadmap notes separate from
-      shipped APIs so developers can trust what they read.
+      The payoff is concrete. Here is a service test that exercises 200 records
+      with zero DML and zero SOQL — production code calls <code>DML</code> and
+      <code>Query</code>, and the test swaps in mocks underneath it.
+    </p>
+    <Code code={codeFastTest} lang="apex" />
+    <p>
+      And here is a complete trigger. <code>TriggerHandler</code> detects the
+      context, opens a <code>RecordBuffer</code>, dispatches to the right hook,
+      and flushes — so your trigger file is a single line and all the logic lives
+      in a class you can test.
+    </p>
+    <Code code={codeTrigger} lang="apex" />
+  </section>
+
+  <section class="doc-section" id="the-toolkit">
+    <h2>The Toolkit</h2>
+    <p>
+      Eight focused tools, each documented with the contract, real examples, and
+      the testing path. They stand alone and compose together.
+    </p>
+    <ul class="token-list">
+      <li>
+        <strong><a href="/test-data">TestData</a></strong>
+        <span>Focused records with mock Ids — and even normally read-only fields set — without DML or setup bloat.</span>
+      </li>
+      <li>
+        <strong><a href="/dml">DML</a></strong>
+        <span>Every write behind one injectable facade. Capture and assert operations in tests with DMLMock.</span>
+      </li>
+      <li>
+        <strong><a href="/query">Query</a></strong>
+        <span>Swap SOQL for staged results. Prove data-access behavior without a database — single or sequential responses.</span>
+      </li>
+      <li>
+        <strong><a href="/platform-cache">PlatformCache</a></strong>
+        <span>Org and session Platform Cache behind a mockable seam — the part of the platform that is notoriously hard to test, finally testable.</span>
+      </li>
+      <li>
+        <strong><a href="/record-buffer">RecordBuffer</a></strong>
+        <span>Stage inserts and updates across a transaction, then flush grouped, deduplicated upserts at a controlled point.</span>
+      </li>
+      <li>
+        <strong><a href="/trigger-handler">TriggerHandler</a></strong>
+        <span>Context detection and dispatch handled; you override only the before/after hooks that matter.</span>
+      </li>
+      <li>
+        <strong><a href="/feature-flag">FeatureFlag</a></strong>
+        <span>Metadata-driven toggles that fail closed, with one-line overrides for tests.</span>
+      </li>
+      <li>
+        <strong><a href="/generic">Generic</a></strong>
+        <span>Tame untyped JSON with path access, type coercion, and typed SObject conversion.</span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="doc-section" id="designed-in-layers">
+    <h2>Designed in Layers</h2>
+    <p>
+      Separation of concerns is the organizing principle. Bedrock gives each
+      layer a home so logic stops leaking across boundaries — and so the next
+      engineer can find it where they expect.
+    </p>
+    <ul class="token-list">
+      <li>
+        <strong>Schema</strong>
+        <span>SObjects, metadata, and settings that define the system's shape.</span>
+      </li>
+      <li>
+        <strong>Domain</strong>
+        <span>Triggers and record lifecycle behavior, coordinated by small handlers.</span>
+      </li>
+      <li>
+        <strong>Selector</strong>
+        <span>Reusable, testable query logic built on Query.</span>
+      </li>
+      <li>
+        <strong>Service</strong>
+        <span>Cross-record orchestration and the business behavior that matters.</span>
+      </li>
+      <li>
+        <strong>UI Layer</strong>
+        <span>Components and thin controllers that adapt to the glass and delegate complexity to services.</span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="doc-section" id="built-to-grow">
+    <h2>Built to Grow</h2>
+    <p>
+      The foundation is shipping today. The roadmap extends the same
+      developer-first philosophy into query encapsulation and a shared async
+      foundation — each delivered one deliberate, inspectable bite at a time,
+      never as a speculative megaframework.
+    </p>
+    <div class="pill-row">
+      <span class="pill">Selector</span>
+      <span class="pill">Selector.Cached</span>
+      <span class="pill">Async</span>
+      <span class="pill">Event</span>
+      <span class="pill">Scheduler</span>
+      <span class="pill">LimitsService</span>
+    </div>
+    <p style="margin-top: 1rem;">
+      Async, Event, and Scheduler will share one foundation while keeping
+      separate execution pools, and consult a limit-aware service before running
+      work — so framework automation protects org health instead of threatening
+      it.
+    </p>
+  </section>
+
+  <section class="doc-section" id="start-building">
+    <h2>Start Building</h2>
+    <p>
+      Stand up the docs locally, then start with the testing foundation —
+      <code>TestData</code>, <code>DML</code>, and <code>Query</code> — and feel
+      how fast a Bedrock test suite runs.
     </p>
     <div class="utility-panel">
       <div>
-        <h3>Next page</h3>
+        <h3>Ready in minutes</h3>
         <p>
-          Use the starter guide to document how to run the docs locally and how to
-          choose the first API page.
+          Begin with the getting-started guide, or jump straight into the API
+          that anchors every Bedrock test.
         </p>
       </div>
-      <a class="button button-primary" href="/getting-started">Getting Started</a>
+      <div class="pill-row" style="gap: 0.6rem;">
+        <a class="button button-primary" href="/getting-started">Getting Started</a>
+        <a class="button button-secondary" href="/test-data">TestData API</a>
+      </div>
     </div>
   </section>
 </DocsLayout>
