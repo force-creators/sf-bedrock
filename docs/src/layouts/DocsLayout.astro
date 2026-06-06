@@ -1,0 +1,155 @@
+---
+import '../styles/docs-layout.css';
+import { navGroups, type SectionLink } from '../data/docs-navigation';
+
+interface Props {
+  title: string;
+  description?: string;
+  eyebrow?: string;
+  heading?: string;
+  lede?: string;
+  sections?: SectionLink[];
+}
+
+const propsSource: Props = (Astro.props.frontmatter ?? Astro.props) as Props;
+
+const {
+  title,
+  description = 'Technical documentation for sf-bedrock.',
+  eyebrow = 'Documentation',
+  heading,
+  lede,
+  sections = []
+} = propsSource;
+
+const hasHeaderSlot = Astro.slots.has('header');
+
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isActive = (href: string) => href !== '#' && (href.replace(/\/$/, '') || '/') === currentPath;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="/icon.ico" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/">
+          <span class="brand-mark">
+            <img src="/icon.svg" alt="" />
+          </span>
+          <span class="brand-text">sf-bedrock documentation</span>
+        </a>
+        <div class="top-actions">
+          <div class="search" role="search" aria-label="Documentation search placeholder">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="m20 20-4.2-4.2m1.4-5.1a6.2 6.2 0 1 1-12.4 0 6.2 6.2 0 0 1 12.4 0Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+            </svg>
+            <span>Search docs</span>
+          </div>
+          <a class="header-link" href="https://github.com/" target="_blank" rel="noreferrer">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M7 17 17 7M9 7h8v8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            Repository
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar" aria-label="Documentation navigation">
+        <nav class="sidebar-inner">
+          {
+            navGroups.map((group) => (
+              <section class="nav-group" aria-labelledby={`nav-${group.label.toLowerCase()}`}>
+                <h2 class="nav-heading" id={`nav-${group.label.toLowerCase()}`}>{group.label}</h2>
+                <ul class="nav-list">
+                  {
+                    group.items.map((item) => (
+                      <li>
+                        <a
+                          class:list={[
+                            'nav-link',
+                            item.href === '#' && 'nav-link-disabled'
+                          ]}
+                          href={item.href}
+                          aria-current={isActive(item.href) ? 'page' : undefined}
+                        >
+                          <span>{item.label}</span>
+                          {item.status && <span class="status">{item.status}</span>}
+                        </a>
+                      </li>
+                    ))
+                  }
+                </ul>
+              </section>
+            ))
+          }
+        </nav>
+      </aside>
+
+      <main class="content-wrap">
+        <article class="content">
+          <header class="article-header">
+            <div class="article-kicker">{eyebrow}</div>
+            {
+              hasHeaderSlot ? (
+                <slot name="header" />
+              ) : (
+                <Fragment>
+                  <h1 class="page-title">{heading ?? title}</h1>
+                  {lede && <p class="lede">{lede}</p>}
+                </Fragment>
+              )
+            }
+          </header>
+          <slot />
+        </article>
+        <footer class="site-footer">A technical documentation workspace for human-maintainable Salesforce architecture.</footer>
+      </main>
+
+      <aside class="toc" aria-label="On this page">
+        <nav class="toc-inner">
+          <h2 class="toc-heading">On this page</h2>
+          {
+            sections.length > 0 ? (
+              <ul class="toc-list">
+                {
+                  sections.map((section) => (
+                    <li>
+                      <a class="toc-link" href={section.href}>{section.label}</a>
+                    </li>
+                  ))
+                }
+              </ul>
+            ) : (
+              <p class="toc-empty">Section links appear here when a page defines them.</p>
+            )
+          }
+        </nav>
+      </aside>
+    </div>
+  </body>
+</html>

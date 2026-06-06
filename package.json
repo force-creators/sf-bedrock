@@ -6,6 +6,7 @@
   "scripts": {
     "deploy": "node scripts/deploy-library.mjs",
     "validate": "node scripts/validate-library.mjs",
+    "docs": "node scripts/docs.mjs",
     "lint": "eslint **/{aura,lwc}/**/*.js",
     "test:unit": "sfdx-lwc-jest",
     "test:unit:watch": "sfdx-lwc-jest --watch",

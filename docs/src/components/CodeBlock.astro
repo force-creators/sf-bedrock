@@ -1,0 +1,140 @@
+---
+import { Code } from 'astro:components';
+
+interface Props {
+  code: string;
+  lang?: string;
+  title?: string;
+  subtitle?: string;
+}
+
+const {
+  code,
+  lang = 'text',
+  title = 'Code',
+  subtitle = ''
+} = Astro.props;
+
+const blockId = `code-${crypto.randomUUID()}`;
+---
+
+<div class="code-panel">
+  <div class="code-panel-header">
+    <span>{title}</span>
+    {subtitle && <span>{subtitle}</span>}
+  </div>
+  <button class="code-copy-button" type="button" data-code-target={blockId} aria-label="Copy code block">
+    Copy
+  </button>
+  <div id={blockId} data-code-content>
+    <Code code={code} lang={lang} />
+  </div>
+</div>
+
+<script is:inline>
+  const initializedFlag = '__sfBedrockCodeCopyInitialized';
+
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+  }
+
+  if (!(initializedFlag in window)) {
+    window[initializedFlag] = true;
+
+    document.addEventListener('click', async (event) => {
+      const clickedElement = event.target;
+      if (!(clickedElement instanceof Element)) {
+        return;
+      }
+
+      const button = clickedElement.closest('.code-copy-button[data-code-target]');
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const targetId = button.getAttribute('data-code-target');
+      const source = targetId ? document.getElementById(targetId) : null;
+      const codeNode = source ? source.querySelector('pre code') : null;
+      const codeText = codeNode ? codeNode.textContent || '' : '';
+
+      if (!codeText) {
+        return;
+      }
+
+      try {
+        await copyText(codeText);
+        const originalLabel = button.textContent;
+        button.textContent = 'Copied';
+        button.classList.add('is-copied');
+        setTimeout(() => {
+          button.textContent = originalLabel;
+          button.classList.remove('is-copied');
+        }, 1400);
+      } catch {
+        button.textContent = 'Copy failed';
+        setTimeout(() => {
+          button.textContent = 'Copy';
+        }, 1400);
+      }
+    });
+  }
+</script>
+
+<style>
+  .code-copy-button {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.65rem;
+    min-height: 1.6rem;
+    min-width: 4.1rem;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 0.3rem;
+    color: #dce8f6;
+    background: rgba(6, 26, 51, 0.68);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+
+  .code-copy-button:hover,
+  .code-copy-button:focus-visible {
+    border-color: rgba(255, 255, 255, 0.52);
+    background: rgba(6, 26, 51, 0.92);
+    outline: none;
+  }
+
+  .code-copy-button.is-copied {
+    border-color: rgba(69, 198, 90, 0.75);
+    color: #c3f0ca;
+  }
+
+  .code-panel :global(pre.astro-code) {
+    margin: 0;
+    padding: 0.65rem 0.85rem;
+    line-height: 1.45;
+  }
+
+  .code-panel :global(pre.astro-code code) {
+    line-height: 1.45;
+  }
+
+  .code-panel :global(pre.astro-code .line) {
+    margin: 0;
+    padding: 0;
+  }
+</style>

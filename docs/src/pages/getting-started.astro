@@ -1,0 +1,111 @@
+---
+import DocsLayout from '../layouts/DocsLayout.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+
+const codeRunLocally = `cd docs
+npm install
+npm run dev`;
+
+const codeValidation = `npm run build`;
+
+const sections = [
+  { label: 'Run Locally', href: '#run-locally' },
+  { label: 'Authoring Shape', href: '#authoring-shape' },
+  { label: 'First Content Pass', href: '#first-content-pass' },
+  { label: 'Validation', href: '#validation' }
+];
+---
+
+<DocsLayout
+  title="Getting Started | sf-bedrock docs"
+  description="Getting started with the sf-bedrock Astro documentation site."
+  eyebrow="Getting Started"
+  sections={sections}
+>
+  <Fragment slot="header">
+    <h1>Open the docs workspace.</h1>
+    <p class="lede">
+      The docs app is intentionally small: an Astro shell, a documentation layout,
+      and starter pages that can grow one reliable Bedrock API at a time.
+    </p>
+  </Fragment>
+
+  <section class="doc-section" id="run-locally">
+    <h2>Run Locally</h2>
+    <p>
+      The documentation site lives in <code>docs/</code>. Install dependencies in
+      that folder, then start the Astro preview server.
+    </p>
+    <CodeBlock code={codeRunLocally} lang="bash" title="Terminal" subtitle="docs workspace" />
+  </section>
+
+  <section class="doc-section" id="authoring-shape">
+    <h2>Authoring Shape</h2>
+    <p>
+      Each page should read like a contract: what the tool owns, how production
+      code calls it, how tests replace or assert it, and which edge behavior
+      developers need to remember.
+    </p>
+    <div class="doc-grid">
+      <article class="doc-card">
+        <h3>Contract</h3>
+        <p>Name the responsibility before listing methods or examples.</p>
+      </article>
+      <article class="doc-card">
+        <h3>Usage</h3>
+        <p>Show the smallest Apex snippet that proves how the API is meant to feel.</p>
+      </article>
+      <article class="doc-card">
+        <h3>Testing</h3>
+        <p>Document the mock path and the assertion shape alongside the production path.</p>
+      </article>
+      <article class="doc-card">
+        <h3>Boundaries</h3>
+        <p>Separate implemented behavior from roadmap notes and planned names.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="doc-section" id="first-content-pass">
+    <h2>First Content Pass</h2>
+    <p>
+      Start with the tools that already exist in <code>force-app/bedrock/lib</code>.
+      A useful order is the testing foundation first, then trigger coordination,
+      then roadmap pages once the public shape is clearer.
+    </p>
+    <ul class="token-list">
+      <li>
+        <strong>1. TestData</strong>
+        <span>Fast setup examples, mock Ids, relationship fields, and typed casting.</span>
+      </li>
+      <li>
+        <strong>2. DML</strong>
+        <span>Production facade, mock recording, and assertions for operation intent.</span>
+      </li>
+      <li>
+        <strong>3. Query</strong>
+        <span>Single and multiple mock responses, query ordering, and failure expectations.</span>
+      </li>
+      <li>
+        <strong>4. RecordBuffer</strong>
+        <span>Trigger-context staging, grouped flush behavior, and recursion-minded usage.</span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="doc-section" id="validation">
+    <h2>Validation</h2>
+    <p>
+      Build the docs before shipping layout changes. The build is fast and catches
+      invalid Astro markup, broken imports, and accidental client-only assumptions.
+    </p>
+    <CodeBlock code={codeValidation} lang="bash" title="Terminal" subtitle="from docs/" />
+    <div class="callout">
+      <strong>Keep docs trustworthy</strong>
+      <p>
+        When a page describes Apex behavior, verify it against the current class
+        before presenting it as an implemented contract.
+      </p>
+    </div>
+  </section>
+</DocsLayout>

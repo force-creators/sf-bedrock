@@ -1,0 +1,116 @@
+---
+import DocsLayout from '../layouts/DocsLayout.astro';
+
+const sections = [
+  { label: 'What Bedrock Is', href: '#what-bedrock-is' },
+  { label: 'Layer Map', href: '#layer-map' },
+  { label: 'Implemented Tools', href: '#implemented-tools' },
+  { label: 'Documentation Rules', href: '#documentation-rules' }
+];
+---
+
+<DocsLayout
+  title="sf-bedrock technical docs"
+  description="Technical documentation for the sf-bedrock Salesforce architecture toolkit."
+  eyebrow="Overview"
+  sections={sections}
+>
+  <Fragment slot="header">
+    <h1>Build cleaner Salesforce automation.</h1>
+    <p class="lede">
+      sf-bedrock is a base layer for stable Apex architecture: dependency injection
+      for data access and DML, efficient tests, trigger hygiene, and service
+      patterns that keep enterprise automation understandable.
+    </p>
+  </Fragment>
+
+  <section class="doc-section" id="what-bedrock-is">
+    <h2>What Bedrock Is</h2>
+    <p>
+      Bedrock gives Salesforce teams a small set of predictable framework seams.
+      Production code stays direct and readable, while tests can replace DML,
+      query behavior, cache access, and staged trigger work without building a
+      heavy test harness.
+    </p>
+    <div class="callout">
+      <strong>Design principle</strong>
+      <p>
+        Start with the implemented library in <code>force-app/bedrock/lib</code>.
+        Roadmap topics should be marked clearly until the API exists.
+      </p>
+    </div>
+  </section>
+
+  <section class="doc-section" id="layer-map">
+    <h2>Layer Map</h2>
+    <p>
+      The architecture separates record lifecycle automation from reusable query
+      logic, UI adapters, and service coordination. The docs should make those
+      boundaries visible before diving into individual classes.
+    </p>
+    <div class="doc-grid">
+      <article class="doc-card">
+        <h3>Domain</h3>
+        <p>Triggers and record lifecycle behavior live here, coordinated by small handlers.</p>
+      </article>
+      <article class="doc-card">
+        <h3>Selector</h3>
+        <p>Query logic belongs behind reusable selectors that build on <code>Query</code>.</p>
+      </article>
+      <article class="doc-card">
+        <h3>Service</h3>
+        <p>Cross-record orchestration and meaningful business behavior belong in services.</p>
+      </article>
+      <article class="doc-card">
+        <h3>UI Layer</h3>
+        <p>Controllers should adapt component needs and delegate meaningful complexity.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="doc-section" id="implemented-tools">
+    <h2>Implemented Tools</h2>
+    <p>
+      The first documentation pass should focus on the APIs already present in
+      the library. That gives readers a reliable path before introducing planned
+      Selector, Async, Event, Scheduler, or LimitsService work.
+    </p>
+    <ul class="token-list">
+      <li>
+        <strong>TestData</strong>
+        <span>Builds mockable or insertable records with focused field setup and generated Ids.</span>
+      </li>
+      <li>
+        <strong>DML</strong>
+        <span>Centralizes DML through an injectable service and captures operations in tests.</span>
+      </li>
+      <li>
+        <strong>Query</strong>
+        <span>Provides a static facade over virtual query behavior for predictable data access tests.</span>
+      </li>
+      <li>
+        <strong>RecordBuffer</strong>
+        <span>Stages inserts and updates during trigger flows so services can cooperate safely.</span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="doc-section" id="documentation-rules">
+    <h2>Documentation Rules</h2>
+    <p>
+      Each page should name the production contract, show the smallest useful
+      example, and call out test behavior. Keep roadmap notes separate from
+      shipped APIs so developers can trust what they read.
+    </p>
+    <div class="utility-panel">
+      <div>
+        <h3>Next page</h3>
+        <p>
+          Use the starter guide to document how to run the docs locally and how to
+          choose the first API page.
+        </p>
+      </div>
+      <a class="button button-primary" href="/getting-started">Getting Started</a>
+    </div>
+  </section>
+</DocsLayout>
