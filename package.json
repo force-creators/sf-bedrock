@@ -5,8 +5,8 @@
   "description": "Salesforce App",
   "scripts": {
     "deploy": "node scripts/deploy-library.mjs",
+    "validate": "node scripts/validate-library.mjs",
     "lint": "eslint **/{aura,lwc}/**/*.js",
-    "test": "npm run test:unit",
     "test:unit": "sfdx-lwc-jest",
     "test:unit:watch": "sfdx-lwc-jest --watch",
     "test:unit:debug": "sfdx-lwc-jest --debug",

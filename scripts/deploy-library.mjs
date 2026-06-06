@@ -2,13 +2,42 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const [libraryName, ...deployArguments] = process.argv.slice(2);
+const scriptArguments = process.argv.slice(2);
 
-if (!libraryName || libraryName === '--help' || libraryName === '-h') {
-  console.error('Usage: npm run deploy -- <library-name-or-path> [additional sf deploy args]');
-  console.error('Example: npm run deploy -- async --dry-run');
-  process.exit(libraryName ? 0 : 1);
+if (scriptArguments[0] === '--help' || scriptArguments[0] === '-h') {
+  console.error('Usage: npm run deploy [-- <library-name-or-path>] [additional sf deploy args]');
+  console.error('Examples:');
+  console.error('  npm run deploy');
+  console.error('  npm run deploy -- async --dry-run');
+  console.error('  npm run deploy -- --dry-run');
+  process.exit(0);
 }
+
+const hasDeployTarget = Boolean(scriptArguments[0]) && !scriptArguments[0].startsWith('-');
+
+if (!hasDeployTarget) {
+  const commandArguments = [
+    'project',
+    'deploy',
+    'start',
+    '--target-org',
+    'sf-bedrock',
+    ...scriptArguments,
+  ];
+
+  console.log(`Running: sf ${commandArguments.join(' ')}`);
+
+  const result = spawnSync('sf', commandArguments, { stdio: 'inherit' });
+
+  if (result.error) {
+    console.error(result.error.message);
+    process.exit(1);
+  }
+
+  process.exit(result.status ?? 1);
+}
+
+const [libraryName, ...deployArguments] = scriptArguments;
 
 const candidatePaths = [
   libraryName,
