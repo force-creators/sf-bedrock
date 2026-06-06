@@ -90,6 +90,8 @@ public inherited sharing class RecordBuffer {
 
             SObjectType sObjectType = recordId.getSObjectType();
             Map<Id, SObject> recordsById = this.updates.get(sObjectType);
+            if (recordsById == null)
+                return sObjectType.newSObject(recordId);
             if (!recordsById.containsKey(recordId)) 
                 return sObjectType.newSObject(recordId);
 
