@@ -42,8 +42,28 @@ treat every roadmap note as an implemented contract.
   impact.
 - Current rough edges may be noticed, but do not fix unrelated issues unless
   they are clearly in scope or qualify as a tiny obvious fix.
-- Discuss validation per task. Do not add Salesforce CLI command examples to
-  this guide.
+- Apex and metadata edits are not finished when files are written. Save the
+  files, run Salesforce validation, fix task-related validation errors
+  autonomously, and rerun validation before handing work back.
+
+### Salesforce CLI Validation
+
+Use `sf-bedrock` as the target org alias for Salesforce CLI work in this repo.
+Do not rely on a default org being configured in the agent environment.
+
+- After changing Apex or Salesforce metadata, run a dry-run deploy against the
+  changed source before considering the edit complete:
+  `sf project deploy start --source-dir <changed-source> --target-org sf-bedrock`.
+- If the dry run reports compile, metadata, or test validation errors caused by
+  the current task, fix them autonomously and rerun the dry run.
+- Treat Salesforce deploy errors as the compiler's source of truth. Update the
+  code in response to concrete deploy feedback rather than guessing around it.
+- If Salesforce CLI access fails because of keychain, org auth, or sandbox
+  permissions, retry with the approved escalation flow. Only report validation
+  as blocked after the escalated command also cannot access the org or the org
+  itself is unavailable.
+- Brief Salesforce CLI command examples are allowed in this guide when they
+  prevent repeated validation mistakes.
 
 ## Architecture Layers
 
@@ -86,6 +106,11 @@ logic grow.
   the framework harder to reason about.
 - Avoid passing stateful `SObject` payloads into async work. Prefer stable
   identifiers or explicitly stateless payloads.
+- Avoid production compile dependencies on test or mock classes. When a mock
+  extends a production abstraction, production APIs should accept the
+  abstraction type, not the mock type.
+- If a concrete method may be overridden by subclasses, mark it `virtual`. When
+  overriding a method and preserving extensibility, use `override virtual`.
 - Code shall be human readable and self documenting.
 - Code should avoid abbreviations.
 
@@ -97,18 +122,43 @@ and make the proof easy to understand.
 
 Test class conventions:
 
-- New or updated Apex unit test metadata should use API version `56.0`. This is
-  an intentional test compatibility standard even when nearby project metadata
-  uses a newer source API version.
-- Use the `@IsTest(testFor="ApexClass:ClassName")` annotation form for test
-  classes.
+- New or updated Apex unit test metadata should use API version `66.0`.
+- Always inspect and update the matching `*.cls-meta.xml` file when adding or
+  editing an Apex unit test. Verify that the metadata API version remains
+  `66.0`.
+- Prefer lowercase `@istest` in this repo.
+- For test methods, prefer inline annotation style:
+  `@istest static void testFeature_subtype() { ... }`
+- Class-level `@istest` and `@istest(testFor=...)` are allowed when they add
+  clarity or intent, but method annotations should still use the inline style.
 - Use the `Assert` class for assertions. Do not use `System.assert*`.
 - Every assertion must include a meaningful message that explains the expected
   behavior or artifact.
-- When adding or changing unit tests, run the relevant Apex tests and verify
-  they pass before considering the test work finished. The Salesforce CLI may
-  be used for this validation; if local org or CLI access is unavailable,
-  report that clearly.
+- When adding or changing unit tests, dry-run deploy the changed production
+  classes, mocks, and tests before running the test. If a new test references a
+  new helper or mock class, include that helper or mock in the deploy source so
+  the test compiles in the org.
+- Remember that a dry-run deploy validates source but does not update the org.
+  If you need the org test run to reflect your latest test changes, perform a
+  real deploy of the changed source before running `sf apex run test`.
+- After dry-run validation succeeds, run the relevant Apex test by name with
+  `--target-org sf-bedrock` and verify it passes before considering the test
+  work finished. Fix task-related test failures autonomously and rerun the
+  test.
+
+Metadata version conventions:
+
+- Apex unit test classes should use API version `66.0`.
+- Non-test Apex classes and other metadata should use API version `65.0` unless
+  a task explicitly requires something else.
+
+Salesforce CLI workflow notes:
+
+- Use the `sf-bedrock` alias explicitly in every CLI command.
+- If `sf` cannot find the alias or auth inside the sandbox, retry with the
+  approved escalation flow before treating validation as blocked. In this repo,
+  that commonly means sandboxed access cannot reach the stored org auth even
+  though the org itself is available.
 
 Test data conventions:
 
