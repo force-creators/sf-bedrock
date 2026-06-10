@@ -4,7 +4,7 @@ public with sharing class AsyncBacklogController {
         List<Async__c> workItems = [
             SELECT Id, Name, Apex__c, CreatedBy.Name, CreatedDate, Priority__c, Record_Id__c, Status__c, Thread__c
             FROM Async__c
-            WHERE Status__c != 'Done'
+            WHERE Status__c NOT IN ('Done', 'Error')
             ORDER BY Thread__c ASC, Priority__c DESC NULLS LAST, CreatedDate ASC
             LIMIT 500
         ];

@@ -83,6 +83,10 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             work.running(workItemIds);
         }
 
+        public void retry(Set<Id> workItemIds) {
+            work.retry(workItemIds);
+        }
+
         public virtual Boolean canEnqueue() {
             return !Test.isRunningTest();
         }
@@ -118,6 +122,12 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             ));
         }
 
+        public virtual void retry(Set<Id> workItemIds) {
+            System.debug('Current Thread: ' + jobs.threadId);
+            System.debug('TX: Id:' + Request.getCurrent().getRequestId());
+            updateStatus(workItemIds, new Async__c(Status__c = 'Pending', Thread__c = jobs.threadId));
+        }
+
         public virtual void running(Set<Id> workItemIds) {
             updateStatus(workItemIds, new Async__c(Status__c = 'Running'));
         }
@@ -142,14 +152,14 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             List<SObject> updates = new List<SObject>();
 
             for (Id workItemId : workItemIds) {
-                updates.add(new Async__c(
-                    Id = workItemId,
-                    Status__c = values.Status__c,
-                    Error_Message__c = values.Error_Message__c,
-                    Error_Stack_Trace__c = values.Error_Stack_Trace__c
-                ));
+                Async__c updateRecord = new Async__c(Id = workItemId);
+                if(values.Status__c != null) updateRecord.Status__c = values.Status__c;
+                if(values.Error_Message__c != null) updateRecord.Error_Message__c = values.Error_Message__c;
+                if(values.Error_Stack_Trace__c != null) updateRecord.Error_Stack_Trace__c = values.Error_Stack_Trace__c;
+                if(values.Thread__c != null) updateRecord.Thread__c = values.Thread__c;
+                updates.add(updateRecord);
             }
-
+                    
             DML.updateRecords(updates);
         }
 

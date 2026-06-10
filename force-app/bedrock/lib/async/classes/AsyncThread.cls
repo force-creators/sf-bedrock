@@ -5,6 +5,7 @@ public with sharing class AsyncThread implements Queueable {
     }
 
     public void execute(QueueableContext context) {
+        System.debug('Async thread id ' + this.threadId);
         Async.jobs.threadId = this.threadId; //set the thread context
         Async.jobs.enqueueNextJob();
     }
