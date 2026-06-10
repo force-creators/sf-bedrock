@@ -1,5 +1,39 @@
 <template>
-    <section class="page-placeholder" aria-label="Job Configurations">
-        <h2>Job Configurations</h2>
+    <section class="job-configurations" aria-label="Job Configurations">
+        <header class="job-configurations-header">
+            <div>
+                <p class="eyebrow">Async_Config__mdt</p>
+                <h2>Job Configurations</h2>
+                <p class="description">Configured async job defaults by Apex class.</p>
+            </div>
+
+            <div class="record-count">{recordCountLabel}</div>
+        </header>
+
+        <template lwc:if={hasError}>
+            <div class="error-message" role="status">{errorMessage}</div>
+        </template>
+
+        <template lwc:elseif={hasRows}>
+            <lightning-datatable
+                key-field="id"
+                columns={columns}
+                data={rows}
+                hide-checkbox-column
+                is-loading={isLoading}
+                onrowaction={handleRowAction}
+            ></lightning-datatable>
+        </template>
+
+        <template lwc:else>
+            <div class="empty-state" role="status">
+                <lightning-icon
+                    icon-name="utility:settings"
+                    size="medium"
+                    alternative-text=""
+                ></lightning-icon>
+                <p>No job configuration records found.</p>
+            </div>
+        </template>
     </section>
 </template>
