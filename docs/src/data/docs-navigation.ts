@@ -52,5 +52,11 @@ export const navGroups: NavGroup[] = [
       { label: 'DML', href: '/dml' },
       { label: 'Query', href: '/query' }
     ]
+  },
+  {
+    label: 'Other',
+    items: [
+      { label: 'Pluck', href: '/pluck' }
+    ]
   }
 ];

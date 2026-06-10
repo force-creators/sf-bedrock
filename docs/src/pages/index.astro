@@ -1,54 +1,14 @@
 ---
 import DocsLayout from '../layouts/DocsLayout.astro';
-import { Code } from 'astro:components';
 
 const sections = [
   { label: 'Why Bedrock', href: '#why-bedrock' },
   { label: 'Proven Under Load', href: '#battle-tested' },
-  { label: 'See It In Action', href: '#see-it-in-action' },
   { label: 'The Toolkit', href: '#the-toolkit' },
   { label: 'Designed in Layers', href: '#designed-in-layers' },
   { label: 'Built to Grow', href: '#built-to-grow' },
   { label: 'Start Building', href: '#start-building' }
 ];
-
-const codeFastTest = `@istest
-static void testAssignsTier_forHighRevenueAccounts() {
-    // In-memory records — no insert, no SOQL, no governor cost.
-    List<Account> accounts = (List<Account>) new TestData(Account.sObjectType)
-        .put(Account.AnnualRevenue, 25000000)
-        .mockIds()
-        .count(200)
-        .build();
-
-    // Swap the data layer for mocks. Production code never changes.
-    Query.setMock(new QueryMock(accounts));
-    DMLMock dml = new DMLMock();
-    DML.setMock(dml);
-
-    new AccountTierService().assignTiers();
-
-    Assert.areEqual(200, dml.updates[0].size(),
-        'Every high-revenue account should be re-tiered in one bulk update.');
-}`;
-
-const codeTrigger = `// The handler: context is unpacked for you, you write the intent.
-public class AccountTriggerHandler extends TriggerHandler {
-    public void execute() { this.run(); }
-
-    protected override void beforeInsert(List<SObject> records) {
-        for (Account account : (List<Account>) records) {
-            if (String.isBlank(account.ShippingCountry)) {
-                account.ShippingCountry = 'USA';
-            }
-        }
-    }
-}
-
-// The trigger: one line of real work.
-trigger AccountTrigger on Account (before insert, before update) {
-    new AccountTriggerHandler().execute();
-}`;
 ---
 
 <DocsLayout
@@ -148,23 +108,6 @@ trigger AccountTrigger on Account (before insert, before update) {
         <span>Designed to stay inside platform limits, not race against them.</span>
       </li>
     </ul>
-  </section>
-
-  <section class="doc-section" id="see-it-in-action">
-    <h2>See It In Action</h2>
-    <p>
-      Here is a service test that exercises 200 records with zero DML and zero
-      SOQL. Production code calls <code>DML</code> and <code>Query</code>; the
-      test swaps in mocks underneath it and never changes a line of the service.
-    </p>
-    <Code code={codeFastTest} lang="apex" />
-    <p>
-      And here is a complete trigger. <code>TriggerHandler</code> detects the
-      context, opens a <code>RecordBuffer</code>, dispatches to the right hook,
-      and flushes — so your trigger file is a single line and all the logic lives
-      in a class you can test.
-    </p>
-    <Code code={codeTrigger} lang="apex" />
   </section>
 
   <section class="doc-section" id="the-toolkit">
