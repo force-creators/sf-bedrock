@@ -4,7 +4,7 @@ import { Code } from 'astro:components';
 
 const sections = [
   { label: 'Why Bedrock', href: '#why-bedrock' },
-  { label: 'Battle-Tested', href: '#battle-tested' },
+  { label: 'Proven Under Load', href: '#battle-tested' },
   { label: 'See It In Action', href: '#see-it-in-action' },
   { label: 'The Toolkit', href: '#the-toolkit' },
   { label: 'Designed in Layers', href: '#designed-in-layers' },
@@ -53,22 +53,22 @@ trigger AccountTrigger on Account (before insert, before update) {
 
 <DocsLayout
   title="sf-bedrock — enterprise Apex that stays readable"
-  description="sf-bedrock is a developer-first Salesforce architecture toolkit: dependency injection, memory-speed tests, and trigger hygiene, battle-tested in Fortune 100 orgs."
+  description="sf-bedrock is a Salesforce architecture toolkit: dependency injection, tests that run without a database, and clean trigger patterns — proven in Fortune 100 orgs."
   eyebrow="Salesforce Architecture Toolkit"
   sections={sections}
 >
   <Fragment slot="header">
     <h1>Apex that scales without the ceremony.</h1>
     <p class="lede">
-      sf-bedrock is a developer-first foundation for enterprise Salesforce —
-      dependency injection, memory-speed tests, and trigger hygiene that protect
-      high-volume orgs while staying readable to the engineers who own them. The
-      patterns at its core are battle-tested in Fortune 100 Salesforce orgs.
+      sf-bedrock is a foundation for enterprise Apex: dependency injection, unit
+      tests that never touch the database, and trigger patterns that stay clean
+      under load. It keeps high-volume orgs safe without making everyday code
+      heavy — and it reads the way the engineer who owns it would write it.
     </p>
     <div class="pill-row" style="margin-top: 1.25rem;">
       <span class="pill">Dependency Injection</span>
-      <span class="pill">Memory-Speed Tests</span>
-      <span class="pill">Trigger Hygiene</span>
+      <span class="pill">Database-Free Tests</span>
+      <span class="pill">Clean Triggers</span>
       <span class="pill">Human-Maintainable</span>
     </div>
     <div class="pill-row" style="margin-top: 1.5rem; gap: 0.6rem;">
@@ -80,18 +80,18 @@ trigger AccountTrigger on Account (before insert, before update) {
   <section class="doc-section" id="why-bedrock">
     <h2>Why Bedrock</h2>
     <p>
-      Enterprise Salesforce automation usually forces a trade: heavy frameworks
-      that make code testable but obscure, or lean code that is readable until
-      the test suite grinds to a halt against the database. Bedrock refuses the
-      trade. It is a small set of dependency-injection seams that keep production
-      code direct and your tests fast — without a rewrite of how your team works.
+      Enterprise Salesforce usually forces a trade: heavy frameworks that make
+      code testable but obscure, or lean code that reads well until the test
+      suite grinds against the database. Bedrock takes neither side. It is a
+      small set of dependency-injection seams that keep production code direct
+      and tests fast — no rewrite of how your team already works.
     </p>
     <div class="doc-grid">
       <article class="doc-card">
-        <h3>Memory-speed tests</h3>
+        <h3>Tests without a database</h3>
         <p>
-          Inject mocks for DML, SOQL, and cache so unit tests never touch the
-          database. Suites that crawled for minutes finish in seconds.
+          Mock DML, SOQL, and cache so unit tests never touch the database.
+          Suites that took minutes finish in seconds.
         </p>
       </article>
       <article class="doc-card">
@@ -111,42 +111,41 @@ trigger AccountTrigger on Account (before insert, before update) {
       <article class="doc-card">
         <h3>Composable, not monolithic</h3>
         <p>
-          Adopt one tool or all of them. Each composes cleanly; none demands you
-          surrender your architecture to it.
+          Adopt one tool or all of them. Each stands on its own and composes with
+          the rest — none takes over your architecture.
         </p>
       </article>
     </div>
   </section>
 
   <section class="doc-section" id="battle-tested">
-    <h2>Battle-Tested Foundations</h2>
+    <h2>Proven Under Real Load</h2>
     <p>
-      Bedrock is not a whiteboard exercise. The patterns at its core have run in
-      Fortune 100 Salesforce orgs — among the highest-volume, highest-scrutiny
-      environments on the platform — where flaky tests, recursive triggers, and
-      governor limits are not theoretical. Bedrock distills what survived that
-      pressure into a foundation any team can adopt.
+      These patterns started in Fortune 100 Salesforce orgs — high-volume,
+      high-scrutiny environments where flaky tests, recursive triggers, and
+      governor limits are daily realities, not edge cases. Bedrock is what
+      held up under that pressure, packaged so any team can adopt it.
     </p>
     <div class="callout">
       <strong>Developer-first, by design</strong>
       <p>
-        The mission is high-service automation that protects the org while
-        staying understandable to the people who own it. Every abstraction earns
-        its place — if it makes everyday development heavier, it does not ship.
+        The goal is automation that protects the org and still makes sense to the
+        people who own it. Every abstraction earns its place — if it makes
+        everyday work heavier, it does not ship.
       </p>
     </div>
     <ul class="token-list">
       <li>
-        <strong>Proven at scale</strong>
-        <span>Born in orgs with millions of records and unforgiving daily volume.</span>
+        <strong>Built for scale</strong>
+        <span>Shaped by orgs with millions of records and unforgiving daily volume.</span>
       </li>
       <li>
-        <strong>Test-obsessed</strong>
-        <span>Assertions prove behavior and mutations — not coverage theater.</span>
+        <strong>Tests that mean something</strong>
+        <span>Assertions prove real behavior and mutations, not just coverage.</span>
       </li>
       <li>
         <strong>Org-protective</strong>
-        <span>Designed to keep automation inside platform limits, not race against them.</span>
+        <span>Designed to stay inside platform limits, not race against them.</span>
       </li>
     </ul>
   </section>
@@ -154,9 +153,9 @@ trigger AccountTrigger on Account (before insert, before update) {
   <section class="doc-section" id="see-it-in-action">
     <h2>See It In Action</h2>
     <p>
-      The payoff is concrete. Here is a service test that exercises 200 records
-      with zero DML and zero SOQL — production code calls <code>DML</code> and
-      <code>Query</code>, and the test swaps in mocks underneath it.
+      Here is a service test that exercises 200 records with zero DML and zero
+      SOQL. Production code calls <code>DML</code> and <code>Query</code>; the
+      test swaps in mocks underneath it and never changes a line of the service.
     </p>
     <Code code={codeFastTest} lang="apex" />
     <p>
@@ -244,10 +243,10 @@ trigger AccountTrigger on Account (before insert, before update) {
   <section class="doc-section" id="built-to-grow">
     <h2>Built to Grow</h2>
     <p>
-      The foundation is shipping today. The roadmap extends the same
-      developer-first philosophy into query encapsulation and a shared async
-      foundation — each delivered one deliberate, inspectable bite at a time,
-      never as a speculative megaframework.
+      The foundation ships today. The roadmap extends the same approach into
+      query encapsulation and a shared async foundation — delivered one
+      deliberate, inspectable piece at a time, never as a speculative
+      megaframework.
     </p>
     <div class="pill-row">
       <span class="pill">Selector</span>

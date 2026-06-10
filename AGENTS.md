@@ -21,10 +21,9 @@ treat every roadmap note as an implemented contract.
 
 - Start framework work by inspecting `force-app/bedrock/lib`. That folder is
   the source of truth for implemented Bedrock library code.
-- Inspect other folders only when the task requires it. In particular,
-  `force-app/main/default/classes/Async2.cls` is a prototype or scratch class,
-  not part of the implemented Bedrock library unless a task explicitly brings
-  it into scope.
+- Inspect other folders only when the task requires it. Prototype or scratch
+  Apex that lives outside `force-app/bedrock/lib` is not part of the implemented
+  Bedrock library unless a task explicitly brings it into scope.
 - Treat the roadmap sections below as intended direction, not finalized public
   APIs. Names, schemas, metadata objects, and behavior that do not exist in
   `force-app/bedrock/lib` need an explicit plan before implementation.
@@ -374,10 +373,59 @@ Current shape:
 
 ### Async
 
-`Async` currently exists in `force-app/bedrock/lib/async` as a minimal abstract
-Apex base implementing `Queueable`, `Finalizer`, and `Database.AllowsCallouts`,
-with an `AsyncException` type. Do not assume the planned framework behavior
-exists in this class.
+`Async` in `force-app/bedrock/lib/async` is an implemented Queueable-based
+async framework, not just a base class. It processes record work in chains of
+Queueables tracked on the `Async__c` custom object. The pieces below exist
+today; inspect the code before depending on exact behavior, and note that some
+declared entry points (`stage`, `flush`) are still stubs.
+
+Current shape:
+
+- `Async` is a `virtual` class implementing `Queueable` and
+  `Database.AllowsCallouts`. Subclasses override `execute(Set<Id> ids)`.
+- Three injectable service singletons drive behavior: `Async.jobs`
+  (`JobService`), `Async.work` (`WorkService`), and `Async.queries`
+  (`QueryService`). `Async.setMock(AsyncMock)` swaps all three for tests.
+- `Async.enqueue(Type, List<SObject>)` and `Async.enqueue(Type, Set<Id>)` create
+  one `Async__c` work item per record Id (via `Pluck.ids`) in `Pending` status,
+  tagged with the current request's thread id and the target Apex type.
+- `Async.stage(...)` and `Async.flush()` are declared but currently empty
+  placeholders for a future staging path.
+- `AsyncTrigger` on `Async__c` runs `AsyncTriggerHandler` (extends
+  `TriggerHandler`). After insert it starts a thread; after update it re-enqueues
+  when `AsyncFilters.shouldRetry` detects an `Error` row flipped back to
+  `Pending`.
+- `AsyncThread` is a Queueable that adopts a thread id and asks
+  `jobs.enqueueNextJob()` to dispatch the next pending work for that thread.
+- `JobService.enqueueNextJob()` selects the next pending work item FIFO
+  (`ORDER BY Priority__c DESC, CreatedDate ASC`), reads `Async_Config__mdt` for
+  the batch size (default 5), pulls a matching batch of same-Apex work items,
+  instantiates the Apex job by name, and enqueues it as `Running`.
+- `Async.JobWatcher` (a `Finalizer`) marks the batch `Done` and chains the next
+  job on success, or records `Error` with truncated message/stack trace and
+  re-enqueues on failure.
+- `WorkService` owns the `Async__c` status transitions (`create`, `running`,
+  `complete`, `fail`, `retry`) through `DML`. `QueryService` owns all
+  `Async__c` and `Async_Config__mdt` reads through `Query`.
+- `AsyncMock` provides test subclasses of the three services, including a
+  `canEnqueue()` toggle and a bounded `maximumQueueableStackDepth` thread start.
+- `Async.AsyncException` is the framework's error type.
+
+Schema: this framework relies on the `Async__c` object (fields `Apex__c`,
+`Record_Id__c`, `Status__c`, `Thread__c`, `Priority__c`, `Error_Message__c`,
+`Error_Stack_Trace__c`) and the `Async_Config__mdt` type (`Apex__c`,
+`Batch_Size__c`), both under `force-app/bedrock/lib/async/objects`.
+
+### Pluck
+
+`Pluck` is a small static utility for pulling `Set<Id>` values out of record
+lists, used by `Async` when turning records into work items.
+
+Current shape:
+
+- `Pluck.ids(List<SObject>)` collects non-null record Ids.
+- `Pluck.ids(SObjectField, List<SObject>)` collects non-null Ids from a lookup
+  or reference field.
 
 ### FeatureFlag
 
@@ -425,31 +473,35 @@ that stores records in Salesforce Platform Cache by building on the implemented
 
 ### Async Framework
 
-The future `Async` framework should manage Queueable work on the platform while
-following the KISS principle and evolving one feature at a time. Prior versions
-of this idea have supported very large queueable volume, but sf-bedrock should
-start simple and grow deliberately.
+The core `Async` framework is implemented (see the Implemented Tools section).
+The notes below capture intended direction for the parts that are not yet
+built. The framework should keep following the KISS principle and evolve one
+feature at a time. Prior versions of this idea have supported very large
+queueable volume, but sf-bedrock should grow deliberately from the current
+simple base.
 
-This roadmap may be informed by prototype work outside `force-app/bedrock/lib`,
-but prototype code is not a public Bedrock API.
+Already implemented: thread-based Queueable chaining, `Async__c` work-item
+tracking via a `Finalizer`, FIFO dispatch with `Priority__c`, batch bundling of
+same-Apex work items sized by `Async_Config__mdt.Batch_Size__c`, `Set<Id>`
+payload contracts, and trigger-driven retry of failed work. Note the
+implementation tracks work on `Async__c`, not the earlier proposed
+`Async_Job__c` name.
 
-Intended direction:
+Remaining intended direction:
 
-- `Async` is the base class for future Scheduler and Event patterns.
-- `Async`, `Event`, and `Scheduler` should each have their own logical
+- `Async` should remain the base class for the future Scheduler and Event
+  patterns.
+- `Async`, `Event`, and `Scheduler` should each keep their own logical
   execution pool. Do not collapse their queues, job tracking, or policy without
   an explicit plan.
-- `Async` should generally process first-in-first-out, but may support job
-  priority and job bundling to maximize Queueable efficiency.
-- It should use a finalizer to track execution state on `Async_Job__c`.
-- `Async_Config__mdt` should control job configuration.
-- Developer contracts should support no payload or `Set<Id>` payloads.
-- Avoid stateful `SObject` payloads because records can change between trigger
-  execution and async execution.
-- The framework should attempt to bundle similar async jobs when practical.
-- It should consult `LimitsService` before enqueueing or running work. If
-  Queueable limits are exhausted, pause pending jobs instead of burning work or
-  failing noisily.
+- Flesh out the stubbed `stage(...)` / `flush()` staging path so callers can
+  batch work items before enqueueing a thread.
+- Continue to avoid stateful `SObject` payloads because records can change
+  between trigger execution and async execution; prefer the implemented
+  `Set<Id>` contract.
+- Async should consult `LimitsService` (not yet built) before enqueueing or
+  running work. If Queueable limits are exhausted, pause pending jobs instead of
+  burning work or failing noisily.
 
 ### Event
 
@@ -517,12 +569,15 @@ framework feel heavy. Separation of concerns should shape all designs. Each
 tool should compose with the others:
 
 - `TestData`, `DML`, and `Query` enable dependency injection and fast tests.
+- `Pluck` provides the small `Set<Id>` helpers that feed list-driven APIs like
+  `Async.enqueue`.
 - `Selector` should encapsulate query logic and build on `Query`.
 - `Selector.Cached` should build on Selector and Platform Cache.
 - `RecordBuffer` should coordinate DML staging in trigger flows.
 - `TriggerHandler` should coordinate Bedrock lifecycle hooks around domain
-  logic.
-- `Async`, `Event`, and `Scheduler` should share the same async foundation.
+  logic; `Async` already builds on it via `AsyncTriggerHandler`.
+- `Async` runs on `DML`, `Query`, and `Pluck` today; `Event` and `Scheduler`
+  should share that same async foundation.
 - `Async`, `Event`, and `Scheduler` should maintain separate logical execution
   pools and use `LimitsService` to protect org health before running work.
 
