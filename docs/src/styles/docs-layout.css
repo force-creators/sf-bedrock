@@ -245,6 +245,34 @@ pre code {
   background: transparent;
 }
 
+.nav-sublist {
+  display: grid;
+  gap: 0.05rem;
+  margin: 0.15rem 0 0.35rem;
+  padding: 0;
+  list-style: none;
+  border-left: 1px solid var(--line);
+  margin-left: 0.85rem;
+}
+
+.nav-sublink {
+  display: block;
+  padding: 0.28rem 0.55rem 0.28rem 0.7rem;
+  margin-left: -1px;
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.nav-sublink:hover,
+.nav-sublink:focus-visible {
+  color: var(--brand-dark);
+  border-left-color: var(--brand);
+  outline: none;
+}
+
 .status {
   flex: 0 0 auto;
   padding: 0.1rem 0.35rem;

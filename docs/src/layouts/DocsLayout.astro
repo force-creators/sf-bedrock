@@ -98,6 +98,15 @@ const isActive = (href: string) => href !== '#' && (href.replace(/\/$/, '') || '
                           <span>{item.label}</span>
                           {item.status && <span class="status">{item.status}</span>}
                         </a>
+                        {isActive(item.href) && sections.length > 0 && (
+                          <ul class="nav-sublist">
+                            {sections.map((section) => (
+                              <li>
+                                <a class="nav-sublink" href={section.href}>{section.label}</a>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     ))
                   }
