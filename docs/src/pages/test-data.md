@@ -1,10 +1,10 @@
 ---
 layout: ../layouts/DocsLayout.astro
 title: TestData | sf-bedrock docs
-description: A fluent builder that creates in-memory SObject records for Apex unit tests — including fields that are normally read-only — without touching the database.
+description: A fluent builder that creates in-memory SObject records for Apex unit tests — including writting fields that are normally read-only — without touching the database.
 eyebrow: Foundation API
 heading: TestData
-lede: A fluent builder that creates in-memory SObject records for Apex tests — including fields you normally cannot set, like formula fields, system audit fields, parent relationships, and Ids — without ever touching the database.
+lede: A fluent builder that creates in-memory SObject records for Apex tests — including writting fields you normally cannot set, like formula fields, system audit fields, parent relationships, and Ids — without ever touching the database.
 sections:
   - label: Overview
     href: "#overview"

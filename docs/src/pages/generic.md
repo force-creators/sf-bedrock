@@ -119,6 +119,41 @@ Assert.areEqual('Ada', g.get('user.firstName'), 'First path applied.');
 Assert.areEqual('Lovelace', g.get('user.lastName'), 'Second path applied.');
 ```
 
+### Inline-build a complex object with path maps
+
+For larger payloads, you can still stay inline by combining path keys with rich
+values (`Map<String, Object>` and `List<Object>`). This gives you one readable
+construction block without manually creating each intermediate node.
+
+```apex
+Generic payload = new Generic(new Map<String, Object>{
+  'event.type' => 'invoice.generated',
+  'event.meta.source' => 'billing-engine',
+  'event.meta.retryCount' => 0,
+  'event.account.id' => '001000000000001AAA',
+  'event.account.name' => 'Acme',
+  'event.lines' => new List<Object>{
+    new Map<String, Object>{
+      'sku' => 'A-100',
+      'quantity' => 2,
+      'amount' => 49.99
+    },
+    new Map<String, Object>{
+      'sku' => 'B-200',
+      'quantity' => 1,
+      'amount' => 99.00
+    }
+  }
+});
+
+Assert.areEqual('invoice.generated', payload.get('event.type'),
+  'Expected path map puts to build the top-level event values.');
+Assert.areEqual('Acme', payload.get('event.account.name'),
+  'Expected nested account paths to be created inline.');
+Assert.areEqual('B-200', payload.get('event.lines[1].sku'),
+  'Expected list/map values supplied inline to remain path-addressable.');
+```
+
 ### Safe access to missing data
 
 You don't need `containsKey` guards — a missing key or an out-of-bounds index
@@ -296,23 +331,35 @@ downstream code expects:
 
 ```apex
 public class StatusReport extends Generic {
-    public override Map<String, Object> mapping() {
-        return new Map<String, Object>{
-            'status'  => 'ready',
-            'version' => 1
-        };
-    }
+  public String status;
+  public Integer version;
+  public String source;
+
+  public StatusReport(String genericString) {
+    // Example inbound payload:
+    // {"payload":{"state":"ready","rev":"1"},"meta":{"source":"sync"}}
+    super(genericString);
+    this.status = (String) this.get('payload.state');
+    this.version = (Integer) this.get('payload.rev', Integer.class);
+    this.source = (String) this.get('meta.source');
+  }
+
+  // Calling transform().json() on a StatusReport hydrated from the example payload returns:
+  // {"report.status":"ready","report.version":1,"report.audit.source":"sync"}
+  public override Map<String, Object> mapping() {
+    return new Map<String, Object>{
+      'report.status' => this.status,
+      'report.version' => this.version,
+      // Nested audit field in the outbound structure.
+      'report.audit.source' => this.source
+    };
+  }
 }
-
-Map<String, Object> result = new StatusReport().transform();
-
-Assert.areEqual('ready', result.get('status'), 'transform() uses mapping() output.');
-Assert.areEqual(1, result.get('version'), 'Numeric values are preserved.');
 ```
 
-A typical subclass would read inbound data in `mapping()` (via `get(...)` on
-`this`) and assemble the target shape, keeping the transformation logic in one
-named, testable place.
+A typical subclass uses the constructor to hydrate DTO-style properties from
+incoming JSON, then uses `mapping()` to build the outgoing shape. This keeps
+input parsing and output shaping explicit and testable.
 
 ## How It Works
 

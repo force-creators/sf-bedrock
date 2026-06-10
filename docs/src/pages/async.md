@@ -210,22 +210,57 @@ batch comfortably fits inside one Queueable's limits.
 
 ## Testing
 
-Test an `Async` subclass without waiting for real background jobs by swapping in
-`AsyncMock`, which lets the entire chain run inside `Test.startTest()` /
-`Test.stopTest()`:
+The primary way to unit test an `Async` subscriber is to test only the job
+logic: construct the class and call `execute(Set<Id> ids)` directly. This keeps
+separation of concerns clear. You are testing your job's behavior, not thread
+drain logic, work item lifecycle, or framework wiring.
+
+### Testing Async Jobs
 
 ```apex
 @istest
-private class FlagStaleContactsAsyncTest {
+public with sharing class FlagStaleContactsAsyncTest {
+
+  @istest static void testExecute_updatesDescriptions_directly() {
+    List<Contact> contacts = (List<Contact>) new TestData(Contact.sObjectType)
+        .put(Contact.LastName, 'Test')
+        .mockIds()
+        .count(3)
+        .build();
+    insert contacts;
+
+    Set<Id> ids = pluck.ids(contacts);
+
+    new FlagStaleContactsAsync().execute(ids);
+
+    for (Contact contact :[SELECT Description FROM Contact WHERE Id IN :ids)) {
+      Assert.areEqual('Reviewed by background job', contact.Description,
+        'Expected direct execute() to update each contact description.');
+    }
+  }
+}
+```
+
+Use this pattern by default. It is faster, easier to read, and avoids coupling
+your unit test to framework internals.
+
+### Testing Chains of Work
+
+When you specifically want to verify framework-level behavior (work item
+creation, status transitions, and queue chaining), use this pattern:
+
+```apex
+@istest
+public with sharing class FlagStaleContactsAsyncTest {
 
     @istest
     static void testFlagsContacts_inBackground() {
-        List<SObject> contacts = new TestData(Contact.sObjectType)
+        List<Contact> contacts = (List<Contact>) new TestData(Contact.sObjectType)
             .put(Contact.LastName, 'Test')
             .mockIds()
             .count(3)
             .build();
-        DML.insertRecords(contacts);
+        insert contacts;
 
         // canEnqueue() lets the async chain actually run during the test.
         AsyncMock mock = new AsyncMock().canEnqueue();
@@ -259,14 +294,18 @@ What each piece does:
 - **`new AsyncMock().canEnqueue()`** turns on enqueuing inside a test. By default
   the framework refuses to start its thread while a test is running (so you don't
   accidentally fire real background work). `canEnqueue()` opts this test in so the
-  chain runs and drains during `Test.stopTest()`. The mock also caps the Queueable
-  stack depth to 5 to stay within test limits.
+  chain runs and drains during `Test.stopTest()`. The mock caps Queueable stack
+  depth at 5 in tests, which practically means up to 4 unique async jobs can be
+  chained through this pattern in a single unit test.
 - **`Async.setMock(mock)`** installs the mock services for the current
   transaction.
 - **Enqueue inside `Test.startTest()`** and let `Test.stopTest()` flush the
   asynchronous work. Then assert on two things: the **work item statuses** (proof
   the framework ran your job to completion) and the **side effect** of your
   `execute` (proof your logic did the right thing).
+
+Use this second pattern intentionally, not as your default. It is more of an
+integration test for the framework chain plus your subscriber.
 
 You can also define the subscriber class as a small inner class in the test when
 you only need it there, exactly as `AsyncTest` does with its `MyTestAsync` inner
