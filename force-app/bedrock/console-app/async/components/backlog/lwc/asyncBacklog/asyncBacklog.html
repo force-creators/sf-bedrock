@@ -1,0 +1,62 @@
+<template>
+    <section class="backlog" aria-label="Backlog">
+        <header class="backlog-header">
+            <div>
+                <p class="eyebrow">Async__c</p>
+                <h2>Backlog</h2>
+                <p class="description">Queued and active async work staged for processing.</p>
+            </div>
+
+            <div class="header-actions">
+                <p class="last-refreshed">{lastRefreshedLabel}</p>
+
+                <div class="refresh-controls">
+                    <lightning-combobox
+                        class="refresh-interval"
+                        label="Auto-refresh interval"
+                        variant="label-hidden"
+                        value={autoRefreshInterval}
+                        options={autoRefreshOptions}
+                        onchange={handleAutoRefreshChange}
+                    ></lightning-combobox>
+
+                    <lightning-button
+                        icon-name="utility:refresh"
+                        label="Refresh"
+                        title="Refresh backlog"
+                        onclick={handleRefresh}
+                        disabled={isLoading}
+                    ></lightning-button>
+                </div>
+
+                <div class="record-count">{recordCountLabel}</div>
+            </div>
+        </header>
+
+        <template lwc:if={hasError}>
+            <div class="error-message" role="status">{errorMessage}</div>
+        </template>
+
+        <template lwc:elseif={hasRows}>
+            <lightning-tree-grid
+                key-field="id"
+                columns={columns}
+                data={treeRows}
+                expanded-rows={expandedRows}
+                hide-checkbox-column
+                is-loading={isLoading}
+            ></lightning-tree-grid>
+        </template>
+
+        <template lwc:else>
+            <div class="empty-state" role="status">
+                <lightning-icon
+                    icon-name="utility:success"
+                    size="medium"
+                    alternative-text=""
+                ></lightning-icon>
+                <p>No backlog records found.</p>
+            </div>
+        </template>
+    </section>
+</template>

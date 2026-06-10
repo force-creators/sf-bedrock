@@ -1,0 +1,52 @@
+<template>
+    <section class="app-shell" aria-label="Bedrock console">
+        <aside class="navigation-panel" aria-label="Console sections">
+            <div class="navigation-header">
+                <p class="eyebrow">Bedrock</p>
+                <h1>Operations</h1>
+            </div>
+
+            <nav class="menu" aria-label="Primary">
+                <template for:each={menuItems} for:item="item">
+                    <button
+                        key={item.id}
+                        class={item.className}
+                        data-id={item.id}
+                        type="button"
+                        aria-current={item.ariaCurrent}
+                        onclick={handleMenuSelect}
+                    >
+                        <lightning-icon
+                            class="menu-icon"
+                            icon-name={item.iconName}
+                            size="small"
+                            alternative-text=""
+                        ></lightning-icon>
+                        <span>{item.label}</span>
+                    </button>
+                </template>
+            </nav>
+        </aside>
+
+        <main class="content-panel">
+            <template lwc:if={isDashboardSelected}>
+                <c-async-dashboard></c-async-dashboard>
+            </template>
+            <template lwc:elseif={isBacklogSelected}>
+                <c-async-backlog></c-async-backlog>
+            </template>
+            <template lwc:elseif={isErrorsSelected}>
+                <c-async-errors></c-async-errors>
+            </template>
+            <template lwc:elseif={isPerformanceSelected}>
+                <c-async-performance></c-async-performance>
+            </template>
+            <template lwc:elseif={isJobConfigurationsSelected}>
+                <c-async-job-configurations></c-async-job-configurations>
+            </template>
+            <template lwc:elseif={isSettingsSelected}>
+                <c-async-settings></c-async-settings>
+            </template>
+        </main>
+    </section>
+</template>

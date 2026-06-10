@@ -1,0 +1,36 @@
+<template>
+    <header class="content-header">
+        <div>
+            <p class="eyebrow">Overview</p>
+            <h2>Dashboard</h2>
+            <p class="description">A consolidated view of platform health, async work, and operational signals.</p>
+        </div>
+        <div class="status-pill">Live shell</div>
+    </header>
+
+    <section class="placeholder-panel" aria-label="Dashboard">
+        <div class="placeholder-summary">
+            <p class="eyebrow">Component Preview</p>
+            <h3>Console dashboard placeholder</h3>
+            <p>This area can host a summary LWC once the dashboard component exists.</p>
+        </div>
+
+        <div class="metric-grid">
+            <template for:each={metrics} for:item="item">
+                <div key={item.id} class="metric-card">
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                </div>
+            </template>
+        </div>
+
+        <div class="stub-region">
+            <lightning-icon
+                icon-name="utility:dashboard"
+                size="large"
+                alternative-text=""
+            ></lightning-icon>
+            <p>Dashboard component slot</p>
+        </div>
+    </section>
+</template>

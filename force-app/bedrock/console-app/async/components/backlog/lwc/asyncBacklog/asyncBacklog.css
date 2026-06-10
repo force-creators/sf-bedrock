@@ -1,0 +1,131 @@
+:host {
+    display: block;
+}
+
+.backlog {
+    border: 1px solid #d8dde6;
+    border-radius: 0.5rem;
+    background: #ffffff;
+    padding: 1.25rem;
+}
+
+.backlog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.eyebrow {
+    margin: 0 0 0.25rem;
+    color: #2e6f64;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.backlog-header h2 {
+    margin: 0;
+    color: #181818;
+    font-size: 1.65rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.description {
+    margin: 0.4rem 0 0;
+    color: #51606d;
+    line-height: 1.5;
+}
+
+.record-count {
+    flex: 0 0 auto;
+    border: 1px solid #bad6ce;
+    border-radius: 999rem;
+    background: #ffffff;
+    color: #1d5d52;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.35rem 0.65rem;
+}
+
+.header-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+}
+
+.last-refreshed {
+    margin: 0;
+    color: #60707d;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.refresh-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+}
+
+.header-actions .record-count {
+    margin-left: auto;
+}
+
+.refresh-interval {
+    width: 9rem;
+}
+
+.error-message,
+.empty-state {
+    border: 1px solid #dde3ea;
+    border-radius: 0.375rem;
+    background: #f8faf9;
+    color: #51606d;
+    padding: 1rem;
+}
+
+.error-message {
+    border-color: #f3b7b7;
+    background: #fff7f7;
+    color: #8a1f1f;
+}
+
+.empty-state {
+    display: grid;
+    place-items: center;
+    min-height: 12rem;
+    text-align: center;
+}
+
+.empty-state p {
+    margin: 0.75rem 0 0;
+    font-weight: 700;
+}
+
+lightning-tree-grid {
+    display: block;
+}
+
+@media (max-width: 48rem) {
+    .backlog-header {
+        display: block;
+    }
+
+    .header-actions {
+        align-items: flex-start;
+        flex-direction: column;
+        margin-top: 0.75rem;
+    }
+
+    .header-actions .record-count {
+        margin-left: 0;
+    }
+
+    .refresh-controls {
+        flex-wrap: wrap;
+    }
+}
