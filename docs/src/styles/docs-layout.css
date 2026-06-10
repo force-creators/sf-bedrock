@@ -376,7 +376,7 @@ p {
 }
 
 .lede {
-  max-width: 42rem;
+  max-width: none;
   margin-top: 1rem;
   color: #36455c;
   font-size: 1.14rem;
