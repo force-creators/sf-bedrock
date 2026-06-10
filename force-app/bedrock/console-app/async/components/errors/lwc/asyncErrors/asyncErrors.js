@@ -6,13 +6,11 @@ import LightningConfirm from 'lightning/confirm';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 const COLUMNS = [
-    { label: 'Thread / Job', fieldName: 'threadLabel', initialWidth: 220 },
-    { label: 'Running User', fieldName: 'runningUser' },
-    { label: 'Apex Class', fieldName: 'apexClass' },
-    { label: 'Priority', fieldName: 'priority', type: 'number', initialWidth: 110 },
+    { label: 'Thread', fieldName: 'threadLabel', initialWidth: 220 },
+    { label: 'Class', fieldName: 'apexClass' },
     { label: 'Record Id', fieldName: 'recordId' },
-    { label: 'Status', fieldName: 'status', initialWidth: 130 },
-    { label: 'Created Date', fieldName: 'createdDate', type: 'date', initialWidth: 180 }
+    { label: 'Error Message', fieldName: 'errorMessage', wrapText: true },
+    { label: 'Error Stack Trace', fieldName: 'errorStackTrace', wrapText: true }
 ];
 
 const AUTO_REFRESH_OPTIONS = [
@@ -179,7 +177,7 @@ export default class AsyncErrors extends LightningElement {
                 status: group.status,
                 _children: group.rows.map((row) => ({
                     ...row,
-                    threadLabel: row.asyncJobNumber
+                    threadLabel: group.threadLabel
                 }))
             }));
             this.expandedRows = this.treeRows.map((row) => row.id);

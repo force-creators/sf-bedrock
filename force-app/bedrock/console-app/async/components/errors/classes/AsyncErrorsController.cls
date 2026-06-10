@@ -2,7 +2,18 @@ public with sharing class AsyncErrorsController {
     @AuraEnabled
     public static List<ThreadGroup> getErrors() {
         List<Async__c> workItems = [
-            SELECT Id, Name, Apex__c, CreatedBy.Name, CreatedDate, Priority__c, Record_Id__c, Status__c, Thread__c
+            SELECT
+                Id,
+                Name,
+                Apex__c,
+                CreatedBy.Name,
+                CreatedDate,
+                Priority__c,
+                Record_Id__c,
+                Status__c,
+                Thread__c,
+                Error_Message__c,
+                Error_Stack_Trace__c
             FROM Async__c
             WHERE Status__c = 'Error'
             WITH USER_MODE
@@ -107,6 +118,8 @@ public with sharing class AsyncErrorsController {
         @AuraEnabled public Decimal priority;
         @AuraEnabled public String recordId;
         @AuraEnabled public String status;
+        @AuraEnabled public String errorMessage;
+        @AuraEnabled public String errorStackTrace;
         @AuraEnabled public Datetime createdDate;
 
         ErrorRow(Async__c workItem) {
@@ -117,6 +130,8 @@ public with sharing class AsyncErrorsController {
             this.priority = workItem.Priority__c;
             this.recordId = workItem.Record_Id__c;
             this.status = workItem.Status__c;
+            this.errorMessage = workItem.Error_Message__c;
+            this.errorStackTrace = workItem.Error_Stack_Trace__c;
             this.createdDate = workItem.CreatedDate;
         }
     }
