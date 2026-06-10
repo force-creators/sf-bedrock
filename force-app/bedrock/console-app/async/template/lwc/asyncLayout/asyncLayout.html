@@ -1,52 +1,43 @@
 <template>
-    <section class="app-shell" aria-label="Bedrock console">
-        <aside class="navigation-panel" aria-label="Console sections">
-            <div class="navigation-header">
-                <p class="eyebrow">Bedrock</p>
-                <h1>Operations</h1>
-            </div>
-
-            <nav class="menu" aria-label="Primary">
-                <template for:each={menuItems} for:item="item">
-                    <button
-                        key={item.id}
-                        class={item.className}
-                        data-id={item.id}
-                        type="button"
-                        aria-current={item.ariaCurrent}
-                        onclick={handleMenuSelect}
-                    >
-                        <lightning-icon
-                            class="menu-icon"
-                            icon-name={item.iconName}
-                            size="small"
-                            alternative-text=""
-                        ></lightning-icon>
-                        <span>{item.label}</span>
-                    </button>
-                </template>
-            </nav>
-        </aside>
-
-        <main class="content-panel">
-            <template lwc:if={isDashboardSelected}>
+    <lightning-tabset variant="vertical" active-tab-value={selectedId}>
+        <lightning-tab label="Dashboard" value="dashboard" onactive={handleTabActive}>
+            <div class="tab-panel">
                 <c-async-dashboard></c-async-dashboard>
-            </template>
-            <template lwc:elseif={isBacklogSelected}>
+            </div>
+        </lightning-tab>
+
+        <lightning-tab label="Backlog" value="backlog" onactive={handleTabActive}>
+            <div class="tab-panel">
                 <c-async-backlog></c-async-backlog>
-            </template>
-            <template lwc:elseif={isErrorsSelected}>
+            </div>
+        </lightning-tab>
+
+        <lightning-tab label="Errors" value="errors" onactive={handleTabActive}>
+            <div class="tab-panel">
                 <c-async-errors></c-async-errors>
-            </template>
-            <template lwc:elseif={isPerformanceSelected}>
-                <c-async-performance></c-async-performance>
-            </template>
-            <template lwc:elseif={isJobConfigurationsSelected}>
+            </div>
+        </lightning-tab>
+
+        <lightning-tab
+            label="Job Configurations"
+            value="job-configurations"
+            onactive={handleTabActive}
+        >
+            <div class="tab-panel">
                 <c-async-job-configurations></c-async-job-configurations>
-            </template>
-            <template lwc:elseif={isSettingsSelected}>
+            </div>
+        </lightning-tab>
+
+        <lightning-tab label="Performance" value="performance" onactive={handleTabActive}>
+            <div class="tab-panel">
+                <c-async-performance></c-async-performance>
+            </div>
+        </lightning-tab>
+
+        <lightning-tab label="Settings" value="settings" onactive={handleTabActive}>
+            <div class="tab-panel">
                 <c-async-settings></c-async-settings>
-            </template>
-        </main>
-    </section>
+            </div>
+        </lightning-tab>
+    </lightning-tabset>
 </template>

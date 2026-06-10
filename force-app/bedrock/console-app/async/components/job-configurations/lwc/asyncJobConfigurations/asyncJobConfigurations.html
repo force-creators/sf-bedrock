@@ -1,39 +1,36 @@
 <template>
-    <section class="job-configurations" aria-label="Job Configurations">
-        <header class="job-configurations-header">
-            <div>
-                <p class="eyebrow">Async_Config__mdt</p>
-                <h2>Job Configurations</h2>
-                <p class="description">Configured async job defaults by Apex class.</p>
-            </div>
+    <lightning-card title="Job Configurations" icon-name="utility:settings">
+        <lightning-badge slot="actions" label={recordCountLabel}></lightning-badge>
 
-            <div class="record-count">{recordCountLabel}</div>
-        </header>
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template lwc:if={hasError}>
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                    <span class="slds-assistive-text">Error</span>
+                    {errorMessage}
+                </div>
+            </template>
 
-        <template lwc:if={hasError}>
-            <div class="error-message" role="status">{errorMessage}</div>
-        </template>
+            <template lwc:elseif={hasRows}>
+                <lightning-datatable
+                    key-field="id"
+                    columns={columns}
+                    data={rows}
+                    hide-checkbox-column
+                    is-loading={isLoading}
+                    onrowaction={handleRowAction}
+                ></lightning-datatable>
+            </template>
 
-        <template lwc:elseif={hasRows}>
-            <lightning-datatable
-                key-field="id"
-                columns={columns}
-                data={rows}
-                hide-checkbox-column
-                is-loading={isLoading}
-                onrowaction={handleRowAction}
-            ></lightning-datatable>
-        </template>
-
-        <template lwc:else>
-            <div class="empty-state" role="status">
-                <lightning-icon
-                    icon-name="utility:settings"
-                    size="medium"
-                    alternative-text=""
-                ></lightning-icon>
-                <p>No job configuration records found.</p>
-            </div>
-        </template>
-    </section>
+            <template lwc:else>
+                <div class="empty-state slds-text-align_center" role="status">
+                    <lightning-icon
+                        icon-name="utility:settings"
+                        size="medium"
+                        alternative-text=""
+                    ></lightning-icon>
+                    <p class="slds-m-top_small">No job configuration records found.</p>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
 </template>

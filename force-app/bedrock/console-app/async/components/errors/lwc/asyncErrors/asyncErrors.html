@@ -1,84 +1,82 @@
 <template>
-    <section class="backlog" aria-label="Errors">
-        <header class="backlog-header">
-            <div>
-                <p class="eyebrow">Async__c</p>
-                <h2>Errors</h2>
-                <p class="description">Async work that ended with an error.</p>
-            </div>
+    <lightning-card title="Errors" icon-name="utility:error">
+        <div slot="actions" class="card-actions">
+            <span class="slds-text-body_small slds-text-color_weak">{lastRefreshedLabel}</span>
 
-            <div class="header-actions">
-                <p class="last-refreshed">{lastRefreshedLabel}</p>
+            <lightning-combobox
+                class="refresh-interval"
+                label="Auto-refresh interval"
+                variant="label-hidden"
+                value={autoRefreshInterval}
+                options={autoRefreshOptions}
+                onchange={handleAutoRefreshChange}
+            ></lightning-combobox>
 
-                <div class="refresh-controls">
-                    <lightning-combobox
-                        class="refresh-interval"
-                        label="Auto-refresh interval"
-                        variant="label-hidden"
-                        value={autoRefreshInterval}
-                        options={autoRefreshOptions}
-                        onchange={handleAutoRefreshChange}
-                    ></lightning-combobox>
+            <lightning-button-icon
+                icon-name="utility:refresh"
+                alternative-text="Refresh errors"
+                title="Refresh errors"
+                onclick={handleRefresh}
+                disabled={isLoading}
+            ></lightning-button-icon>
 
-                    <lightning-button
-                        icon-name="utility:refresh"
-                        label="Refresh"
-                        title="Refresh errors"
-                        onclick={handleRefresh}
-                        disabled={isLoading}
-                    ></lightning-button>
-                </div>
+            <lightning-badge label={recordCountLabel}></lightning-badge>
+        </div>
 
-                <div class="record-count">{recordCountLabel}</div>
-            </div>
-        </header>
-
-        <template lwc:if={hasError}>
-            <div class="error-message" role="status">{errorMessage}</div>
-        </template>
-
-        <template lwc:elseif={hasRows}>
-            <template lwc:if={hasSelectedRows}>
-                <div class="table-actions" aria-label="Selected work item actions">
-                    <lightning-button
-                        icon-name="utility:refresh"
-                        label="Retry"
-                        title="Retry selected errors"
-                        onclick={handleRetrySelected}
-                        disabled={isLoading}
-                    ></lightning-button>
-
-                    <lightning-button
-                        icon-name="utility:delete"
-                        label="Delete"
-                        title="Delete selected errors"
-                        onclick={handleDeleteSelected}
-                        disabled={isLoading}
-                    ></lightning-button>
-                    <span class="selected-count">{selectedCountLabel}</span>
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template lwc:if={hasError}>
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                    <span class="slds-assistive-text">Error</span>
+                    {errorMessage}
                 </div>
             </template>
 
-            <lightning-tree-grid
-                key-field="id"
-                columns={columns}
-                data={treeRows}
-                expanded-rows={expandedRows}
-                selected-rows={selectedRowIds}
-                is-loading={isLoading}
-                onrowselection={handleRowSelection}
-            ></lightning-tree-grid>
-        </template>
+            <template lwc:elseif={hasRows}>
+                <template lwc:if={hasSelectedRows}>
+                    <div class="table-actions" aria-label="Selected work item actions">
+                        <lightning-button
+                            icon-name="utility:refresh"
+                            label="Retry"
+                            title="Retry selected errors"
+                            onclick={handleRetrySelected}
+                            disabled={isLoading}
+                        ></lightning-button>
 
-        <template lwc:else>
-            <div class="empty-state" role="status">
-                <lightning-icon
-                    icon-name="utility:success"
-                    size="medium"
-                    alternative-text=""
-                ></lightning-icon>
-                <p>No error records found.</p>
-            </div>
-        </template>
-    </section>
+                        <lightning-button
+                            icon-name="utility:delete"
+                            label="Delete"
+                            title="Delete selected errors"
+                            variant="destructive"
+                            onclick={handleDeleteSelected}
+                            disabled={isLoading}
+                        ></lightning-button>
+                        <span class="slds-text-body_small slds-text-color_weak">
+                            {selectedCountLabel}
+                        </span>
+                    </div>
+                </template>
+
+                <lightning-tree-grid
+                    key-field="id"
+                    columns={columns}
+                    data={treeRows}
+                    expanded-rows={expandedRows}
+                    selected-rows={selectedRowIds}
+                    is-loading={isLoading}
+                    onrowselection={handleRowSelection}
+                ></lightning-tree-grid>
+            </template>
+
+            <template lwc:else>
+                <div class="empty-state slds-text-align_center" role="status">
+                    <lightning-icon
+                        icon-name="utility:success"
+                        size="medium"
+                        alternative-text=""
+                    ></lightning-icon>
+                    <p class="slds-m-top_small">No error records found.</p>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
 </template>

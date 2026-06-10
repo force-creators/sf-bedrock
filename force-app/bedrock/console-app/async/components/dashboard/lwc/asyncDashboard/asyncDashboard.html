@@ -1,36 +1,28 @@
 <template>
-    <header class="content-header">
-        <div>
-            <p class="eyebrow">Overview</p>
-            <h2>Dashboard</h2>
-            <p class="description">A consolidated view of async throughput, backlog, and errors.</p>
-        </div>
-        <div class="status-pill">Live data</div>
-    </header>
+    <lightning-card title="Dashboard" icon-name="utility:home">
+        <lightning-badge slot="actions" label="Live data"></lightning-badge>
 
-    <section class="dashboard-panel" aria-label="Dashboard">
-        <div class="dashboard-summary">
-            <p class="eyebrow">Async Work</p>
-            <h3>Job Health</h3>
-            <p>Today's completed work, active backlog, and current error volume.</p>
-        </div>
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <div class="metric-grid">
+                <template for:each={metrics} for:item="item">
+                    <div key={item.id} class="metric-tile">
+                        <span class="slds-text-title_caps">{item.label}</span>
+                        <template lwc:if={isLoading}>
+                            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                        </template>
+                        <template lwc:else>
+                            <strong>{item.value}</strong>
+                        </template>
+                    </div>
+                </template>
+            </div>
 
-        <div class="metric-grid">
-            <template for:each={metrics} for:item="item">
-                <div key={item.id} class="metric-card">
-                    <span>{item.label}</span>
-                    <template lwc:if={isLoading}>
-                        <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
-                    </template>
-                    <template lwc:else>
-                        <strong>{item.value}</strong>
-                    </template>
+            <template lwc:if={hasError}>
+                <div class="slds-notify slds-notify_alert slds-alert_error slds-m-top_medium" role="alert">
+                    <span class="slds-assistive-text">Error</span>
+                    {errorMessage}
                 </div>
             </template>
         </div>
-
-        <template lwc:if={hasError}>
-            <div class="error-message" role="alert">{errorMessage}</div>
-        </template>
-    </section>
+    </lightning-card>
 </template>

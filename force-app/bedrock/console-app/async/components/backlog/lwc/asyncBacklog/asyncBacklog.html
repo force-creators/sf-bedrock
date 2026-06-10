@@ -1,62 +1,57 @@
 <template>
-    <section class="backlog" aria-label="Backlog">
-        <header class="backlog-header">
-            <div>
-                <p class="eyebrow">Async__c</p>
-                <h2>Backlog</h2>
-                <p class="description">Queued and active async work staged for processing.</p>
-            </div>
+    <lightning-card title="Backlog" icon-name="utility:list">
+        <div slot="actions" class="card-actions">
+            <span class="slds-text-body_small slds-text-color_weak">{lastRefreshedLabel}</span>
 
-            <div class="header-actions">
-                <p class="last-refreshed">{lastRefreshedLabel}</p>
+            <lightning-combobox
+                class="refresh-interval"
+                label="Auto-refresh interval"
+                variant="label-hidden"
+                value={autoRefreshInterval}
+                options={autoRefreshOptions}
+                onchange={handleAutoRefreshChange}
+            ></lightning-combobox>
 
-                <div class="refresh-controls">
-                    <lightning-combobox
-                        class="refresh-interval"
-                        label="Auto-refresh interval"
-                        variant="label-hidden"
-                        value={autoRefreshInterval}
-                        options={autoRefreshOptions}
-                        onchange={handleAutoRefreshChange}
-                    ></lightning-combobox>
+            <lightning-button-icon
+                icon-name="utility:refresh"
+                alternative-text="Refresh backlog"
+                title="Refresh backlog"
+                onclick={handleRefresh}
+                disabled={isLoading}
+            ></lightning-button-icon>
 
-                    <lightning-button
-                        icon-name="utility:refresh"
-                        label="Refresh"
-                        title="Refresh backlog"
-                        onclick={handleRefresh}
-                        disabled={isLoading}
-                    ></lightning-button>
+            <lightning-badge label={recordCountLabel}></lightning-badge>
+        </div>
+
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template lwc:if={hasError}>
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                    <span class="slds-assistive-text">Error</span>
+                    {errorMessage}
                 </div>
+            </template>
 
-                <div class="record-count">{recordCountLabel}</div>
-            </div>
-        </header>
+            <template lwc:elseif={hasRows}>
+                <lightning-tree-grid
+                    key-field="id"
+                    columns={columns}
+                    data={treeRows}
+                    expanded-rows={expandedRows}
+                    hide-checkbox-column
+                    is-loading={isLoading}
+                ></lightning-tree-grid>
+            </template>
 
-        <template lwc:if={hasError}>
-            <div class="error-message" role="status">{errorMessage}</div>
-        </template>
-
-        <template lwc:elseif={hasRows}>
-            <lightning-tree-grid
-                key-field="id"
-                columns={columns}
-                data={treeRows}
-                expanded-rows={expandedRows}
-                hide-checkbox-column
-                is-loading={isLoading}
-            ></lightning-tree-grid>
-        </template>
-
-        <template lwc:else>
-            <div class="empty-state" role="status">
-                <lightning-icon
-                    icon-name="utility:success"
-                    size="medium"
-                    alternative-text=""
-                ></lightning-icon>
-                <p>No backlog records found.</p>
-            </div>
-        </template>
-    </section>
+            <template lwc:else>
+                <div class="empty-state slds-text-align_center" role="status">
+                    <lightning-icon
+                        icon-name="utility:success"
+                        size="medium"
+                        alternative-text=""
+                    ></lightning-icon>
+                    <p class="slds-m-top_small">No backlog records found.</p>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
 </template>

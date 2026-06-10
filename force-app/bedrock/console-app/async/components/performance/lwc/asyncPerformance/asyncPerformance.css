@@ -2,18 +2,7 @@
     display: block;
 }
 
-.page-placeholder {
+.empty-state {
     min-height: 18rem;
-    border: 1px solid #d8dde6;
-    border-radius: 0.5rem;
-    background: #ffffff;
-    padding: 1.25rem;
-}
-
-.page-placeholder h2 {
-    margin: 0;
-    color: #181818;
-    font-size: 1.65rem;
-    font-weight: 700;
-    line-height: 1.2;
+    padding: var(--lwc-spacingXLarge, 2rem);
 }

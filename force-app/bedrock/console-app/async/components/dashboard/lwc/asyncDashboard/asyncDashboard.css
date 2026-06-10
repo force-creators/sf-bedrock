@@ -2,124 +2,39 @@
     display: block;
 }
 
-.content-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1.25rem;
-}
-
-.content-header h2,
-.dashboard-summary h3 {
-    margin: 0;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.content-header h2 {
-    font-size: 1.65rem;
-}
-
-.dashboard-summary h3 {
-    font-size: 1.15rem;
-}
-
-.eyebrow {
-    margin: 0 0 0.25rem;
-    color: #2e6f64;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0;
-    text-transform: uppercase;
-}
-
-.description {
-    max-width: 46rem;
-    margin: 0.4rem 0 0;
-    color: #51606d;
-    line-height: 1.5;
-}
-
-.status-pill {
-    flex: 0 0 auto;
-    border: 1px solid #bad6ce;
-    border-radius: 999rem;
-    background: #ffffff;
-    color: #1d5d52;
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 0.35rem 0.65rem;
-}
-
-.dashboard-panel {
-    display: grid;
-    gap: 1rem;
-    border: 1px solid #d8dde6;
-    border-radius: 0.5rem;
-    background: #ffffff;
-    padding: 1.25rem;
-}
-
-.dashboard-summary p {
-    max-width: 44rem;
-    margin: 0.4rem 0 0;
-    color: #51606d;
-    line-height: 1.5;
-}
-
 .metric-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.75rem;
 }
 
-.metric-card {
+.metric-tile {
     position: relative;
-    min-height: 5rem;
-    border: 1px solid #dde3ea;
-    border-radius: 0.375rem;
-    background: #f8faf9;
-    padding: 0.85rem;
+    min-height: 4.75rem;
+    border: var(--lwc-borderWidthThin, 1px) solid var(--lwc-colorBorder, #dddbda);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    background: var(--lwc-colorBackgroundAlt, #ffffff);
+    padding: var(--lwc-spacingSmall, 0.75rem);
 }
 
-.metric-card span {
+.metric-tile span {
     display: block;
-    color: #60707d;
-    font-size: 0.75rem;
+    color: var(--lwc-colorTextWeak, #444444);
+}
+
+.metric-tile strong {
+    display: block;
+    margin-top: 0.4rem;
+    color: var(--lwc-brandPrimary, #0176d3);
+    font-size: 1.375rem;
     font-weight: 700;
 }
 
-.metric-card strong {
-    display: block;
-    margin-top: 0.4rem;
-    color: #1f2d36;
-    font-size: 1.25rem;
-}
-
-.metric-card lightning-spinner {
+.metric-tile lightning-spinner {
     --slds-c-spinner-color-background: transparent;
 }
 
-.error-message {
-    border: 1px solid #f4b5b5;
-    border-radius: 0.375rem;
-    background: #fff6f6;
-    color: #8c1d18;
-    font-weight: 700;
-    padding: 0.75rem;
-}
-
 @media (max-width: 48rem) {
-    .content-header {
-        display: block;
-    }
-
-    .status-pill {
-        display: inline-block;
-        margin-top: 0.75rem;
-    }
-
     .metric-grid {
         grid-template-columns: 1fr;
     }
