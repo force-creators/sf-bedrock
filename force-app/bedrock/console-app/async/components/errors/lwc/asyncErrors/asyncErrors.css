@@ -71,6 +71,21 @@
     gap: 0.75rem;
 }
 
+.table-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.selected-count {
+    color: #51606d;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
 .header-actions .record-count {
     margin-left: auto;
 }
@@ -127,5 +142,10 @@ lightning-tree-grid {
 
     .refresh-controls {
         flex-wrap: wrap;
+    }
+
+    .table-actions {
+        flex-wrap: wrap;
+        justify-content: flex-start;
     }
 }

@@ -74,6 +74,10 @@ equivalent tool is available. The expected MCP tool invocations are:
 
 Validation workflow:
 
+- Do not run Salesforce Code Analyzer, including
+  `mcp__salesforce_dx.run_code_analyzer`, `query_code_analyzer_results`,
+  `list_code_analyzer_rules`, or raw CLI analyzer commands. It is too noisy
+  and token-expensive for this repo's preferred workflow.
 - After changing Apex or Salesforce metadata, deploy the changed source and
   validate the result before considering the edit complete. Use the MCP
   `mcp__salesforce_dx.deploy_metadata` tool for deploy operations when a real

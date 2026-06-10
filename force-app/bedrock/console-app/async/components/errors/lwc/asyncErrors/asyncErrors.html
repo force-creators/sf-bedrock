@@ -38,13 +38,35 @@
         </template>
 
         <template lwc:elseif={hasRows}>
+            <template lwc:if={hasSelectedRows}>
+                <div class="table-actions" aria-label="Selected work item actions">
+                    <lightning-button
+                        icon-name="utility:refresh"
+                        label="Retry"
+                        title="Retry selected errors"
+                        onclick={handleRetrySelected}
+                        disabled={isLoading}
+                    ></lightning-button>
+
+                    <lightning-button
+                        icon-name="utility:delete"
+                        label="Delete"
+                        title="Delete selected errors"
+                        onclick={handleDeleteSelected}
+                        disabled={isLoading}
+                    ></lightning-button>
+                    <span class="selected-count">{selectedCountLabel}</span>
+                </div>
+            </template>
+
             <lightning-tree-grid
                 key-field="id"
                 columns={columns}
                 data={treeRows}
                 expanded-rows={expandedRows}
-                hide-checkbox-column
+                selected-rows={selectedRowIds}
                 is-loading={isLoading}
+                onrowselection={handleRowSelection}
             ></lightning-tree-grid>
         </template>
 

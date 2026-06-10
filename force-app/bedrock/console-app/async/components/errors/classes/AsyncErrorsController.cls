@@ -30,6 +30,61 @@ public with sharing class AsyncErrorsController {
         return groups;
     }
 
+    @AuraEnabled
+    public static Integer retryErrors(List<Id> workItemIds) {
+        assertCanRetry();
+
+        List<Async__c> workItems = errorWorkItems(workItemIds);
+        Set<Id> ids = Pluck.ids(workItems);
+        Async.jobs.retry(ids);
+        return ids.size();
+    }
+
+    @AuraEnabled
+    public static Integer deleteErrors(List<Id> workItemIds) {
+        assertCanDelete();
+
+        List<Async__c> workItems = errorWorkItems(workItemIds);
+        DML.deleteRecords(workItems);
+        return workItems.size();
+    }
+
+    static List<Async__c> errorWorkItems(List<Id> workItemIds) {
+        Set<Id> selectedIds = new Set<Id>();
+
+        if (workItemIds != null) {
+            selectedIds.addAll(workItemIds);
+        }
+
+        if (selectedIds.isEmpty()) {
+            return new List<Async__c>();
+        }
+
+        return [
+            SELECT Id
+            FROM Async__c
+            WHERE Id IN :selectedIds
+                AND Status__c = 'Error'
+            WITH USER_MODE
+        ];
+    }
+
+    static void assertCanRetry() {
+        if (
+            !Schema.sObjectType.Async__c.isUpdateable() ||
+            !Async__c.Status__c.getDescribe().isUpdateable() ||
+            !Async__c.Thread__c.getDescribe().isUpdateable()
+        ) {
+            throw new AuraHandledException('You do not have permission to retry async errors.');
+        }
+    }
+
+    static void assertCanDelete() {
+        if (!Schema.sObjectType.Async__c.isDeletable()) {
+            throw new AuraHandledException('You do not have permission to delete async errors.');
+        }
+    }
+
     public class ThreadGroup {
         @AuraEnabled public String id;
         @AuraEnabled public String threadLabel;
