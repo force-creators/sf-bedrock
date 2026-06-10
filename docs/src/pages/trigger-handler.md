@@ -29,7 +29,7 @@ sections:
 ## Overview
 
 `TriggerHandler` is the base class you subclass to handle Apex triggers in
-sf-bedrock. It is a small implementation of the **Template Method pattern**: the
+sf-bedrock. It is a small implementation of the **Template Method pattern**. The
 base class owns the fixed sequence — check context, open a buffer, route to a
 hook, flush the buffer — and you fill in the parts specific to your object by
 overriding the hooks you care about.
@@ -238,7 +238,7 @@ How `RecordBuffer` decides insert vs. update:
 
 Because every context accessor is `protected virtual`, a test can subclass the
 handler and feed it a fake trigger context — no real DML required. The library's
-own `TriggerHandlerTest` shows the pattern: a `Harness` subclass overrides the
+own `TriggerHandlerTest` shows the pattern. A `Harness` subclass overrides the
 accessors to return values the test controls, then calls `run()` (or a named
 wrapper that calls `run()`) directly.
 
@@ -300,7 +300,7 @@ harness.run();
 Assert.areEqual(1, dmlMock.upserts.size(), 'Expected the buffer to flush one upsert.');
 ```
 
-> Verifying outside-trigger safety is easy: construct the handler, call `run()`
+> Verifying outside-trigger safety is easy. Construct the handler, call `run()`
 > without setting any context on the harness (so `executing` stays `false`), and
 > assert nothing dispatched. With `isExecuting()` returning `false`, `run()`
 > returns before any hook fires.
@@ -318,8 +318,8 @@ override costs nothing.
 **2. Virtual accessors as a test seam.** Every piece of trigger context —
 `isExecuting()`, `operationType()`, `newRecords()`, `oldRecords()`,
 `newRecordsById()`, `oldRecordsById()` — is a `protected virtual` method rather
-than a direct reference to a `Trigger` variable. That indirection is what lets
-tests subclass the handler, override those methods to return fake data, and call
+than a direct reference to a `Trigger` variable. That indirection lets tests
+subclass the handler, override those methods to return fake data, and call
 `run()` without a real DML event. In production the base implementations simply
 read the corresponding `Trigger.*` values.
 
@@ -342,8 +342,8 @@ The full sequence every time `run()` is called:
 
 `TriggerHandler` is a `public virtual inherited sharing` class. Almost its entire
 surface is `protected` — designed to be called or overridden by subclasses, not
-by outside callers. The one exception is `run()`, which must be reachable from
-a trigger body.
+by outside callers. The one exception is `run()`, which must be reachable from a
+trigger body.
 
 > **A note on access modifiers:** in Apex, a member with **no access modifier is
 > private**. The only such member here is `dispatch()`, which is therefore
@@ -391,11 +391,11 @@ only the events your object cares about.
 | `afterDelete` | `protected virtual void afterDelete(List<SObject> oldRecords, Map<Id, SObject> oldMap)` |
 | `afterUndelete` | `protected virtual void afterUndelete(List<SObject> records)` |
 
-Notice the arguments match what the platform makes available for each event:
-insert events have no old data; delete events have no new records; `before`
-events have no Id map for new records (records do not have Ids yet). If you need
-the `newRecordsById` / `oldRecordsById` maps inside an `after` hook, read them
-from the `newRecordsById()` or `oldRecordsById()` accessors directly.
+The arguments match what the platform makes available for each event: insert
+events have no old data; delete events have no new records; `before` events have
+no Id map for new records (records don't have Ids yet). If you need the
+`newRecordsById` / `oldRecordsById` maps inside an `after` hook, call
+`newRecordsById()` or `oldRecordsById()` directly.
 
 ### Private members
 
@@ -410,17 +410,17 @@ from the `newRecordsById()` or `oldRecordsById()` accessors directly.
   requirement.
 - **No built-in recursion guard.** The class does not track re-entry. If your
   hook performs DML that re-fires the same trigger, you can recurse. Add a
-  `static Boolean` guard in your subclass and check it inside the hook if you
-  need run-once-per-context behavior.
+  `static Boolean` guard in your subclass and check it at the top of the hook
+  if you need run-once-per-context behavior.
 - **No metadata enable/disable switch.** There is no built-in way to bypass the
   handler from configuration. Anything like that is yours to add in the subclass.
 - **Outside a trigger it does nothing.** `run()` returns immediately unless
-  `isExecuting()` is `true`. This makes the handler safe to construct anywhere,
-  but you must override `isExecuting()` (or flip its backing flag) in tests for
-  `run()` to do anything.
+  `isExecuting()` is `true`. The handler is safe to construct anywhere, but you
+  must override `isExecuting()` (or flip its backing flag) in tests for `run()`
+  to do anything.
 - **Hook arguments do not include both maps for after events.** `afterInsert`,
-  `afterUpdate`, and `afterUndelete` receive the new records list and (for update)
-  the `oldMap`, but not a `newRecordsById` argument. If you need a map of new
+  `afterUpdate`, and `afterUndelete` receive the new records list and, for update,
+  the `oldMap` — but not a `newRecordsById` argument. If you need a map of new
   records inside those hooks, call `this.newRecordsById()` directly.
 - **Accessors never return `null`.** `newRecords()`, `oldRecords()`,
   `newRecordsById()`, and `oldRecordsById()` return empty collections rather than
@@ -429,8 +429,8 @@ from the `newRecordsById()` or `oldRecordsById()` accessors directly.
   over a raw `insert` or `update`. The handler flushes the buffer once per
   event, keeping DML bulk-safe and centralized.
 - **`dispatch()` is private and final.** It has no access modifier, so it is
-  private and cannot be overridden. To change routing behavior you override
-  individual accessors or hooks, not `dispatch()`.
+  private and cannot be overridden. To change routing behavior, override
+  individual accessors or hooks — not `dispatch()`.
 - **Test through a Harness subclass.** Override the `protected virtual` accessors
-  to inject a fake context and call `run()` directly. Combine with `TestData` for
-  in-memory records and `DMLMock` for asserting flushed DML.
+  to inject a fake context, then call `run()` directly. Combine with `TestData`
+  for in-memory records and `DMLMock` to assert on flushed DML.

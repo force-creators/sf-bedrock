@@ -26,9 +26,9 @@ sections:
 
 `Query` is a dependency-injection (DI) facade for the records your code reads.
 Instead of consuming a `List<SObject>` directly, you route it through
-`Query.records(...)`. In production that call returns the list unchanged. In a
-test you first inject a `QueryMock`, and the same call returns whatever records
-the mock was primed with.
+`Query.records(...)`. In production, that call returns the list unchanged. In a
+test, inject a `QueryMock` first, and the same call returns whatever records the
+mock was primed with.
 
 The point is **seam, not transformation.** `Query` does not run SOQL, filter,
 sort, or reshape anything. Its only job is to give you a single, swappable point
@@ -108,9 +108,8 @@ Assert.areEqual(records, result, 'Default implementation passes through the same
 ### Injecting an empty result
 
 To prove a unit handles "no records," inject an empty list. The default
-`QueryMock()` constructor leaves the internal list `null`, which returns `null`
-from `query(...)` — usually not what you want. Pass an explicit empty list
-instead.
+`QueryMock()` constructor leaves the internal list `null`, so `query(...)` also
+returns `null` — usually not what you want. Pass an explicit empty list instead.
 
 ```apex
 Query.setMock(new QueryMock(new List<SObject>()));
@@ -199,9 +198,10 @@ When the unit under test calls `Query.records(...)` more than once and each call
 should return *different* records, use `QueryMock.Multiple`. It holds a queue of
 response lists and hands them out in order, one per call.
 
-`add(...)` is fluent (returns `this`), so you can chain. **The order you `add`
-responses is the order they are returned** — the first `add` answers the first
-`Query.records(...)` call, and so on.
+`add(...)` is fluent — it returns `this`, so you can chain calls. **The order
+you `add` responses is the order they are returned.** The first `add` answers
+the first `Query.records(...)` call, the second `add` answers the second, and so
+on.
 
 ```apex
 @istest static void records_multipleMockResponses() {
@@ -228,9 +228,8 @@ responses is the order they are returned** — the first `add` answers the first
 ```
 
 If the unit calls `Query.records(...)` more times than you queued, `Multiple`
-throws `QueryMock.QueryMockException` rather than returning `null`. This is a
-deliberate guardrail: an unexpected extra query is a test failure, not a silent
-`null`.
+throws `QueryMock.QueryMockException` rather than returning `null`. That's
+deliberate. An unexpected extra query is a test failure, not a silent `null`.
 
 ```apex
 Query.setMock(new QueryMock.Multiple().add(new List<SObject>{ new Account() }));
@@ -248,7 +247,7 @@ try {
 
 > Match the number of `add(...)` calls to the number of `Query.records(...)` calls
 > you expect. Queuing more responses than the unit consumes is fine — extras are
-> never returned and no error is thrown. Queuing fewer throws `QueryMockException`.
+> silently ignored. Queuing fewer throws `QueryMockException`.
 
 ## How It Works
 
@@ -284,8 +283,8 @@ The `query(...)` method is `virtual`, and `instance` can be replaced through the
 `@TestVisible` method `setMock(Query mock)`. A test injects a subclass whose
 `query(...)` override ignores its input and returns canned records instead. This
 is textbook **dependency injection** combined with the **mock** pattern: the
-collaborator (`instance`) is supplied from outside rather than hard-coded, so
-the test decides what it does.
+collaborator (`instance`) is supplied from outside rather than hard-coded. The
+test decides what it does.
 
 ```apex
 Query.setMock(new QueryMock(mockedRecords));
@@ -298,9 +297,9 @@ Production code can never accidentally swap the instance.
 ### 3. Nothing touches the database
 
 `Query` performs no DML and no SOQL. The default path returns its argument; the
-mock path returns a list you handed it. That is what makes a unit built around
-`Query` fast and isolated — no rows consumed, no triggers fired, no org data
-dependency.
+mock path returns a list you handed it. No rows consumed, no triggers fired, no
+org data dependency. That is what makes a unit built around `Query` fast and
+isolated.
 
 ## Public API
 
@@ -308,9 +307,10 @@ The DI facade lives in two classes: `Query` (the seam) and `QueryMock` (the test
 double, with a nested `Multiple` variant).
 
 > **A note on "properties":** Neither `Query` nor `QueryMock` exposes any public
-> properties. In Apex, a member declared with **no access modifier is private** —
-> so `Query`'s `instance` field and `QueryMock`'s `records` and `index` fields are
-> all private internal state. The supported surface is the methods below.
+> properties. In Apex, a member declared with **no access modifier is private.**
+> That means `Query`'s `instance` field and `QueryMock`'s `records` and `index`
+> fields are all private internal state. The supported surface is the methods
+> below.
 
 ### `Query`
 
@@ -319,10 +319,10 @@ double, with a nested `Multiple` variant).
 | `query` | `query(List<SObject> records)` | `List<SObject>` | Instance method, `virtual`. Default implementation returns its argument unchanged. Overridden by mocks. You rarely call this directly — call `records(...)` instead. |
 | `records` | `records(List<SObject> records)` | `List<SObject>` | **Static** entry point. Delegates to the current instance's `query(...)`. This is what production code calls. |
 
-> `setMock(Query mock)` is **not public** — it is `@TestVisible static`, so it is
-> only reachable from test code. It replaces the active instance and is the
-> injection point for mocking. It is documented here because it is the mechanism
-> tests rely on, but it is not part of the production-facing API.
+> `setMock(Query mock)` is **not public** — it is `@TestVisible static`, so it
+> is only reachable from test code. It replaces the active instance and is the
+> injection point for mocking. It's documented here because tests depend on it,
+> but it is not part of the production-facing API.
 
 ### `QueryMock` (extends `Query`)
 
@@ -356,18 +356,18 @@ not a silent `null`.
 
 - **The injected instance is static state.** `setMock` replaces a static field on
   `Query`. Salesforce resets static state between test methods, so each `@istest`
-  method starts with the default (pass-through) `Query` — you do not need to reset
-  it manually. But if one method sets a mock and a later assertion in the *same*
-  method assumes default behavior, remember the mock is still active.
+  method starts with the default (pass-through) `Query` — no manual reset needed.
+  That said, if one assertion in the *same* method sets a mock and a later one
+  expects default behavior, the mock is still active. Keep that in mind.
 
 - **`setMock` is test-only.** It is `@TestVisible`, so production code cannot call
   it and cannot accidentally swap in a mock. Injection is strictly a testing
   concern.
 
 - **The mock ignores its input.** Both `QueryMock.query` and
-  `QueryMock.Multiple.query` discard the `List<SObject>` argument (it is named
-  `ignore` in the source). The records returned are the ones you primed, not the
-  ones the caller passed.
+  `QueryMock.Multiple.query` discard the `List<SObject>` argument — it is named
+  `ignore` in the source for exactly that reason. The records returned are the
+  ones you primed, not the ones the caller passed.
 
 - **The default `QueryMock()` returns `null`.** Constructing `new QueryMock()`
   with no arguments leaves the internal list `null`, so `query(...)` returns `null`,
@@ -375,18 +375,18 @@ not a silent `null`.
   instead.
 
 - **`Multiple` is order-sensitive and exhaustible.** Responses come back in `add`
-  order. One extra `Query.records(...)` call past the queue throws
-  `QueryMockException`. Keep the count of `add(...)` calls aligned with the number
-  of queries the unit makes.
+  order. One extra `Query.records(...)` call beyond the queue throws
+  `QueryMockException`. Keep the number of `add(...)` calls aligned with the
+  number of queries the unit makes.
 
-- **No defensive copying.** The default `Query` returns the exact list instance it
-  was given, and `QueryMock` returns the exact list you supplied. Mutating the
+- **No defensive copying.** The default `Query` returns the exact list instance
+  it was given. `QueryMock` returns the exact list you supplied. Mutating the
   returned list mutates your source list. Build fresh records per test if that
   matters.
 
 - **`Query` does not query.** It runs no SOQL or DML. It is purely an injection
-  seam. If you need real querying — filters, ordering, relationships, bulk-safe
-  chunking — that belongs in a selector or service layer, not here.
+  seam. Real querying — filters, ordering, relationships, bulk-safe chunking —
+  belongs in a selector or service layer, not here.
 
 - **Cast at the point of use.** `records(...)` and the mocks return
   `List<SObject>`. Cast to the concrete type where you read the records so the seam

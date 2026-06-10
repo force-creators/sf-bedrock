@@ -194,7 +194,7 @@ the status, or the record was modified several more times.
 
 **Forcing Ids removes the trap entirely.** An Id is permanent and never goes
 stale. Because all you carry into the job is an identifier, the only way to act
-on the record is to re-query it inside `execute` — which means you are always
+on the record is to re-query it inside `execute`. That means you are always
 working with the *current* state of the data at the moment the work runs.
 
 > **What if I genuinely need to carry data, not just Ids?** Sometimes the work
@@ -287,7 +287,7 @@ What each piece does:
 
 - **`new AsyncMock().canEnqueue()`** turns on enqueuing inside a test. By default
   the framework refuses to start its thread while a test is running (so you don't
-  accidentally fire real background work); `canEnqueue()` opts this test in so the
+  accidentally fire real background work). `canEnqueue()` opts this test in so the
   chain runs and drains during `Test.stopTest()`. The mock also caps the Queueable
   stack depth to 5 to stay within test limits.
 - **`Async.setMock(mock)`** installs the mock services for the current
@@ -317,16 +317,16 @@ enqueue.
 **Two: a thread drains the queue one batch at a time.** `AsyncThread` is a
 Queueable that holds a thread Id. When it runs, it hands off to
 `JobService.enqueueNextJob()`, which selects the next `Pending` work item for
-that thread (FIFO, with `Priority__c DESC` applied first), reads `Async_Config__mdt`
-for the batch size (defaulting to 5), and gathers up to that many matching
-same-Apex work items. It marks them `Running`, dynamically instantiates your
+that thread (FIFO, with `Priority__c DESC` applied first) and reads `Async_Config__mdt`
+for the batch size (defaulting to 5). It gathers up to that many matching
+same-Apex work items, marks them `Running`, dynamically instantiates your
 class by name, calls `setWork(threadId, workItemIds)` on it, and enqueues it as a
 Queueable.
 
 **Three: a `Finalizer` closes the loop.** `Async.JobWatcher` is attached before
 your `execute` runs. On success it marks the batch `Done` and chains the next
-batch by calling `enqueueNextJob()` again. On failure it marks the batch `Error`
-(saving the truncated message and stack trace on the `Async__c` rows) and
+batch by calling `enqueueNextJob()` again. On failure it marks the batch `Error`,
+saving the truncated message and stack trace on the `Async__c` rows, then
 re-enqueues the thread so the remaining work continues. Failures are recorded, not
 silent, and they do not stop the rest of the queue.
 

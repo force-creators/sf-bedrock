@@ -30,17 +30,17 @@ sections:
 
 `TestData` is a fluent builder for creating `SObject` records inside Apex unit
 tests. You pick an object type, set the fields your assertions care about,
-optionally generate mock Ids, and call `build()` — you get back a
+optionally generate mock Ids, and call `build()`. You get back a
 `List<SObject>` that lives entirely in memory.
 
 The point is not just convenience. `TestData` can populate fields that the
-standard `new Account(Name = 'x')` constructor **rejects** — formula fields,
+standard `new Account(Name = 'x')` constructor **rejects**: formula fields,
 rollup summaries, system audit fields (`CreatedDate`, `LastModifiedById`),
 the `Id` field, and parent relationship objects. That makes it ideal for
-testing code whose behavior depends on values your test cannot normally fake.
+testing code whose behavior depends on values your test cannot otherwise fake.
 
-**Use `TestData` when** you want realistic records fast, with no DML, no SOQL,
-and no governor-limit cost — typically to feed a service or unit under test.
+**Use `TestData` when** you want realistic records fast — no DML, no SOQL, no
+governor-limit cost — typically to feed a service or unit under test.
 
 **Reach for real DML instead when** the thing you are proving *is* database
 behavior: validation rules, triggers, flows, sharing, rollups recalculated by
@@ -212,7 +212,7 @@ Things to remember:
 ## Read-Only & System Fields
 
 This is where `TestData` earns its place. The JSON round-trip lets you set
-fields the normal constructor refuses, which is invaluable when your code reads
+fields the normal constructor refuses. That matters when your code reads
 formula fields, rollups, or audit data that a test cannot otherwise produce.
 
 ```apex
@@ -233,7 +233,7 @@ it.
 
 > **Important:** these values exist only on the in-memory record. If you ever
 > `insert` a `TestData` record that has read-only fields populated, the DML
-> will fail — those fields are still read-only to the database. Keep `TestData`
+> will fail. Those fields are still read-only to the database. Keep `TestData`
 > records on the mocking side of your tests.
 
 ## Mock Ids
@@ -268,8 +268,8 @@ Assert.areNotEqual(
 
 `TestData` keeps **one static** `IdService` instance shared across every builder
 in the transaction. Each object type has its own counter inside that instance,
-but no counter ever resets between builders or between `build()` calls. Build 2
-Accounts, then build 3 more, and the second batch continues from 3, not 1.
+and no counter resets between builders or between `build()` calls. Build 2
+Accounts, then build 3 more — the second batch continues from 3, not 1.
 
 The practical consequence: **assert on uniqueness or key prefix, not on a
 hard-coded Id string.** The exact counter value depends on how many records of
@@ -325,9 +325,9 @@ List<SObject> results = (List<SObject>) JSON.deserialize(
 ```
 
 This round-trip is the mechanism. Apex blocks assignment of formula fields,
-system fields, or `Id` through normal property setters, but **JSON
+system fields, or `Id` through normal property setters — but **JSON
 deserialization writes them anyway**. That is why `TestData` can return a
-record that already looks inserted and audited even though no DML ever ran.
+record that already looks inserted and audited, with no DML required.
 
 ### 3. Records never touch the database
 
@@ -341,8 +341,8 @@ for mocking, not for inserting — see [Notes & Edge Cases](#notes-and-edge-case
 
 > **A note on "properties":** `TestData` has no public properties. Its instance
 > state — `sObjectType`, `template`, `count`, and `mockids` — is **private**
-> (no access modifier in Apex means private) and can only be changed through the
-> methods below. This keeps the builder's state consistent and is why the fluent
+> (no access modifier in Apex means private). State can only change through the
+> methods below. That keeps the builder consistent, and it is why the fluent
 > API is the only supported entry point.
 
 | Member | Signature | Returns | Description |
@@ -380,7 +380,7 @@ object type. You normally never call it directly — `mockIds()` uses it for you
 - **Records in one `build()` are identical** except for their generated Ids.
   Build separately when you need different field values per record.
 - **Mock Ids are not stable across the transaction.** Assert on uniqueness or
-  key prefix, not on a specific Id string — the counter value depends on how
+  key prefix, not on a specific Id string. The counter value depends on how
   many records of that type were built earlier in the same test run.
 - **These records are for mocking, not DML.** Inserting a record with read-only
   or system fields populated will fail. Use real DML only when database behavior
@@ -390,5 +390,5 @@ object type. You normally never call it directly — `mockIds()` uses it for you
 - **Cast close to usage.** `build()` returns `List<SObject>`; cast to the
   concrete type at the point you read it so setup stays generic and concise.
 - **`IdService` counters are per object type.** Interleaving builds for Account
-  and Contact increments each type's counter independently — Account and Contact
-  counters never share a sequence.
+  and Contact increments each type's counter independently. Account and Contact
+  never share a sequence.

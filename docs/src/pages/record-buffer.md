@@ -30,33 +30,32 @@ sections:
 
 `RecordBuffer` is a **static staging area** for SObject records. Instead of
 running `update` or `insert` the moment a piece of logic decides a record needs
-saving, you hand the record to the buffer. The buffer holds it in memory, and
-when you call `flush()` it writes everything it has collected — grouped by
-object type — in as few DML statements as possible.
+saving, you hand the record to the buffer. It holds everything in memory. When
+you call `flush()`, it writes all collected records — grouped by object type —
+in as few DML statements as possible.
 
 The pattern it implements is **Unit of Work**: collect all the changes that
 belong to one logical operation, then commit them together at the end. In a
-Salesforce trigger that matters because DML statements are a governor limit
-(150 per transaction). If five different trigger handlers each want to update
-the same Account, five separate `update` calls is wasteful — and, in a
-recursive trigger, dangerous. The buffer turns those five intentions into one
-upsert.
+Salesforce trigger, that matters. DML statements are a governor limit (150 per
+transaction), and if five different trigger handlers each want to update the
+same Account, five separate `update` calls is wasteful — and in a recursive
+trigger, dangerous. The buffer turns those five intentions into one upsert.
 
 **Use `RecordBuffer` when** several independent pieces of logic in the same
-transaction produce records to save, and you want to consolidate them into one
-grouped write — classic trigger-context staging, where handlers stage records
-and a single point flushes them.
+transaction produce records to save and you want to consolidate them into one
+grouped write. Classic trigger-context staging: handlers stage records, a single
+point flushes them.
 
 **Reach for direct DML instead when** you genuinely need the write to happen
-*now* — for example because later logic in the same transaction must re-query
+*now* — for example, because later logic in the same transaction must re-query
 the saved row, or because you need the inserted Ids immediately. The buffer
-defers the write until `flush()`, so anything that depends on the write having
+defers the write until `flush()`. Anything that depends on the write having
 already happened should not go through it.
 
-> **It is static.** There is no `new RecordBuffer()`. Everything is reached
+> **It is static.** There is no `new RecordBuffer()`. You reach everything
 > through `RecordBuffer.put(...)`, `RecordBuffer.get(...)`, and
-> `RecordBuffer.flush()`. The staged records live in static state for the life
-> of the transaction.
+> `RecordBuffer.flush()`. Staged records live in static state for the life of
+> the transaction.
 
 ## Quickstart
 
@@ -205,16 +204,16 @@ Assert.areEqual('Outer', ((Account) dmlMock.upserts[1][0]).Name,
 > **Balance your `start()` and `flush()` calls.** Each `start()` adds a
 > context that only a matching `flush()` removes. If you `start()` more than
 > you `flush()`, the leftover contexts and their staged records are never
-> written for the rest of the transaction. An extra `flush()` on an empty stack
-> is a harmless no-op — an extra `start()` is not.
+> written. An extra `flush()` on an empty stack is a harmless no-op. An extra
+> `start()` is not.
 
 ## Reading Staged Records
 
-The buffer is not just a write sink — it can answer "what does this record
+The buffer is not just a write sink. It can answer: "what does this record
 look like *right now*, including changes staged but not yet flushed?" That is
-what the `put(Id)` getter and `get(Set<Id>)` are for. This lets logic later
-in the same context see the not-yet-committed version of a record instead of
-querying a stale copy from the database.
+what the `put(Id)` getter and `get(Set<Id>)` are for. Logic later in the same
+context can see the not-yet-committed version of a record instead of querying
+a stale copy from the database.
 
 Resolution rules for a single Id:
 
@@ -262,9 +261,9 @@ Assert.isNull(RecordBuffer.get(new Set<Id>()),
 ```
 
 > **Reads only see staged *updates*, not staged *inserts*.** The getter
-> resolves Ids against the `updates` map. Records staged without an Id (inserts)
-> have no Id to look up, so the getter cannot return them. An Id that was never
-> staged as an update always yields a skeleton, never an error.
+> resolves Ids against the `updates` map. Records staged without an Id have no
+> Id to look up, so the getter cannot return them. An Id that was never staged
+> as an update always yields a skeleton — never an error.
 
 ## Testing
 
@@ -334,10 +333,9 @@ inserts the rows with no Id and updates the rows that have one.
 So if a context holds 3 Accounts and 5 Contacts, `flush()` issues two DML
 calls (one Account upsert, one Contact upsert) — not eight.
 
-> The buffer commits through the sf-bedrock `DML` facade
-> (`DML.upsertRecords`), not raw `upsert` DML. That is what lets tests swap in
-> a `DMLMock` and assert on what *would* have been written without touching the
-> database.
+> The buffer commits through the sf-bedrock `DML` facade (`DML.upsertRecords`),
+> not raw `upsert` DML. That is what lets tests swap in a `DMLMock` and assert
+> on what *would* have been written — without touching the database.
 
 ### 3. State is a stack of contexts
 
@@ -360,10 +358,10 @@ constructors and no instance entry points — you never instantiate it.
 
 > **A note on "properties":** `RecordBuffer` has **no public properties**. Its
 > entire state — the `contexts` stack and the per-context `inserts`/`updates`
-> maps — is held in static and instance fields you reach only through the
-> methods below. (The inner `TriggerContext` class does expose public
+> maps — is held in static and instance fields. You reach all of it through the
+> methods below. The inner `TriggerContext` class does expose public
 > `inserts`/`updates` maps, but `TriggerContext` is an implementation detail
-> you are not expected to construct or touch directly.)
+> you are not expected to construct or touch directly.
 
 | Member | Signature | Returns | Description |
 | --- | --- | --- | --- |
@@ -390,30 +388,32 @@ constructors and no instance entry points — you never instantiate it.
 ## Notes & Edge Cases
 
 - **`put(Id)` reads, it does not stage.** Despite the name, the `Id` overload
-  is a getter that returns a record. Only the `SObject` / `List` / `Map`
+  is a getter that returns a record. Only the `SObject`, `List`, and `Map`
   overloads stage. Do not confuse `RecordBuffer.put(record)` (stages) with
   `RecordBuffer.put(record.Id)` (reads).
 
 - **Writes are deferred until `flush()`.** Nothing hits the database when you
-  `put`. If later logic in the same transaction must re-query the saved row or
-  needs the new Ids, the buffer is the wrong tool — use direct DML there.
+  call `put`. If later logic in the same transaction must re-query the saved
+  row or needs the new Ids, the buffer is the wrong tool — use direct DML
+  there.
 
-- **Updates dedupe; inserts do not.** Two stages of the same Id collapse to
-  one (last wins). Two Id-less records of the same type are two separate
-  inserts — the buffer has no key to dedupe them on.
+- **Updates dedupe; inserts do not.** Two stages of the same Id collapse to one
+  — last write wins. Two Id-less records of the same type are two separate
+  inserts. The buffer has no key to dedupe them on.
 
 - **State is static and transaction-scoped.** The `contexts` stack is a static
   field, so staged records persist across method calls within one transaction.
-  Each new transaction starts empty. Be deliberate about who flushes, so
-  records are not left staged at the end of the transaction.
+  Each new transaction starts empty. Be deliberate about who flushes — records
+  left staged at the end of a transaction are silently dropped.
 
 - **Balance `start()` with `flush()`.** Every `start()` needs a matching
-  `flush()` to be written. Unflushed contexts are silently dropped at the end
-  of the transaction. `flush()` on an empty stack is a harmless no-op.
+  `flush()` or its records will never be written. Unflushed contexts are
+  silently dropped at the end of the transaction. `flush()` on an empty stack
+  is a harmless no-op.
 
-- **One upsert per object type, not per record.** That is the whole point —
-  grouped flush keeps you well inside the 150-DML-statement governor limit even
-  when many handlers stage records. But each distinct object type still costs
+- **One upsert per object type, not per record.** That is the whole point.
+  A grouped flush keeps you well inside the 150-DML-statement governor limit
+  even when many handlers stage records. Each distinct object type still costs
   one DML statement.
 
 - **`flush()` uses `upsert`.** Inserts and updates for a type are merged into
@@ -422,7 +422,7 @@ constructors and no instance entry points — you never instantiate it.
 
 - **Reads only see staged updates.** The `put(Id)` and `get(Set<Id>)` accessors
   look up Ids against the `updates` map. Records staged without an Id (pending
-  inserts) cannot be retrieved by Id — they have none yet.
+  inserts) have no Id yet, so they cannot be retrieved by Id.
 
 - **Test through the `DML` facade.** Because `flush()` calls
   `DML.upsertRecords(...)`, tests register a `DMLMock` with `DML.setMock(...)`

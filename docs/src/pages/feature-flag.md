@@ -26,9 +26,9 @@ sections:
 
 ## Overview
 
-`FeatureFlag` answers one question: **"is this feature turned on right now?"** You give it a flag name, it returns a `Boolean`. That single check lets you ship code that is dormant until you flip a switch, roll a feature out gradually, or keep a kill switch handy for risky behavior.
+`FeatureFlag` answers one question: **"is this feature turned on right now?"** You give it a flag name, it returns a `Boolean`. That single check lets you ship code that stays dormant until you flip a switch — useful for gradual rollouts, kill switches, or guarding risky behavior.
 
-Flag values live in **`Feature_Flag__mdt` custom metadata**, so toggling a feature is a configuration change — deploy or edit a metadata record in the target org — rather than a code change. This is the classic *Feature Toggle* pattern: separate the decision to *deploy* code from the decision to *release* it.
+Flag values live in **`Feature_Flag__mdt` custom metadata**, so toggling a feature is a configuration change, not a code change. Deploy or edit a metadata record in the target org and you're done. This is the classic *Feature Toggle* pattern: separate the decision to *deploy* code from the decision to *release* it.
 
 **Use `FeatureFlag` when** you want a runtime on/off switch that admins or release engineers can control without redeploying Apex — gradual rollouts, kill switches, environment-specific behavior, or guarding work-in-progress code.
 
@@ -86,7 +86,7 @@ for (Account account : accounts) {
 }
 ```
 
-> If you prefer, hoist the check above the loop into a local `Boolean`. Both patterns cost one query — the cache makes them equivalent — but a local variable documents that the value does not change mid-loop.
+> If you prefer, hoist the check above the loop into a local `Boolean`. Both patterns cost one query — the cache makes them equivalent. A local variable does have one advantage: it documents that the value does not change mid-loop.
 
 ## Where Flag Values Come From
 
@@ -116,7 +116,7 @@ A few consequences worth internalizing:
 
 ## Testing
 
-Here is the problem `FeatureFlag.set` solves. Custom *metadata* records deployed to an org are visible to test methods, but you usually cannot rely on org data in a unit test — it makes tests environment-dependent, and you cannot insert new `Feature_Flag__mdt` records with DML the way you would a normal SObject. `FeatureFlag.set(name, enabled)` writes a synthetic value straight into the in-memory cache, so the very next `isEnabled(name)` call returns whatever you set — no DML, no SOQL, no dependency on what is deployed.
+Here is the problem `FeatureFlag.set` solves. Custom *metadata* records deployed to an org are visible to test methods, but you usually cannot rely on org data in a unit test — it makes tests environment-dependent. You also cannot insert new `Feature_Flag__mdt` records with DML the way you would a normal SObject. `FeatureFlag.set(name, enabled)` writes a synthetic value straight into the in-memory cache. The very next `isEnabled(name)` call returns whatever you set — no DML, no SOQL, no dependency on what is deployed.
 
 ### Turn a flag on for a test
 
@@ -163,7 +163,7 @@ Seed the flag, exercise the unit, re-seed with the opposite value, and exercise 
 
 ### Pass `null` to revert to the disabled default
 
-`set(name, null)` stores a cache entry whose `Is_Enabled__c` is `null`. Because `isEnabled` evaluates `flag != null && flag.Is_Enabled__c`, a null `Is_Enabled__c` reads as `false` — so a `null` value behaves like "off," not "unknown." The entry still exists in the cache; it is not removed.
+`set(name, null)` stores a cache entry whose `Is_Enabled__c` is `null`. Because `isEnabled` evaluates `flag != null && flag.Is_Enabled__c`, a null `Is_Enabled__c` reads as `false`. A `null` value behaves like "off," not "unknown." The entry still exists in the cache — it is not removed.
 
 ```apex
 FeatureFlag.set('bedrock.feature.override', true);
@@ -176,7 +176,7 @@ Assert.areEqual(false, enabled, 'Expected a null override to restore the default
 
 ### Clear the cache to force a re-query
 
-`clearCache()` is `@TestVisible`, so tests can call it to empty the entire cache — discarding both overrides set via `set` and any SOQL results cached during the test. The next `isEnabled` for any name then performs a fresh SOQL lookup.
+`clearCache()` is `@TestVisible`, so tests can call it to empty the entire cache. It discards both overrides set via `set` and any SOQL results cached during the test. The next `isEnabled` for any name then performs a fresh SOQL lookup.
 
 ```apex
 FeatureFlag.set('bedrock.feature.cached', true);
@@ -209,17 +209,17 @@ This behavior is deliberate and safe: if a flag is misspelled or its metadata wa
 
 ### 3. It caches per transaction
 
-The class keeps a private static `Map<String, Feature_Flag__mdt>` named `flagsByName`. The first time you ask about a flag, it runs one SOQL query and stores the result — *including a `null` entry* when no record was found. Every later read of the same name in the same transaction returns the cached value with no further query.
+The class keeps a private static `Map<String, Feature_Flag__mdt>` named `flagsByName`. The first time you ask about a flag, it runs one SOQL query and stores the result — *including a `null` entry* when no record was found. Every later read of the same name returns the cached value with no further query.
 
-Because `static` state in Apex lives for the duration of a single transaction, the cache is naturally scoped to one execution context and starts empty in the next one.
+`static` state in Apex lives for the duration of a single transaction, so the cache is naturally scoped to one execution context and starts empty in the next one.
 
-> **Why caching a `null` matters:** when a flag has no metadata record, `FeatureFlag` still writes a `null` entry for that name. A missing flag therefore costs *one* query per transaction, not one query per check. Checking an undefined flag a thousand times in a loop is still a single SOQL call.
+> **Why caching a `null` matters:** when a flag has no metadata record, `FeatureFlag` still writes a `null` entry for that name. A missing flag costs *one* query per transaction — not one per check. Check an undefined flag a thousand times in a loop and you still make a single SOQL call.
 
 ## Public API
 
 `FeatureFlag` is a `public inherited sharing` class. Only **two** members are callable from production code; the rest are private implementation details.
 
-> **A note on access modifiers:** in Apex, a member with **no** access modifier is `private`. Two methods in this class — `get(String name)` and `clearCache()` — have no `public` modifier, making them private. `clearCache` is annotated `@TestVisible`, which exposes it to test classes only; it remains private to all other callers.
+> **A note on access modifiers:** in Apex, a member with **no** access modifier is `private`. Two methods in this class — `get(String name)` and `clearCache()` — have no `public` modifier, so they are private. `clearCache` is annotated `@TestVisible`, which exposes it to test classes only. It remains private to all other callers.
 
 | Member | Signature | Returns | Description |
 | --- | --- | --- | --- |
@@ -242,15 +242,15 @@ Because `static` state in Apex lives for the duration of a single transaction, t
 
 - **No access modifier means private.** Only `isEnabled` and `set` are callable from production code. `get` and `clearCache` are private; `clearCache` is reachable only from test code via `@TestVisible`. Do not build production logic against them.
 
-- **Match on `Name__c`, not `DeveloperName`.** The query filters on the custom "Flag Key" field. The string in `Name__c` must equal the string you pass to `isEnabled` exactly — including case and any dotted namespace prefix.
+- **Match on `Name__c`, not `DeveloperName`.** The query filters on the custom "Flag Key" field. The string in `Name__c` must exactly equal the string you pass to `isEnabled` — case, dots, and all.
 
-- **Fail closed is a feature, not a bug.** A misspelled name, a flag whose metadata was never deployed, and a blank name all return `false`. Guarded features stay off until a real, enabled record exists. Double-check spelling if a flag will not turn on.
+- **Fail closed is a feature, not a bug.** A misspelled name, a flag whose metadata was never deployed, and a blank name all return `false`. Guarded features stay off until a real, enabled record exists. If a flag refuses to turn on, spelling is the first thing to check.
 
-- **The cache is per transaction.** Values are stored in static state, which lives for one Apex transaction. A `Feature_Flag__mdt` record changed mid-transaction (or deployed at that moment) is not reflected until the next transaction. In tests, use `clearCache()` to force a fresh read.
+- **The cache is per transaction.** Values are stored in static state, which lives for one Apex transaction. A `Feature_Flag__mdt` record changed mid-transaction — or deployed at that exact moment — is not visible until the next transaction starts. In tests, use `clearCache()` to force a fresh read.
 
-- **`set(name, null)` reads as disabled, not absent.** It stores a `Feature_Flag__mdt` with `Is_Enabled__c = null` in the cache. The entry is not removed, so subsequent calls do not re-query. Because `isEnabled` evaluates `flag != null && flag.Is_Enabled__c`, a null `Is_Enabled__c` returns `false`.
+- **`set(name, null)` reads as disabled, not absent.** It stores a `Feature_Flag__mdt` with `Is_Enabled__c = null` in the cache. The entry is not removed, so subsequent calls do not re-query. `isEnabled` evaluates `flag != null && flag.Is_Enabled__c`, so a null `Is_Enabled__c` returns `false`.
 
-- **`set` only affects the current transaction's memory.** It does not insert metadata and does not persist anywhere. It is purely a test seam for the in-memory cache. Do not call it from production code expecting durable configuration.
+- **`set` only affects the current transaction's memory.** It does not insert metadata and nothing persists. It is a test seam for the in-memory cache — do not call it from production code expecting durable configuration.
 
 - **Seed flags in tests; do not rely on org data.** Use `FeatureFlag.set` to put the flag into a known state so your test is deterministic regardless of which `Feature_Flag__mdt` records happen to be deployed in the running org.
 

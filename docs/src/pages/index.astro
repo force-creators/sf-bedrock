@@ -3,8 +3,9 @@ import DocsLayout from '../layouts/DocsLayout.astro';
 
 const sections = [
   { label: 'Why Bedrock', href: '#why-bedrock' },
-  { label: 'Proven Under Load', href: '#battle-tested' },
-  { label: 'The Toolkit', href: '#the-toolkit' },
+  { label: 'Proven at Scale', href: '#proven-at-scale' },
+  { label: 'The Headliners', href: '#the-headliners' },
+  { label: 'The Full Toolkit', href: '#the-full-toolkit' },
   { label: 'Designed in Layers', href: '#designed-in-layers' },
   { label: 'Built to Grow', href: '#built-to-grow' },
   { label: 'Start Building', href: '#start-building' }
@@ -13,27 +14,28 @@ const sections = [
 
 <DocsLayout
   title="sf-bedrock — enterprise Apex that stays readable"
-  description="sf-bedrock is a Salesforce architecture toolkit: dependency injection, tests that run without a database, and clean trigger patterns — proven in Fortune 100 orgs."
+  description="sf-bedrock is a Salesforce architecture toolkit: background jobs that scale, untyped-JSON handling, database-free tests, and dependency injection — forged in a Fortune 100 org with millions of records."
   eyebrow="Salesforce Architecture Toolkit"
   sections={sections}
 >
   <Fragment slot="header">
     <h1>Apex that scales without the ceremony.</h1>
     <p class="lede">
-      sf-bedrock is a foundation for enterprise Apex: dependency injection, unit
-      tests that never touch the database, and trigger patterns that stay clean
-      under load. It keeps high-volume orgs safe without making everyday code
-      heavy — and it reads the way the engineer who owns it would write it.
+      sf-bedrock is a foundation for enterprise Apex: background work that drains
+      thousands of records safely, unit tests that never touch the database, and
+      dependency-injection seams that keep production code direct. It protects
+      high-volume orgs without making everyday code heavy. And it reads the way
+      the engineer who owns it would write it.
     </p>
     <div class="pill-row" style="margin-top: 1.25rem;">
+      <span class="pill">Scalable Async</span>
+      <span class="pill">Tame Untyped JSON</span>
       <span class="pill">Dependency Injection</span>
-      <span class="pill">Database-Free Tests</span>
-      <span class="pill">Clean Triggers</span>
       <span class="pill">Human-Maintainable</span>
     </div>
     <div class="pill-row" style="margin-top: 1.5rem; gap: 0.6rem;">
       <a class="button button-primary" href="/getting-started">Get Started</a>
-      <a class="button button-secondary" href="/test-data">Explore the API</a>
+      <a class="button button-secondary" href="/async">Explore the API</a>
     </div>
   </Fragment>
 
@@ -42,9 +44,11 @@ const sections = [
     <p>
       Enterprise Salesforce usually forces a trade: heavy frameworks that make
       code testable but obscure, or lean code that reads well until the test
-      suite grinds against the database. Bedrock takes neither side. It is a
-      small set of dependency-injection seams that keep production code direct
-      and tests fast — no rewrite of how your team already works.
+      suite grinds against the database and the first big data volume breaks a
+      trigger. Bedrock takes neither side. It is a small set of focused tools and
+      dependency-injection seams that keep production code direct, keep tests
+      fast, and keep automation inside platform limits. It does all of that
+      without rewriting how your team already works.
     </p>
     <div class="doc-grid">
       <article class="doc-card">
@@ -55,17 +59,17 @@ const sections = [
         </p>
       </article>
       <article class="doc-card">
+        <h3>Safe at real volume</h3>
+        <p>
+          Background work that drains thousands of records in governor-safe
+          batches, grouped upserts, and recursion-minded triggers.
+        </p>
+      </article>
+      <article class="doc-card">
         <h3>Readable by humans</h3>
         <p>
           Minimalist, low-ceremony Apex. The seams live in your tests, not
           tangled through your business logic.
-        </p>
-      </article>
-      <article class="doc-card">
-        <h3>Safe at volume</h3>
-        <p>
-          Bulk-safe staged DML, grouped upserts, and recursion-minded trigger
-          design built for high-throughput orgs.
         </p>
       </article>
       <article class="doc-card">
@@ -78,13 +82,15 @@ const sections = [
     </div>
   </section>
 
-  <section class="doc-section" id="battle-tested">
-    <h2>Proven Under Real Load</h2>
+  <section class="doc-section" id="proven-at-scale">
+    <h2>Proven at Scale</h2>
     <p>
-      These patterns started in Fortune 100 Salesforce orgs — high-volume,
-      high-scrutiny environments where flaky tests, recursive triggers, and
-      governor limits are daily realities, not edge cases. Bedrock is what
-      held up under that pressure, packaged so any team can adopt it.
+      These patterns were forged in one of the largest Salesforce orgs on the
+      planet: a Fortune 100 environment with millions of records and thousands of
+      daily users. There is no tolerance for flaky deploys or runaway governor
+      limits. Recursive triggers, exhausted queueable slots, and tests that depend
+      on org data are daily realities there, not edge cases. Bedrock is what held
+      up under that pressure, distilled and packaged so any team can adopt it.
     </p>
     <div class="callout">
       <strong>Developer-first, by design</strong>
@@ -110,25 +116,59 @@ const sections = [
     </ul>
   </section>
 
-  <section class="doc-section" id="the-toolkit">
-    <h2>The Toolkit</h2>
+  <section class="doc-section" id="the-headliners">
+    <h2>The Headliners</h2>
     <p>
-      Eight focused tools, each documented with the contract, real examples, and
-      the testing path. They stand alone and compose together.
+      Four tools carry most of Bedrock's day-to-day value. Start here — each is
+      documented with the contract, real examples, and the testing path.
+    </p>
+    <div class="doc-grid">
+      <article class="doc-card">
+        <h3><a href="/async">Async</a></h3>
+        <p>
+          Hand the framework a set of record Ids and it drains them in the
+          background, in governor-safe batches, chaining job to job until the
+          queue is empty. Every work item is tracked to success or error. Process
+          thousands of records without ever tripping the 50-job limit.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3><a href="/generic">Generic</a></h3>
+        <p>
+          Tame untyped JSON and integration payloads: read and write deeply
+          nested values by path, coerce them to the Apex type you ask for, and
+          convert cleanly to a typed SObject. No tree of manual casts and
+          <code>containsKey</code> checks.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3><a href="/test-data">TestData</a></h3>
+        <p>
+          A fluent builder for in-memory records — including fields the normal
+          constructor rejects, like formula, audit, and Id fields. Realistic test
+          data with mock Ids and parent relationships, with zero DML or setup
+          bloat.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3><a href="/dml">Dependency Injection</a></h3>
+        <p>
+          Route every write through <a href="/dml">DML</a> and every read through
+          <a href="/query">Query</a>. Production runs the real thing. Tests swap
+          in a mock and assert exactly what would have been written or read — no
+          database, no <code>SeeAllData</code>.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="doc-section" id="the-full-toolkit">
+    <h2>The Full Toolkit</h2>
+    <p>
+      Around the headliners sits a focused supporting cast — each one small,
+      single-purpose, and testable.
     </p>
     <ul class="token-list">
-      <li>
-        <strong><a href="/test-data">TestData</a></strong>
-        <span>Focused records with mock Ids — and even normally read-only fields set — without DML or setup bloat.</span>
-      </li>
-      <li>
-        <strong><a href="/dml">DML</a></strong>
-        <span>Every write behind one injectable facade. Capture and assert operations in tests with DMLMock.</span>
-      </li>
-      <li>
-        <strong><a href="/query">Query</a></strong>
-        <span>Swap SOQL for staged results. Prove data-access behavior without a database — single or sequential responses.</span>
-      </li>
       <li>
         <strong><a href="/platform-cache">PlatformCache</a></strong>
         <span>Org and session Platform Cache behind a mockable seam — the part of the platform that is notoriously hard to test, finally testable.</span>
@@ -146,8 +186,8 @@ const sections = [
         <span>Metadata-driven toggles that fail closed, with one-line overrides for tests.</span>
       </li>
       <li>
-        <strong><a href="/generic">Generic</a></strong>
-        <span>Tame untyped JSON with path access, type coercion, and typed SObject conversion.</span>
+        <strong><a href="/pluck">Pluck</a></strong>
+        <span>Turn a list of records into a deduped <code>Set&lt;Id&gt;</code> in one call — the small helper that feeds list-driven APIs like Async.</span>
       </li>
     </ul>
   </section>
@@ -194,16 +234,15 @@ const sections = [
     <div class="pill-row">
       <span class="pill">Selector</span>
       <span class="pill">Selector.Cached</span>
-      <span class="pill">Async</span>
       <span class="pill">Event</span>
       <span class="pill">Scheduler</span>
       <span class="pill">LimitsService</span>
     </div>
     <p style="margin-top: 1rem;">
       Async, Event, and Scheduler will share one foundation while keeping
-      separate execution pools, and consult a limit-aware service before running
-      work — so framework automation protects org health instead of threatening
-      it.
+      separate execution pools. Each consults a limit-aware service before
+      running work, so framework automation protects org health instead of
+      threatening it.
     </p>
   </section>
 
@@ -212,7 +251,8 @@ const sections = [
     <p>
       Stand up the docs locally, then start with the testing foundation —
       <code>TestData</code>, <code>DML</code>, and <code>Query</code> — and feel
-      how fast a Bedrock test suite runs.
+      how fast a Bedrock test suite runs. When you are ready to move real volume,
+      reach for <code>Async</code>.
     </p>
     <div class="utility-panel">
       <div>

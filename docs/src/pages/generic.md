@@ -46,15 +46,15 @@ It wraps a single `Map<String, Object>` and gives you four things on top of it:
 4. **An extension point** — subclass it and override `mapping()` to define a
    reusable shape, then call `transform()` to materialize it.
 
-**Use `Generic` when** you are consuming data whose structure is known at
-runtime but awkward to model with classes — integration responses, configuration
-blobs, dynamic field maps — and you want safe, readable path access instead of
-nested casts and `containsKey` checks.
+**Use `Generic` when** you're consuming data whose structure is known at runtime
+but awkward to model with classes — integration responses, configuration blobs,
+dynamic field maps. It gives you safe, readable path access instead of nested
+casts and `containsKey` checks.
 
 **Reach for a typed Apex class (or `JSON.deserialize` into one) instead when**
 the shape is stable and well-known. A real DTO gives you compile-time safety and
-autocomplete; `Generic` trades those away for flexibility. Don't use `Generic`
-where a plain `MyResponse` wrapper would do.
+autocomplete. `Generic` trades those away for flexibility. Don't use it where a
+plain `MyResponse` wrapper would do.
 
 ## Quickstart
 
@@ -273,15 +273,15 @@ Assert.areEqual('B', items[1].get('name'), 'Each item is a usable map.');
 
 > **A `null` value short-circuits.** If the value at the path is `null`,
 > coercion returns `null` regardless of `target` — it never tries to convert
-> `null`. Combined with the safe-path behavior, `get('missing.path',
-> Integer.class)` is `null`, not an exception.
+> `null`. Combined with the safe-path behavior, `get('missing.path', Integer.class)`
+> returns `null`, not an exception.
 
 ## Subclassing & transform()
 
 `Generic` is declared `virtual`, and `mapping()` / `transform()` are `virtual`
 hooks — this is the **Template Method** pattern. The base `mapping()` returns an
-empty map; `transform()` simply feeds `mapping()` into a new `Generic` and hands
-back its backing map. On the base class both are empty:
+empty map. `transform()` feeds `mapping()` into a new `Generic` and hands back
+its backing map. On the base class, both return empty:
 
 ```apex
 Generic g = new Generic();
@@ -290,9 +290,9 @@ Assert.areEqual(0, g.transform().size(), 'Base transform() is empty.');
 ```
 
 Subclass `Generic` and **override `mapping()`** to declare a reusable shape.
-`transform()` then materializes it for you — useful for building a canonical
-output structure (for example, normalizing an inbound payload into the map your
-downstream code expects):
+`transform()` materializes it for you. This is useful for building a canonical
+output structure — for example, normalizing an inbound payload into the map your
+downstream code expects:
 
 ```apex
 public class StatusReport extends Generic {
@@ -342,7 +342,7 @@ time. At each step it inspects the current node:
 - If the node is a `List<Object>`, the segment is parsed as an **integer index**.
 
 `get` returns `null` the moment a segment is missing or an index is out of
-bounds, so you never get a `NullPointerException` or `ListException` mid-walk.
+bounds. You'll never get a `NullPointerException` or `ListException` mid-walk.
 `put` is the mirror image: as it walks toward the last segment, it **creates the
 intermediate maps it needs**, so `put('a.b.c', x)` works even on an empty
 container.
@@ -350,12 +350,12 @@ container.
 ### 3. Coercion and conversion go through JSON
 
 When you ask `get` for a `Type`, simple targets (`Integer`, `Boolean`, `Date`,
-etc.) are converted with the matching `valueOf` call. Anything more complex is
-handled by a **JSON round-trip** — serialize the raw value, then
-`JSON.deserialize` it into the requested type. The same trick powers `sObject()`,
-which serializes the whole container and deserializes it into the `SObject` type
-you pass. This is why a string value of `'42'` from JSON can come back as a real
-`Integer`, and why the map can become an `Account`.
+etc.) are converted with the matching `valueOf` call. Anything more complex gets
+a **JSON round-trip**: serialize the raw value, then `JSON.deserialize` it into
+the requested type. The same trick powers `sObject()`, which serializes the
+whole container and deserializes it into the `SObject` type you pass. That's why
+a string value of `'42'` from JSON can come back as a real `Integer`, and why
+the map can become an `Account`.
 
 ## Public API
 
@@ -364,15 +364,15 @@ helpers, and two `virtual` extension methods.
 
 > **A note on "properties":** `Generic` has **no public properties**. Its only
 > instance state is the `generic` field, which is **`protected`** — visible to
-> subclasses but not to outside callers. To read the underlying map from the
-> outside, use the `generic()` method. All state changes go through `put`. This
-> keeps the container's internals encapsulated behind the path API.
+> subclasses but not to outside callers. To read the underlying map from outside
+> the class, use the `generic()` method. All state changes go through `put`,
+> keeping the container's internals encapsulated behind the path API.
 
 > **A note on access modifiers:** in Apex, a member with **no** access modifier
 > is **private**. The `coerce(...)` and `normalizeParths(...)` methods have no
-> modifier, so they are private implementation details and are **not** part of
-> the public surface — they are described in [How It Works](#how-it-works) only
-> to explain behavior.
+> modifier, so they are private implementation details — **not** part of the
+> public surface. They appear in [How It Works](#how-it-works) only to explain
+> behavior.
 
 | Member | Signature | Returns | Description |
 | --- | --- | --- | --- |
@@ -392,24 +392,22 @@ helpers, and two `virtual` extension methods.
 | `transform` | `transform()` (`virtual`) | `Map<String, Object>` | Builds a new `Generic` from `mapping()` and returns its backing map. See [Subclassing & transform()](#subclassing-and-transform). |
 
 > **About the recursive overloads.** `get(Object, List<String>, Integer)` and
-> `put(Object, List<String>, Integer, Object)` are public only because Apex needs
-> them visible for the recursion. They are the engine behind the string-based
-> overloads — in day-to-day code you call `get(path)`, `get(path, type)`, and
-> `put(key, value)`.
+> `put(Object, List<String>, Integer, Object)` are public only because Apex
+> requires it for the recursion to work. They power the string-based overloads.
+> In day-to-day code, call `get(path)`, `get(path, type)`, and `put(key, value)`.
 
 ## Notes & Edge Cases
 
-- **The string JSON constructor expects a top-level object.** `new
-  Generic(json)` casts the deserialized result to `Map<String, Object>`. JSON
-  whose root is an array or a scalar will throw a cast exception — wrap it in an
-  object first.
+- **The string JSON constructor expects a top-level object.** `new Generic(json)`
+  casts the deserialized result to `Map<String, Object>`. If the JSON root is an
+  array or a scalar, you'll get a cast exception. Wrap it in an object first.
 - **`get` is null-safe; coercion can still throw.** The path walk never throws on
-  missing data, but converting an incompatible value can — e.g.
-  `get('name', Integer.class)` on a non-numeric string raises a
-  `TypeException`. Coerce only values you expect to fit the target.
-- **`put` builds maps, not lists.** Writing `a.b.c` creates the intermediate
-  maps, but `put` cannot create list elements or set an item by index. To write
-  into a list, build the list and `put` it as a whole value.
+  missing data, but converting an incompatible value can. For example,
+  `get('name', Integer.class)` on a non-numeric string raises a `TypeException`.
+  Coerce only values you expect to fit the target type.
+- **`put` builds maps, not lists.** Writing `a.b.c` creates intermediate maps,
+  but `put` cannot create list elements or set an item by index. To write into a
+  list, build the list yourself and `put` it as a whole value.
 - **`generic()` returns a live reference.** It hands back the actual backing map,
   not a copy — mutating the returned map mutates the container. The `Map`
   *constructor*, by contrast, copies its input, so later changes to the source
@@ -421,21 +419,21 @@ helpers, and two `virtual` extension methods.
   Assert.areEqual('initial', g.get('status'), 'Constructor took a defensive copy.');
   ```
 - **`sObject()` is only as valid as your keys.** Deserialization into an SObject
-  succeeds only when keys map to real field API names of the correct types;
-  mismatches throw during deserialization. It's a great way to fabricate records
+  succeeds only when keys map to real field API names of the correct types.
+  Mismatches throw during deserialization. It's a great way to fabricate records
   for tests — but, like any deserialized SObject, those records carry whatever
-  values you put in, including normally read-only ones, so keep them on the
-  mocking side of your tests, not for DML.
+  values you put in, including normally read-only ones. Keep them on the mocking
+  side of your tests, not for DML.
 - **Numeric path segments are indices only inside lists.** `tags[0]` walks a
   list, but if `tags` happens to be a map, `0` is treated as the literal key
   `'0'`. The segment's meaning depends on the node type at that point in the walk.
 - **Coercion reads, it does not store.** `get(path, type)` returns a converted
-  copy; it does not change what's stored in the container. The backing map keeps
+  copy. It does not change what's stored in the container. The backing map keeps
   the original raw value.
 - **Don't reach for the recursive overloads.** `get(Object, List<String>,
   Integer)` and the four-argument `put` exist for internal recursion. Use the
-  string-path overloads; the recursive ones expect already-normalized segment
+  string-path overloads. The recursive ones expect already-normalized segment
   lists and a starting index.
 - **There is no mock for `Generic`.** `Generic` is a pure in-memory value
-  container with no I/O. Test it directly: construct with a known payload, assert
-  what `get` returns. No seams to replace, no setup beyond the constructor.
+  container with no I/O. Test it directly: construct with a known payload and
+  assert what `get` returns. No seams to replace, no setup beyond the constructor.

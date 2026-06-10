@@ -34,12 +34,12 @@ every time. Salesforce exposes two kinds of storage:
 - **Org cache** (`Cache.Org`) — shared across all users and sessions in the org.
 - **Session cache** (`Cache.Session`) — scoped to a single user's session.
 
-The raw `Cache.Org` / `Cache.Session` namespaces are awkward to use directly:
-the calls are static, scattered, and — most painfully — **almost impossible to
-unit test**, because there is no supported way to fake what the platform cache
-returns inside a test. `PlatformCache` wraps both namespaces behind one small
-interface (`get`, `put`, `remove`) and a registry that can swap the real
-partition for a mock. That single seam is what makes cache-backed code testable.
+The raw `Cache.Org` / `Cache.Session` namespaces are awkward to use directly.
+The calls are static, scattered, and — most painfully — **almost impossible to
+unit test**. There is no supported way to fake what the platform cache returns
+inside a test. `PlatformCache` wraps both namespaces behind one small interface
+(`get`, `put`, `remove`) and a registry that can swap the real partition for a
+mock. That single seam is what makes cache-backed code testable.
 
 **Use `PlatformCache` when** you want to read or write Platform Cache from Apex
 and you care about being able to unit test that code — which, in a Bedrock
@@ -122,14 +122,14 @@ The mirror image works for session scope by extending `PlatformCache.Session`.
 
 Platform Cache is **notoriously hard to test directly.** There is no supported
 API to pre-load `Cache.Org` with a value inside a test and have your code read
-it back deterministically, and depending on partition setup the platform may
+it back deterministically. Depending on partition setup, the platform may
 silently return `null`. Naive cache code is either untestable or flaky.
 
 `PlatformCache` solves this with a registry seam. `PlatformCache.Org` and
 `PlatformCache.Session` do not call `Cache.Org` / `Cache.Session` directly —
 they delegate through `PlatformCache.partition`, a static `PartitionRegistry`.
-In tests you register a `PlatformCacheMock` under a partition name and scope,
-and from that point any code that constructs `new PlatformCache.Org('Bedrock')`
+In tests, register a `PlatformCacheMock` under a partition name and scope.
+From that point, any code that constructs `new PlatformCache.Org('Bedrock')`
 transparently reads and writes the mock instead of the live cache.
 
 ### The injection recipe
@@ -297,7 +297,7 @@ public override virtual Object get(String key) {
 a partition by name and scope, it either returns a **registered mock** for that
 partition or, if none is registered, hands back a real `PlatformCache.Partition`
 that talks to the live `Cache.Org` / `Cache.Session` namespace. In production
-the registry returns the real partition; in a test you register a
+the registry returns the real partition. In a test, register a
 `PlatformCacheMock` and the same code transparently reads and writes the mock
 instead.
 
@@ -388,10 +388,9 @@ records every interaction and stores values in a plain in-memory `Map`.
   `null` return from `get` rather than assuming a value is present.
 - **Set up the partition first.** `PlatformCache.Org` / `Session` call
   `Cache.Org.getPartition(name)` / `Cache.Session.getPartition(name)`. The
-  partition name you pass must match a Platform Cache partition you have
-  configured (with allocated capacity) in the org, or the live calls will not
-  behave. In tests this does not matter, because the mock replaces the real
-  partition entirely.
+  partition name you pass must match a Platform Cache partition configured
+  (with allocated capacity) in the org, or the live calls will not behave.
+  In tests this does not matter — the mock replaces the real partition entirely.
 - **The mock is matched by partition name and scope.** If your code uses
   `new PlatformCache.Org('Bedrock')` but you register a mock named `'Other'`,
   no mock is found and the registry falls back to a real partition. Construct
@@ -401,10 +400,10 @@ records every interaction and stores values in a plain in-memory `Map`.
   mock; there is no separate "default" scope to worry about. Use `setSessionMock`
   for session scope.
 - **Values are serialized by the platform.** Anything you `put` into real
-  Platform Cache must be serializable, and large values count against your
+  Platform Cache must be serializable. Large values also count against your
   partition's capacity. The mock stores objects in a plain `Map` and does not
   enforce these limits, so a value that works in a mocked test could still be
-  rejected or evicted in production — keep cached payloads small and simple.
+  rejected or evicted in production. Keep cached payloads small and simple.
 - **`get` returns `Object`; cast it.** Store and retrieve the same type, and
   cast on the way out. A wrong cast surfaces as a runtime `TypeException`.
 - **The registry is static and transaction-wide.** A mock you register stays
@@ -412,6 +411,7 @@ records every interaction and stores values in a plain in-memory `Map`.
   so each test starts from a known state.
 - **Use the mock's interaction logs to assert intent, not just outcome.** The
   `gets`, `puts`, and `removes` lists let you prove the code touched the cache
-  the expected number of times — for example, that a cache-hit path performed
-  zero puts. Asserting the empty channels (`Assert.areEqual(0, mock.puts.size(),
-  'Expected no writes.')`) catches accidental extra writes.
+  the expected number of times. For example, you can confirm that a cache-hit
+  path performed zero puts. Asserting the empty channels
+  (`Assert.areEqual(0, mock.puts.size(), 'Expected no writes.')`) catches
+  accidental extra writes.

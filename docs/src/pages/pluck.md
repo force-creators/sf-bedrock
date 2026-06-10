@@ -25,19 +25,19 @@ sections:
 ## Overview
 
 `Pluck` solves a small, recurring problem: you have a `List<SObject>` and you
-need a `Set<Id>` — either the records' own Ids, or the Id stored in a lookup
+need a `Set<Id>`. Either the records' own Ids, or the Id stored in a lookup
 field on each record. Writing the null-check loop by hand every time is noise.
 `Pluck` moves that loop into one place and gives you back a clean set.
 
 **Use `Pluck` when** you need to collect record Ids or lookup-field Ids from a
-list of records to feed a `Set<Id>`-based API — for example, passing record
+list of records to feed a `Set<Id>`-based API. Common cases: passing record
 Ids to `Async.enqueue`, building a key set for a `Map<Id, SObject>`, or
 preparing an Id set before a query.
 
 **Reach for a full collection framework or SOQL instead when** you need to
-group records by field, filter them, sort them, aggregate values, or do
-anything more complex than extracting Ids. `Pluck` has exactly two methods and
-does exactly one thing — it is not a general-purpose collection utility.
+group records by field, filter them, sort them, or aggregate values — anything
+more complex than extracting Ids. `Pluck` has exactly two methods and does
+exactly one thing. It is not a general-purpose collection utility.
 
 ## Quickstart
 
@@ -80,7 +80,7 @@ Records where `AccountId` is null are skipped automatically.
 ### Feeding Async.enqueue
 
 `Async.enqueue` accepts either a `List<SObject>` or a `Set<Id>`. When you
-already have a Set, pass it directly; when you only have a list and want to
+already have a Set, pass it directly. When you only have a list and want to
 build the set yourself, `Pluck` gives you the same result the framework
 produces internally:
 
@@ -182,7 +182,7 @@ duplicate without extra logic. The caller gets a distinct Id set with no
 additional work.
 
 > `Pluck` is intentionally minimal. The loop and the cast are the whole
-> implementation — there is no registry, no configuration, and no extension
+> implementation. There is no registry, no configuration, and no extension
 > point. Its value is in naming the pattern and keeping the null check out of
 > every call site.
 
@@ -216,13 +216,13 @@ has no inner types, no instance state, and no test-only members.
 
 - **The second overload casts the field value to `Id`.** Pass a field that
   actually holds an `Id` value — a lookup, master-detail, or other reference
-  field. Passing a field whose runtime value is not castable to `Id` (for
-  example, a `String` field that happens to contain an Id-shaped string) will
-  throw a `System.TypeException` at runtime.
+  field. If the field's runtime value is not castable to `Id` (for example, a
+  `String` field that happens to contain an Id-shaped string), it will throw a
+  `System.TypeException` at runtime.
 
 - **An empty list returns an empty set.** Passing `new List<SObject>()` to
   either overload returns an empty `Set<Id>` and does not throw.
 
-- **`Pluck` is not a query or collection framework.** It does not filter,
-  sort, group, or aggregate — it only extracts Ids. If you need richer
+- **`Pluck` is not a query or collection framework.** It only extracts Ids —
+  no filtering, sorting, grouping, or aggregating. If you need richer
   collection operations, write them directly or consider a dedicated selector.

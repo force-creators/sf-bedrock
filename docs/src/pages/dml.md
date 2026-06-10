@@ -27,18 +27,18 @@ sections:
 `DML` is a thin static facade over the six Apex DML verbs: `insert`, `update`,
 `upsert` (with and without an external Id), `delete`, and `undelete`. Instead of
 writing `insert records;` directly in your service classes, you call
-`DML.insertRecords(records)` and the work is delegated to a single, swappable
+`DML.insertRecords(records)`. The work is delegated to a single, swappable
 instance behind the scenes.
 
 **Use `DML` when** your business logic performs DML and you want to unit-test
-that logic in isolation: prove that a service inserts the right records, updates
-the right ones, deletes nothing it shouldn't, and so on, all in memory.
+that logic in isolation — prove that a service inserts the right records, updates
+the right ones, and deletes nothing it shouldn't, all in memory.
 
 **Reach for raw DML (`insert records;`) or `Database` methods instead when** the
-database behavior itself is the thing under test — triggers, flows, validation
+database behavior itself is the thing under test: triggers, flows, validation
 rules, sharing recalculation, partial-success handling, or anything that only a
 real commit produces. `DML` deliberately does not expose `Database.DMLOptions`,
-`allOrNone` flags, or `Database.SaveResult[]`; if you need those, call the
+`allOrNone` flags, or `Database.SaveResult[]`. If you need those, call the
 platform directly.
 
 ## Quickstart
@@ -267,13 +267,13 @@ subclass of `Service` and every subsequent `DML.*` call is intercepted.
 ### 3. The `Contract` interface defines the surface both sides honor
 
 The inner `Contract` interface lists the six operations. `Service` (the real
-implementation) `implements Contract`, and `DMLMock extends DML.Service` so it
+implementation) `implements Contract`. `DMLMock extends DML.Service`, so it
 inherits the same shape and overrides each method. Both the real and the mock
-implementations expose an identical API, which is what makes them interchangeable.
+implementations expose an identical API — that's what makes them interchangeable.
 
 > `DML` is declared `public virtual inherited sharing class DML extends Service` —
 > it extends its own inner `Service` class. That detail is incidental to using
-> the facade: you call the **static** methods on `DML`, not instances of it.
+> the facade. You call the **static** methods on `DML`, not instances of it.
 > Every operation runs in the sharing context of the calling code
 > (`inherited sharing`).
 
@@ -283,9 +283,9 @@ implementations expose an identical API, which is what makes them interchangeabl
 production code should call. `setMock` exists but is test-only.
 
 > **A note on "properties":** `DML` has no public properties. Its only state is
-> the `static Service instance`, which is **private** (no access modifier in
-> Apex means private) and can be changed only through `setMock`. There is no
-> public getter or setter, by design — the instance is an implementation detail
+> the `static Service instance`, which is **private** — no access modifier in
+> Apex means private. It can be changed only through `setMock`. There is no
+> public getter or setter, by design. The instance is an implementation detail
 > of the facade.
 
 ### Static methods (the facade)
@@ -346,34 +346,34 @@ it. So `dmlMock.inserts.size()` is the number of insert calls, and
 
 - **The delegate is static — install it before the code under test runs.** A
   `setMock` call replaces the static `instance` for the remainder of the test
-  transaction. Call it before invoking the code that performs DML, or the real
-  DML will run.
+  transaction. Call it before invoking the code that performs DML. If you don't,
+  the real DML will run.
 
 - **Both upsert overloads share the `upserts` list, and the external-Id field is
-  not captured.** Assert on record field values, not on the matching field, when
-  using the external-Id overload.
+  not captured.** When using the external-Id overload, assert on record field
+  values — not on the matching field itself.
 
 - **The mock captures references, not snapshots.** `DMLMock` stores the same
-  `List<SObject>` you passed in. If the code under test (or your test) mutates
-  those records after the call, the captured list reflects the mutation. Assert
-  immediately after the call to observe the state at call time.
+  `List<SObject>` you passed in. If your code (or the test itself) mutates those
+  records after the call, the captured list reflects that mutation. Assert
+  immediately after the call to see the state at call time.
 
-- **`DMLMock` assigns no Ids.** Real `insert`/`upsert` populate `Id` on success;
-  the mock does not. If your code reads `record.Id` after a `DML.insertRecords`
+- **`DMLMock` assigns no Ids.** Real `insert`/`upsert` populate `Id` on success.
+  The mock does not. If your code reads `record.Id` after a `DML.insertRecords`
   call, give the records Ids up front with `TestData.mockIds()`.
 
 - **The external-Id upsert is all-or-none.** In production it calls
   `Database.upsert(records, externalIdField, true)`. A single failed row rolls
-  back the whole batch and throws — there is no partial-success result to inspect.
-  If you need partial success, call `Database.upsert` yourself; the facade does
+  back the whole batch and throws. There is no partial-success result to inspect.
+  If you need partial success, call `Database.upsert` yourself — the facade does
   not expose that option.
 
 - **`void` return, no results to inspect.** None of the facade methods return
-  `Database.SaveResult[]`. Errors surface as thrown `DmlException`s, just like
-  raw DML statements. Verify behavior by asserting on the `DMLMock` capture lists
-  in tests, or on the records' downstream effects in production flows.
+  `Database.SaveResult[]`. Errors surface as thrown `DmlException`s — just like
+  raw DML statements. In tests, verify behavior by asserting on the `DMLMock`
+  capture lists. In production flows, check the records' downstream effects.
 
-- **The facade adds no batching or governor protection.** It is a pass-through:
-  `DML.insertRecords` consumes one DML statement against governor limits exactly
-  as a bare `insert` would. Bulkify by passing whole lists, not by calling the
+- **The facade adds no batching or governor protection.** It is a pass-through.
+  `DML.insertRecords` consumes one DML statement against governor limits, exactly
+  as a bare `insert` would. Bulkify by passing whole lists — not by calling the
   facade in a loop.
