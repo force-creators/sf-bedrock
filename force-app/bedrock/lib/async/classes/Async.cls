@@ -103,7 +103,6 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             }
 
             DML.insertRecords(workItems);
-            jobs.enqueue();
             return idsFrom(workItems);
         }
 

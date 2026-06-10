@@ -1,5 +1,5 @@
 public virtual inherited sharing class TriggerHandler {
-    protected void run() {
+    public void run() {
         if (!this.isExecuting()) return;
         this.stageBuffers();
         this.dispatch();
@@ -26,16 +26,16 @@ public virtual inherited sharing class TriggerHandler {
                 this.beforeDelete(this.oldRecords(), this.oldRecordsById());
             }
             when AFTER_INSERT {
-                this.afterInsert(this.newRecords(), this.newRecordsById());
+                this.afterInsert(this.newRecords());
             }
             when AFTER_UPDATE {
-                this.afterUpdate(this.newRecords(), this.oldRecordsById(), this.newRecordsById());
+                this.afterUpdate(this.newRecords(), this.oldRecordsById());
             }
             when AFTER_DELETE {
                 this.afterDelete(this.oldRecords(), this.oldRecordsById());
             }
             when AFTER_UNDELETE {
-                this.afterUndelete(this.newRecords(), this.newRecordsById());
+                this.afterUndelete(this.newRecords());
             }
         }
     }
@@ -65,10 +65,10 @@ public virtual inherited sharing class TriggerHandler {
     }
 
     protected virtual void beforeInsert(List<SObject> records) { }
-    protected virtual void beforeUpdate(List<SObject> records, Map<Id, SObject> oldRecordsById) { }
-    protected virtual void beforeDelete(List<SObject> oldRecords, Map<Id, SObject> oldRecordsById) { }
-    protected virtual void afterInsert(List<SObject> records, Map<Id, SObject> recordsById) { }
-    protected virtual void afterUpdate(List<SObject> records, Map<Id, SObject> oldRecordsById, Map<Id, SObject> recordsById) { }
-    protected virtual void afterDelete(List<SObject> oldRecords, Map<Id, SObject> oldRecordsById) { }
-    protected virtual void afterUndelete(List<SObject> records, Map<Id, SObject> recordsById) { }
+    protected virtual void beforeUpdate(List<SObject> records, Map<Id, SObject> oldMap) { }
+    protected virtual void beforeDelete(List<SObject> oldRecords, Map<Id, SObject> oldMap) { }
+    protected virtual void afterInsert(List<SObject> records) { }
+    protected virtual void afterUpdate(List<SObject> records, Map<Id, SObject> oldMap) { }
+    protected virtual void afterDelete(List<SObject> oldRecords, Map<Id, SObject> oldMap) { }
+    protected virtual void afterUndelete(List<SObject> records) { }
 }
