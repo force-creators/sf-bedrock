@@ -52,34 +52,29 @@ then runs a single managed background thread that drains those work items a
 Every work item is tracked through `Pending → Running → Done` (or `Error`), so
 nothing is silently lost.
 
-> **Use `Async` when** you have a body of record work that should happen in the
-> background and might involve more records than you can safely process in one
-> synchronous transaction. You describe *what to do to a batch of records*; the
-> framework decides how many to run at once and when.
-
-> **Reach for a different tool when** the work is not about records you can
-> re-query by Id — for example, event-driven payloads where you want to process
-> data exactly as it was at publish time. That is the shape `Event` is built for
-> (planned; not yet implemented).
-
 ## Quickstart
 
 Using `Async` as a subscriber is two steps.
 
 **Step 1** — extend `Async` and override `execute(Set<Id> ids)`. That method is
 the only code you write. It receives a batch of record Ids and does the work for
-that batch.
+that batch. Here it counts the Contacts on each Account and stores the total on
+the parent — the kind of roll-up a native summary field cannot do across a
+lookup relationship.
 
 ```apex
-public with sharing class SendWelcomeEmailAsync extends Async {
+public with sharing class RollupContactCountAsync extends Async {
 
     public override void execute(Set<Id> ids) {
-        List<Contact> contacts = Query.records([
-            SELECT Id, Email FROM Contact WHERE Id IN :ids
+        List<Account> accounts = Query.records([
+            SELECT Id, (SELECT Id FROM Contacts)
+            FROM Account
+            WHERE Id IN :ids
         ]);
-        for (Contact contact : contacts) {
-            // send the email for this batch of contacts
+        for (Account account : accounts) {
+            account.Number_of_Contacts__c = account.Contacts.size();
         }
+        DML.updateRecords(accounts);
     }
 }
 ```
@@ -89,13 +84,15 @@ process. Do this from anywhere: a trigger handler, a service method, a
 controller.
 
 ```apex
-List<Contact> newContacts = Trigger.new;
-Async.enqueue(SendWelcomeEmailAsync.class, newContacts);
+List<Account> accounts = Query.records([
+    SELECT Id FROM Account WHERE Industry = 'Technology'
+]);
+Async.enqueue(RollupContactCountAsync.class, accounts);
 ```
 
-That is everything. The framework creates one work item per record Id, starts a
+That is everything. The framework creates one work item per Account Id, starts a
 background thread, and drains the queue in batches — each calling your
-`execute` method with a small slice of Ids until everything is processed.
+`execute` method with a small slice of Ids until every Account is recounted.
 
 ## Examples
 
@@ -127,32 +124,6 @@ Async.enqueue(FlagStaleContactsAsync.class, stale);
 If `stale` returns 4,000 records, the calling transaction records 4,000 work
 items. With the default batch size the framework runs 800 background batches of
 5, one chaining to the next, each within its own limits.
-
-### A job that makes callouts
-
-`Async` implements `Database.AllowsCallouts`, so a subclass can call out to an
-external system without extra wiring:
-
-```apex
-public with sharing class SyncAccountsAsync extends Async {
-    public override void execute(Set<Id> ids) {
-        List<Account> accounts = Query.records([
-            SELECT Id, Name FROM Account WHERE Id IN :ids
-        ]);
-        for (Account account : accounts) {
-            HttpRequest request = new HttpRequest();
-            request.setEndpoint('callout:My_Service/accounts');
-            request.setMethod('POST');
-            request.setBody(JSON.serialize(account));
-            new Http().send(request);
-        }
-    }
-}
-```
-
-Because callouts are limited per transaction, this is a class where a **small
-batch size** matters — size the `Async_Config__mdt` batch to stay under the
-callout limit for a single execution.
 
 ## Enqueueing Work
 

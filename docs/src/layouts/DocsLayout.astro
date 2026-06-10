@@ -136,27 +136,140 @@ const isActive = (href: string) => href !== '#' && (href.replace(/\/$/, '') || '
         </article>
         <footer class="site-footer">A technical documentation workspace for human-maintainable Salesforce architecture.</footer>
       </main>
-
-      <aside class="toc" aria-label="On this page">
-        <nav class="toc-inner">
-          <h2 class="toc-heading">On this page</h2>
-          {
-            sections.length > 0 ? (
-              <ul class="toc-list">
-                {
-                  sections.map((section) => (
-                    <li>
-                      <a class="toc-link" href={section.href}>{section.label}</a>
-                    </li>
-                  ))
-                }
-              </ul>
-            ) : (
-              <p class="toc-empty">Section links appear here when a page defines them.</p>
-            )
-          }
-        </nav>
-      </aside>
     </div>
+
+    <script>
+      (() => {
+        const sectionLinks = Array.from(
+          document.querySelectorAll('.nav-sublink[href^="#"], .toc-link[href^="#"]')
+        );
+
+        if (sectionLinks.length === 0) {
+          return;
+        }
+
+        const normalizeHash = (value) => {
+          if (!value || !value.startsWith('#')) {
+            return '';
+          }
+
+          try {
+            return `#${decodeURIComponent(value.slice(1))}`;
+          } catch {
+            return value;
+          }
+        };
+
+        const linkMap = new Map();
+        for (const link of sectionLinks) {
+          const hash = normalizeHash(link.getAttribute('href') || '');
+          if (!hash) {
+            continue;
+          }
+
+          const linksForHash = linkMap.get(hash) || [];
+          linksForHash.push(link);
+          linkMap.set(hash, linksForHash);
+        }
+
+        const trackedSections = [];
+        for (const hash of linkMap.keys()) {
+          const id = hash.slice(1);
+          let element = document.getElementById(id);
+
+          if (!element && window.CSS && typeof window.CSS.escape === 'function') {
+            element = document.querySelector(`#${window.CSS.escape(id)}`);
+          }
+
+          if (element) {
+            trackedSections.push({ hash, element });
+          }
+        }
+
+        if (trackedSections.length === 0) {
+          return;
+        }
+
+        const getTopbarOffset = () => {
+          const rawValue = getComputedStyle(document.documentElement)
+            .getPropertyValue('--topbar-height')
+            .trim();
+          const parsedValue = Number.parseFloat(rawValue);
+          return Number.isFinite(parsedValue) ? parsedValue : 0;
+        };
+
+        const activationOffset = () => getTopbarOffset() + 16;
+
+        let activeHash = '';
+
+        const setActiveHash = (nextHash) => {
+          if (!nextHash || nextHash === activeHash) {
+            return;
+          }
+
+          activeHash = nextHash;
+
+          for (const [hash, links] of linkMap.entries()) {
+            const isActive = hash === activeHash;
+            for (const link of links) {
+              link.classList.toggle('is-active', isActive);
+              if (isActive) {
+                link.setAttribute('aria-current', 'location');
+              } else {
+                link.removeAttribute('aria-current');
+              }
+            }
+          }
+        };
+
+        const getVisibleHash = () => {
+          const threshold = activationOffset();
+          let currentHash = trackedSections[0].hash;
+
+          for (const section of trackedSections) {
+            const sectionTop = section.element.getBoundingClientRect().top;
+            if (sectionTop <= threshold) {
+              currentHash = section.hash;
+            } else {
+              break;
+            }
+          }
+
+          return currentHash;
+        };
+
+        let framePending = false;
+        const scheduleUpdate = () => {
+          if (framePending) {
+            return;
+          }
+
+          framePending = true;
+          window.requestAnimationFrame(() => {
+            framePending = false;
+            setActiveHash(getVisibleHash());
+          });
+        };
+
+        const initialHash = normalizeHash(window.location.hash);
+        if (initialHash && linkMap.has(initialHash)) {
+          setActiveHash(initialHash);
+        } else {
+          setActiveHash(getVisibleHash());
+        }
+
+        window.addEventListener('scroll', scheduleUpdate, { passive: true });
+        window.addEventListener('resize', scheduleUpdate);
+        window.addEventListener('hashchange', () => {
+          const nextHash = normalizeHash(window.location.hash);
+          if (nextHash && linkMap.has(nextHash)) {
+            setActiveHash(nextHash);
+            return;
+          }
+
+          scheduleUpdate();
+        });
+      })();
+    </script>
   </body>
 </html>
