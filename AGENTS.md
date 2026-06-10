@@ -242,6 +242,33 @@ DML and query conventions:
 - Use `QueryMock.Multiple` when more than one query response is needed. It
   returns values in the same order they are staged.
 
+## Documentation
+
+The docs site lives in `docs/` (Astro) and renders one page per Bedrock library
+under `docs/src/pages/`. The canonical authoring guide is `docs/AUTHORING.md` —
+read it before adding or editing a page. Core rules:
+
+- Every library page follows one fixed structure: `Overview → Quickstart →
+  Examples` (plus optional tool-specific sections) `→ Testing → How It Works →
+  Public API → Notes & Edge Cases`. The first three and the last headers are
+  identical on every page; tool-specific sections sit in the middle band.
+- Write for junior-to-mid Salesforce developers. Lead with usage so a reader can
+  start building on the first screen, and keep mechanism, the API reference
+  table, and framework philosophy lower on the page or in short `>` asides.
+- Do not embellish, and never use the word "gotcha" — the closing section is
+  always named "Notes & Edge Cases".
+- Verify every API claim (signatures, access modifiers, behavior) against the
+  actual class in `force-app/bedrock/lib` before documenting it. This is a
+  developer-trust project; unverified behavior must not be presented as fact.
+  Remember the Apex default: a member with no access modifier is private.
+- Apex examples follow the repo test conventions: lowercase `@istest`, the
+  `Assert` class with meaningful messages, `TestData` for records, DML through
+  `DML`, and queries through `Query.records(...)`.
+- Each implemented library in `force-app/bedrock/lib` should have a page and a
+  nav entry in `docs/src/data/docs-navigation.ts`. `Pluck` lives under the
+  "Other" group; `Selector` is roadmap (no Apex yet) and is intentionally
+  undocumented. Validate page changes with `npm run build` in `docs/`.
+
 ## Implemented Tools
 
 This section describes the current Bedrock library in `force-app/bedrock/lib`.
