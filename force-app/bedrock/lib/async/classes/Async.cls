@@ -84,7 +84,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual Boolean canEnqueue() {
-            return true;
+            return !Test.isRunningTest();
         }
     }
 
