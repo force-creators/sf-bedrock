@@ -1,5 +1,5 @@
 public with sharing class AsyncDashboardController {
-    @AuraEnabled(cacheable=true)
+    @AuraEnabled
     public static DashboardMetrics getMetrics() {
         DashboardMetrics metrics = new DashboardMetrics();
 

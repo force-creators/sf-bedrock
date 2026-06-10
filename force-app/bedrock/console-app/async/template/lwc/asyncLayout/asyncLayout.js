@@ -1,6 +1,17 @@
 import { LightningElement } from 'lwc';
 import getMetrics from '@salesforce/apex/AsyncDashboardController.getMetrics';
 
+const NAV_ITEMS = [
+    { id: 'dashboard', label: 'Dashboard', iconName: 'utility:home' },
+    { id: 'backlog', label: 'Backlog', iconName: 'utility:rows' },
+    { id: 'errors', label: 'Errors', iconName: 'utility:error' },
+    {
+        id: 'job-configurations',
+        label: 'Job Configurations',
+        iconName: 'utility:settings'
+    }
+];
+
 export default class AsyncLayout extends LightningElement {
     selectedId = 'dashboard';
     backlogCount = 0;
@@ -16,23 +27,58 @@ export default class AsyncLayout extends LightningElement {
         this.stopCountRefresh();
     }
 
-    get backlogTabLabel() {
-        return `Backlog (${this.backlogCount})`;
+    get navItems() {
+        return NAV_ITEMS.map((item) => {
+            const isActive = item.id === this.selectedId;
+            const isBacklog = item.id === 'backlog';
+            const isErrors = item.id === 'errors';
+
+            return {
+                ...item,
+                count: isBacklog ? this.backlogCount : this.errorCount,
+                showCount: isBacklog || isErrors,
+                itemClass: `slds-nav-vertical__item${isActive ? ' slds-is-active' : ''}`
+            };
+        });
     }
 
-    get errorsTabLabel() {
-        return `Errors (${this.errorCount})`;
+    get isDashboard() {
+        return this.selectedId === 'dashboard';
     }
 
-    handleTabActive(event) {
-        this.selectedId = event.target.value;
+    get isBacklog() {
+        return this.selectedId === 'backlog';
+    }
+
+    get isErrors() {
+        return this.selectedId === 'errors';
+    }
+
+    get isJobConfigurations() {
+        return this.selectedId === 'job-configurations';
+    }
+
+    get isPerformance() {
+        return this.selectedId === 'performance';
+    }
+
+    get isSettings() {
+        return this.selectedId === 'settings';
+    }
+
+    handleNavSelect(event) {
+        this.selectedId = event.currentTarget.dataset.id;
 
         if (this.selectedId === 'backlog') {
-            this.refreshBacklogCountFromPage();
+            Promise.resolve().then(() => {
+                this.refreshBacklogCountFromPage();
+            });
         }
 
         if (this.selectedId === 'errors') {
-            this.refreshErrorCountFromPage();
+            Promise.resolve().then(() => {
+                this.refreshErrorCountFromPage();
+            });
         }
     }
 
