@@ -232,6 +232,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 error == null ? String.valueOf(context.getResult()) : error.getMessage(),
                 error == null ? null : error.getStackTraceString()
             );
+            jobs.enqueue();
         }
     }
 

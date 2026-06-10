@@ -1,5 +1,62 @@
 <template>
-    <section class="page-placeholder" aria-label="Errors">
-        <h2>Errors</h2>
+    <section class="backlog" aria-label="Errors">
+        <header class="backlog-header">
+            <div>
+                <p class="eyebrow">Async__c</p>
+                <h2>Errors</h2>
+                <p class="description">Async work that ended with an error.</p>
+            </div>
+
+            <div class="header-actions">
+                <p class="last-refreshed">{lastRefreshedLabel}</p>
+
+                <div class="refresh-controls">
+                    <lightning-combobox
+                        class="refresh-interval"
+                        label="Auto-refresh interval"
+                        variant="label-hidden"
+                        value={autoRefreshInterval}
+                        options={autoRefreshOptions}
+                        onchange={handleAutoRefreshChange}
+                    ></lightning-combobox>
+
+                    <lightning-button
+                        icon-name="utility:refresh"
+                        label="Refresh"
+                        title="Refresh errors"
+                        onclick={handleRefresh}
+                        disabled={isLoading}
+                    ></lightning-button>
+                </div>
+
+                <div class="record-count">{recordCountLabel}</div>
+            </div>
+        </header>
+
+        <template lwc:if={hasError}>
+            <div class="error-message" role="status">{errorMessage}</div>
+        </template>
+
+        <template lwc:elseif={hasRows}>
+            <lightning-tree-grid
+                key-field="id"
+                columns={columns}
+                data={treeRows}
+                expanded-rows={expandedRows}
+                hide-checkbox-column
+                is-loading={isLoading}
+            ></lightning-tree-grid>
+        </template>
+
+        <template lwc:else>
+            <div class="empty-state" role="status">
+                <lightning-icon
+                    icon-name="utility:success"
+                    size="medium"
+                    alternative-text=""
+                ></lightning-icon>
+                <p>No error records found.</p>
+            </div>
+        </template>
     </section>
 </template>
