@@ -79,18 +79,18 @@ public class TriggerHandlerTest {
             this.stageBufferedRecord('beforeDelete');
         }
 
-        protected override void afterInsert(List<SObject> records, Map<Id, SObject> recordsById) {
+        protected override void afterInsert(List<SObject> records) {
             dispatchCalls.add('afterInsert');
             recordCountsByHook.put('afterInsert', records.size());
-            newMapCountsByHook.put('afterInsert', recordsById.size());
+            newMapCountsByHook.put('afterInsert', this.newRecordsById().size());
             this.stageBufferedRecord('afterInsert');
         }
 
-        protected override void afterUpdate(List<SObject> records, Map<Id, SObject> oldRecordsById, Map<Id, SObject> recordsById) {
+        protected override void afterUpdate(List<SObject> records, Map<Id, SObject> oldRecordsById) {
             dispatchCalls.add('afterUpdate');
             recordCountsByHook.put('afterUpdate', records.size());
             oldMapCountsByHook.put('afterUpdate', oldRecordsById.size());
-            newMapCountsByHook.put('afterUpdate', recordsById.size());
+            newMapCountsByHook.put('afterUpdate', this.newRecordsById().size());
             this.stageBufferedRecord('afterUpdate');
         }
 
@@ -101,10 +101,10 @@ public class TriggerHandlerTest {
             this.stageBufferedRecord('afterDelete');
         }
 
-        protected override void afterUndelete(List<SObject> records, Map<Id, SObject> recordsById) {
+        protected override void afterUndelete(List<SObject> records) {
             dispatchCalls.add('afterUndelete');
             recordCountsByHook.put('afterUndelete', records.size());
-            newMapCountsByHook.put('afterUndelete', recordsById.size());
+            newMapCountsByHook.put('afterUndelete', this.newRecordsById().size());
             this.stageBufferedRecord('afterUndelete');
         }
     }

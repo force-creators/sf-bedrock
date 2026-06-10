@@ -25,7 +25,7 @@ public virtual inherited sharing class TriggerHandler {
             when BEFORE_DELETE {
                 this.beforeDelete(this.oldRecords(), this.oldRecordsById());
             }
-            when AFTER_INSERT {
+            when AFTER_INSERT { 
                 this.afterInsert(this.newRecords());
             }
             when AFTER_UPDATE {
