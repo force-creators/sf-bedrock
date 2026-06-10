@@ -1,7 +1,8 @@
 @istest(testFor='ApexClass:Async')
 public with sharing class AsyncTest {
     
-    @istest static void testAsync() {
+    @istest static void testMock() {
+
         List<Contact> contacts = new List<Contact> {
             new Contact(LastName = 'Test1'),
             new Contact(LastName = 'Test2'),
@@ -10,20 +11,20 @@ public with sharing class AsyncTest {
         };
         insert contacts;
 
-        Test.startTest();
-            AsyncOptions options = new AsyncOptions();
-            options.maximumQueueableStackDepth = 5;
-            Async.jobs.hasEnqueued = true;
-            Async.enqueue(MyTestAsync.class, contacts);
-            System.enqueueJob(new AsyncThread(Async.jobs.threadId), options);
-        Test.stopTest();
 
-        for(Contact contact : [SELECT Id, FirstName FROM Contact]) {
-            System.assertEquals('Hello', contact.FirstName);
-        }
+        AsyncMock mock = new AsyncMock().canEnqueue();
+        Async.setMock(mock);
+
+        Test.startTest();
+            Async.enqueue(MyTestAsync.class, contacts);
+        Test.stopTest();
 
         for(Async__c workItem : [SELECT Id, Status__c FROM Async__c]) {
             System.assertEquals('Done', workItem.Status__c);
+        }
+
+        for(Contact contact : [SELECT Id, FirstName FROM Contact]) {
+            System.assertEquals('Hello', contact.FirstName);
         }
     }
 

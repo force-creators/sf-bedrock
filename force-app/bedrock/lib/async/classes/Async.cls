@@ -3,6 +3,12 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     public static WorkService work = new WorkService();
     public static QueryService queries = new QueryService();
 
+    @testVisible static void setMock(AsyncMock mock) {
+        jobs = mock.jobs;
+        work = mock.work;
+        queries = mock.queries;
+    }
+
     public static void enqueue(Type jobType, List<SObject> records) { 
         enqueue(jobType, Pluck.ids(records));
     }
@@ -47,9 +53,13 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         public String threadId = Request.getCurrent().getRequestId();
         public boolean hasEnqueued = false;
         public virtual void enqueue() {
-            if(hasEnqueued) return;
-            System.enqueueJob(new AsyncThread(threadId));
-            hasEnqueued = true;
+            if(!this.canEnqueue() || this.hasEnqueued) return;
+            this.startThread();
+            this.hasEnqueued = true;
+        }
+
+        public virtual void startThread() {
+            System.enqueueJob(new AsyncThread(this.threadId));
         }
 
         public virtual void attachFinalizer(Finalizer finalizer) {
@@ -71,6 +81,10 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             asyncJob.enqueue();
 
             work.running(workItemIds);
+        }
+
+        public virtual Boolean canEnqueue() {
+            return true;
         }
     }
 
@@ -193,7 +207,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 WHERE Apex__c = :apexClass
                 LIMIT 1
             ]);
-            return !configs.isEmpty() ? configs[0] : new Async_Config__mdt(Batch_Size__c = 1);
+            return !configs.isEmpty() ? configs[0] : new Async_Config__mdt(Batch_Size__c = 5);
         }
     }
 
