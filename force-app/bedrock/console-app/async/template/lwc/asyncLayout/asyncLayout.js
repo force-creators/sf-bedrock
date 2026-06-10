@@ -4,12 +4,12 @@ const MENU_ITEMS = [
     {
         id: 'dashboard',
         label: 'Dashboard',
-        iconName: 'utility:dashboard'
+        iconName: 'utility:home'
     },
     {
         id: 'backlog',
         label: 'Backlog',
-        iconName: 'utility:queue'
+        iconName: 'utility:list'
     },
     {
         id: 'errors',
@@ -17,19 +17,9 @@ const MENU_ITEMS = [
         iconName: 'utility:error'
     },
     {
-        id: 'performance',
-        label: 'Performance',
-        iconName: 'utility:speedometer'
-    },
-    {
         id: 'job-configurations',
         label: 'Job Configurations',
         iconName: 'utility:settings'
-    },
-    {
-        id: 'settings',
-        label: 'Settings',
-        iconName: 'utility:setup'
     }
 ];
 
