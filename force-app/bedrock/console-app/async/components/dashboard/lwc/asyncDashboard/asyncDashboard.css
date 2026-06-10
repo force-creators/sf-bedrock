@@ -11,7 +11,7 @@
 }
 
 .content-header h2,
-.placeholder-summary h3 {
+.dashboard-summary h3 {
     margin: 0;
     font-weight: 700;
     line-height: 1.2;
@@ -21,7 +21,7 @@
     font-size: 1.65rem;
 }
 
-.placeholder-summary h3 {
+.dashboard-summary h3 {
     font-size: 1.15rem;
 }
 
@@ -52,7 +52,7 @@
     padding: 0.35rem 0.65rem;
 }
 
-.placeholder-panel {
+.dashboard-panel {
     display: grid;
     gap: 1rem;
     border: 1px solid #d8dde6;
@@ -61,7 +61,7 @@
     padding: 1.25rem;
 }
 
-.placeholder-summary p {
+.dashboard-summary p {
     max-width: 44rem;
     margin: 0.4rem 0 0;
     color: #51606d;
@@ -75,6 +75,7 @@
 }
 
 .metric-card {
+    position: relative;
     min-height: 5rem;
     border: 1px solid #dde3ea;
     border-radius: 0.375rem;
@@ -96,21 +97,17 @@
     font-size: 1.25rem;
 }
 
-.stub-region {
-    display: grid;
-    place-items: center;
-    min-height: 13rem;
-    border: 1px dashed #bccbd3;
-    border-radius: 0.375rem;
-    background: #fbfcfd;
-    color: #51606d;
-    text-align: center;
-    padding: 1.5rem;
+.metric-card lightning-spinner {
+    --slds-c-spinner-color-background: transparent;
 }
 
-.stub-region p {
-    margin: 0.75rem 0 0;
+.error-message {
+    border: 1px solid #f4b5b5;
+    border-radius: 0.375rem;
+    background: #fff6f6;
+    color: #8c1d18;
     font-weight: 700;
+    padding: 0.75rem;
 }
 
 @media (max-width: 48rem) {
