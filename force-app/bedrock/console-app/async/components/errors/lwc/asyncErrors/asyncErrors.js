@@ -1,4 +1,4 @@
-import { LightningElement } from 'lwc';
+import { LightningElement, api } from 'lwc';
 import getErrors from '@salesforce/apex/AsyncErrorsController.getErrors';
 import retryErrors from '@salesforce/apex/AsyncErrorsController.retryErrors';
 import deleteErrors from '@salesforce/apex/AsyncErrorsController.deleteErrors';
@@ -76,6 +76,11 @@ export default class AsyncErrors extends LightningElement {
     }
 
     handleRefresh() {
+        this.loadErrors();
+    }
+
+    @api
+    refreshCount() {
         this.loadErrors();
     }
 
@@ -189,7 +194,17 @@ export default class AsyncErrors extends LightningElement {
         } finally {
             this.lastRefreshedAt = new Date();
             this.isLoading = false;
+            this.dispatchCountChange();
         }
+    }
+
+    dispatchCountChange() {
+        const count = this.treeRows.reduce((total, group) => total + group._children.length, 0);
+        this.dispatchEvent(
+            new CustomEvent('countchange', {
+                detail: { count }
+            })
+        );
     }
 
     async runSelectedAction(action, title, message) {

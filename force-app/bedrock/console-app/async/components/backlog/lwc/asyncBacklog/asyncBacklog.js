@@ -1,4 +1,4 @@
-import { LightningElement } from 'lwc';
+import { LightningElement, api } from 'lwc';
 import getBacklog from '@salesforce/apex/AsyncBacklogController.getBacklog';
 
 const COLUMNS = [
@@ -64,6 +64,11 @@ export default class AsyncBacklog extends LightningElement {
         this.loadBacklog();
     }
 
+    @api
+    refreshCount() {
+        this.loadBacklog();
+    }
+
     handleAutoRefreshChange(event) {
         this.autoRefreshInterval = event.detail.value;
         this.stopAutoRefresh();
@@ -102,7 +107,17 @@ export default class AsyncBacklog extends LightningElement {
         } finally {
             this.lastRefreshedAt = new Date();
             this.isLoading = false;
+            this.dispatchCountChange();
         }
+    }
+
+    dispatchCountChange() {
+        const count = this.treeRows.reduce((total, group) => total + group._children.length, 0);
+        this.dispatchEvent(
+            new CustomEvent('countchange', {
+                detail: { count }
+            })
+        );
     }
 
     stopAutoRefresh() {

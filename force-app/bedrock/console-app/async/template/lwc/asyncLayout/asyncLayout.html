@@ -6,15 +6,15 @@
             </div>
         </lightning-tab>
 
-        <lightning-tab label="Backlog" value="backlog" onactive={handleTabActive}>
+        <lightning-tab label={backlogTabLabel} value="backlog" onactive={handleTabActive}>
             <div class="tab-panel">
-                <c-async-backlog></c-async-backlog>
+                <c-async-backlog oncountchange={handleBacklogCountChange}></c-async-backlog>
             </div>
         </lightning-tab>
 
-        <lightning-tab label="Errors" value="errors" onactive={handleTabActive}>
+        <lightning-tab label={errorsTabLabel} value="errors" onactive={handleTabActive}>
             <div class="tab-panel">
-                <c-async-errors></c-async-errors>
+                <c-async-errors oncountchange={handleErrorsCountChange}></c-async-errors>
             </div>
         </lightning-tab>
 
