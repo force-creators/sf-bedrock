@@ -15,9 +15,15 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     public static void enqueue(Type jobType, Set<Id> recordIds) { 
         work.create(jobType, recordIds);
     }
-    public static void stage(Type jobType, List<SObject> records) { }
-    public static void stage(Type jobType, Set<Id> recordIds) { }
-    public static void flush() {}
+    public static void stage(Type jobType, List<SObject> records) {
+        stage(jobType, Pluck.ids(records));
+    }
+    public static void stage(Type jobType, Set<Id> recordIds) {
+        work.stage(jobType, recordIds);
+    }
+    public static void flush() {
+        work.flush();
+    }
 
     public String threadId;
     public Set<Id> recordIds = new Set<Id>();
@@ -37,7 +43,9 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     }
 
     public void execute(QueueableContext context) {
-        jobs.attachFinalizer(new JobWatcher(this.threadId, this.workItemIds));
+        JobWatcher watcher = jobs.watch(this.threadId, this.workItemIds);
+        jobs.attachFinalizer(watcher);
+
         this.execute(this.getRecordIds());
     }
 
@@ -52,10 +60,22 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     public virtual with sharing class JobService {
         public String threadId = Request.getCurrent().getRequestId();
         public boolean hasEnqueued = false;
+        @testVisible JobWatcher watcher;
+        @testVisible Boolean isFinalizer = false;
+
         public virtual void enqueue() {
-            if(!this.canEnqueue() || this.hasEnqueued) return;
+            if(!this.canEnqueue() || this.hasEnqueued || System.isQueueable() || this.isFinalizer || this.isRunningThread()) return;
             this.startThread();
             this.hasEnqueued = true;
+        }
+
+        public virtual JobWatcher watch(String threadId, Set<Id> workItemIds) {
+            this.watcher = new JobWatcher(threadId, workItemIds);
+            return this.watcher;
+        }
+
+        public virtual Boolean isRunningThread() {
+            return this.threadId != Request.getCurrent().getRequestId();
         }
 
         public virtual void startThread() {
@@ -78,9 +98,8 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             //dynamically instantiate the async job
             Async asyncJob = (Async) Type.forName(nextWorkItem.Apex__c).newInstance();
             asyncJob.setWork(this.threadId, workItemIds);
-            asyncJob.enqueue();
-
             work.running(workItemIds);
+            asyncJob.enqueue();
         }
 
         public void retry(Set<Id> workItemIds) {
@@ -93,21 +112,99 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     }
 
     public virtual with sharing class WorkService {
+        @testVisible Map<String, Set<Id>> buffer = new Map<String, Set<Id>>();
+
+        public virtual void stage(Type apexClass, Set<Id> recordIds) {
+            addWork(this.buffer, String.valueOf(apexClass), recordIds);
+        }
+
+        public virtual void flush() {
+            if (this.buffer.isEmpty()) return;
+
+            Map<String, Set<Id>> workToCreate = new Map<String, Set<Id>>(this.buffer);
+
+            if (this.shouldDefer()) {
+                this.defer(workToCreate);
+                this.buffer.clear();
+                return;
+            }
+
+            this.create(workToCreate);
+            this.buffer.clear();
+        }
+
         public virtual List<Id> create(Type apexClass, Set<Id> recordIds) {
+            return create(String.valueOf(apexClass), recordIds);
+        }
+
+        public virtual List<Id> create(String apexClass, Set<Id> recordIds) {
+            Map<String, Set<Id>> workByApex = new Map<String, Set<Id>>();
+            workByApex.put(apexClass, recordIds);
+            return create(workByApex);
+        }
+
+        public virtual List<Id> create(Map<String, Set<Id>> workByApex) {
+            if (this.shouldDefer()) {
+                this.defer(workByApex);
+                return new List<Id>();
+            }
+
+            return insertWork(workByApex);
+        }
+
+        List<Id> insertWork(Map<String, Set<Id>> workByApex) {
             List<Async__c> workItems = new List<Async__c>();
 
-            if (recordIds == null || recordIds.isEmpty()) return new List<Id>();
+            if (workByApex == null || workByApex.isEmpty()) return new List<Id>();
+            for (String apexClass : workByApex.keySet()) {
+                workItems.addAll(newWorkItems(apexClass, workByApex.get(apexClass)));
+            }
+
+            if (workItems.isEmpty()) return new List<Id>();
+            DML.insertRecords(workItems);
+            return idsFrom(workItems);
+        }
+
+        List<Async__c> newWorkItems(String apexClass, Set<Id> recordIds) {
+            List<Async__c> workItems = new List<Async__c>();
+
+            if (String.isBlank(apexClass) || recordIds == null || recordIds.isEmpty()) return workItems;
             for (Id recordId : recordIds) {
                 workItems.add(new Async__c(
                     Record_Id__c = String.valueOf(recordId),
                     Status__c = 'Pending',
                     Thread__c = jobs.threadId,
-                    Apex__c = String.valueOf(apexClass)
+                    Apex__c = apexClass
                 ));
             }
 
-            DML.insertRecords(workItems);
-            return idsFrom(workItems);
+            return workItems;
+        }
+
+        Boolean shouldDefer() {
+            return jobs.watcher != null;
+        }
+
+        void defer(Map<String, Set<Id>> workByApex) {
+            if (workByApex == null || workByApex.isEmpty()) return;
+
+            for (String apexClass : workByApex.keySet()) {
+                this.defer(apexClass, workByApex.get(apexClass));
+            }
+        }
+
+        void defer(String apexClass, Set<Id> recordIds) {
+            if (!this.shouldDefer()) return;
+            addWork(jobs.watcher.deferredWork, apexClass, recordIds);
+        }
+
+        void addWork(Map<String, Set<Id>> workByApex, String apexClass, Set<Id> recordIds) {
+            if (String.isBlank(apexClass) || recordIds == null || recordIds.isEmpty()) return;
+
+            if (!workByApex.containsKey(apexClass)) {
+                workByApex.put(apexClass, new Set<Id>());
+            }
+            workByApex.get(apexClass).addAll(recordIds);
         }
 
         public virtual void complete(Set<Id> workItemIds) {
@@ -223,6 +320,8 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     public with sharing class JobWatcher implements Finalizer {
         Set<Id> workItemIds;
         String threadId;
+        Map<String, Set<Id>> deferredWork = new Map<String, Set<Id>>();
+
         public JobWatcher(String threadId, Set<Id> workItemIds) {
             this.workItemIds = workItemIds;
             this.threadId = threadId;
@@ -230,19 +329,30 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
         public void execute(FinalizerContext context) {
             Async.jobs.threadId = this.threadId; //set the thread context
-            if (context.getResult() == ParentJobResult.SUCCESS) {
-                work.complete(this.workItemIds);
-                jobs.enqueueNextJob();
-                return;
-            }
+            Async.jobs.isFinalizer = true;
+            try {
+                if (context.getResult() == ParentJobResult.SUCCESS) {
+                    work.complete(this.workItemIds);
+                    this.createDeferredWork();
+                    jobs.enqueueNextJob();
+                    return;
+                }
 
-            Exception error = context.getException();
-            work.fail(
-                this.workItemIds,
-                error == null ? String.valueOf(context.getResult()) : error.getMessage(),
-                error == null ? null : error.getStackTraceString()
-            );
-            jobs.enqueue();
+                Exception error = context.getException();
+                work.fail(
+                    this.workItemIds,
+                    error == null ? String.valueOf(context.getResult()) : error.getMessage(),
+                    error == null ? null : error.getStackTraceString()
+                );
+                jobs.enqueueNextJob();
+            } finally {
+                Async.jobs.isFinalizer = false;
+            }
+        }
+
+        void createDeferredWork() {
+            if (this.deferredWork.isEmpty()) return;
+            work.insertWork(this.deferredWork);
         }
     }
 
