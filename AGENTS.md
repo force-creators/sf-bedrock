@@ -70,6 +70,25 @@ Working norms:
   deploy only the touched source, and run only the specific tests that cover
   the change.
 
+### Context & Tool-Output Hygiene
+
+The biggest token drain on this repo is not the guides — it is broad searches,
+whole-file reads, and verbose command output piling up in the live context. Keep
+that tail small:
+
+- Read narrowly. Prefer targeted reads (a known file, a line range, a specific
+  symbol) over reading large files end to end to use a few lines.
+- Search for conclusions, not dumps. For a broad "where is X / what calls Y"
+  sweep across many files, prefer a sub-agent search that returns the answer
+  rather than pulling every match into the main context.
+- Keep commands quiet. Scope output to what matters: `git log --oneline -10`
+  not bare `git log`; run a single named Apex test, not the whole class or
+  suite; avoid dumping whole files to stdout. Use the dedicated file/search
+  tools instead of `cat`/`sed`/`echo`.
+- Load component context on demand. Read the one
+  `force-app/bedrock/lib/<component>/AGENTS.md` (and `ROADMAP.md`) the task needs
+  rather than surveying every tool up front.
+
 ### Salesforce MCP Validation
 
 Use `sf-bedrock` as the target org alias for Salesforce org work in this repo.
