@@ -48,4 +48,5 @@ $RECYCLE.BIN/
 **/venv/
 
 .codex/
+.claude/
 .mcp.json
