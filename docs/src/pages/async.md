@@ -1,10 +1,10 @@
 ---
 layout: ../layouts/DocsLayout.astro
 title: Async | sf-bedrock docs
-description: A base class for running Apex work in the background that scales to thousands of records without tripping over Salesforce's Queueable limits.
+description: A base class for running setup-object-safe Apex work in the background that scales to thousands of records without tripping over Salesforce's Queueable limits.
 eyebrow: Async Services
 heading: Async
-lede: A base class for running Apex work in the background that scales to thousands of records without tripping over Salesforce's Queueable limits. You write one method; the framework persists the work, drains it in safe batches, and tracks every job to success or error.
+lede: A base class for running setup-object-safe Apex work in the background that scales to thousands of records without tripping over Salesforce's Queueable limits. You write one method; the framework persists the work, drains it in safe batches, and tracks every job to success or error.
 sections:
   - label: Overview
     href: "#overview"
@@ -14,6 +14,8 @@ sections:
     href: "#examples"
   - label: Enqueueing Work
     href: "#enqueueing-work"
+  - label: Staging Work
+    href: "#staging-work"
   - label: Configuration
     href: "#configuration"
   - label: Testing
@@ -51,6 +53,11 @@ then runs a single managed background thread that drains those work items a
 **safe batch at a time**, chaining one job to the next until the queue is empty.
 Every work item is tracked through `Pending → Running → Done` (or `Error`), so
 nothing is silently lost.
+
+Because framework-managed follow-up work is created from the Queueable
+finalizer, an `Async` job can touch setup objects and still call `Async.enqueue`
+or `Async.stage` for more work. That keeps mixed-DML-sensitive framework writes
+out of the subscriber's Queueable transaction.
 
 ## Quickstart
 
@@ -144,6 +151,12 @@ and mark it `Pending`. That is all `enqueue` does in the calling transaction. It
 does **not** run your `execute` method inline. Processing happens afterward, in
 the background, on the framework's managed thread.
 
+When `enqueue` is called from inside an `Async` job, the framework defers the
+new work until the job's finalizer runs. That means a job can update setup
+objects, such as groups or users, and still enqueue follow-up work without
+mixing setup-object DML with `Async__c` work-item DML in the same Queueable
+transaction.
+
 This is the scaling win: whether you enqueue 5 records or 5,000, the calling
 transaction does the same small amount of work (insert the work items). You never
 approach the 50-job limit, because you are not enqueuing one job per record —
@@ -176,6 +189,35 @@ working with the *current* state of the data at the moment the work runs.
 > `Async` when you are processing **records** (pass Ids); reach for `Event` when
 > you are processing **data** (pass the payload). Don't try to smuggle stateful
 > records through `Async`.
+
+## Staging Work
+
+Use `stage` and `flush` when several services in the same transaction may add
+work and you want one work-item insert at the controlled flush point. This is a
+natural fit for trigger orchestration: each domain service can stage the records
+it cares about, and the trigger handler can flush once.
+
+```apex
+public with sharing class ContactTriggerService {
+
+    public void stageWelcomeEmails(List<Contact> contacts) {
+        Async.stage(SendWelcomeEmailAsync.class, contacts);
+    }
+
+    public void stageComplianceReview(Set<Id> contactIds) {
+        Async.stage(ReviewContactAsync.class, contactIds);
+    }
+
+    public void flushAsyncWork() {
+        Async.flush();
+    }
+}
+```
+
+`flush` merges duplicate Ids by async class, creates all staged work items in a
+single DML call, and then clears the buffer. If `flush` runs inside an `Async`
+job, the staged work is moved into the job finalizer instead of inserted in the
+Queueable transaction.
 
 ## Configuration
 
@@ -227,13 +269,15 @@ public with sharing class FlagStaleContactsAsyncTest {
         .mockIds()
         .count(3)
         .build();
-    insert contacts;
+    DML.insertRecords(contacts);
 
-    Set<Id> ids = pluck.ids(contacts);
+    Set<Id> ids = Pluck.ids(contacts);
 
     new FlagStaleContactsAsync().execute(ids);
 
-    for (Contact contact :[SELECT Description FROM Contact WHERE Id IN :ids)) {
+    for (Contact contact : (List<Contact>) Query.records([
+        SELECT Description FROM Contact WHERE Id IN :ids
+    ])) {
       Assert.areEqual('Reviewed by background job', contact.Description,
         'Expected direct execute() to update each contact description.');
     }
@@ -260,7 +304,7 @@ public with sharing class FlagStaleContactsAsyncTest {
             .mockIds()
             .count(3)
             .build();
-        insert contacts;
+        DML.insertRecords(contacts);
 
         // canEnqueue() lets the async chain actually run during the test.
         AsyncMock mock = new AsyncMock().canEnqueue();
@@ -334,11 +378,17 @@ class by name, calls `setWork(threadId, workItemIds)` on it, and enqueues it as 
 Queueable.
 
 **Three: a `Finalizer` closes the loop.** `Async.JobWatcher` is attached before
-your `execute` runs. On success it marks the batch `Done` and chains the next
-batch by calling `enqueueNextJob()` again. On failure it marks the batch `Error`,
-saving the truncated message and stack trace on the `Async__c` rows, then
-re-enqueues the thread so the remaining work continues. Failures are recorded, not
-silent, and they do not stop the rest of the queue.
+your `execute` runs. On success it marks the batch `Done`, creates any child work
+that was enqueued or flushed from inside the job, and chains the next batch by
+calling `enqueueNextJob()` again. On failure it marks the batch `Error`, saving
+the truncated message and stack trace on the `Async__c` rows, then chains the
+remaining work. Failures are recorded, not silent, and they do not stop the rest
+of the queue.
+
+That finalizer handoff is what makes framework-managed child work safe after
+setup-object DML. Your subscriber can touch setup objects in `execute`, then call
+`Async.enqueue` or `Async.flush`; Bedrock writes the new `Async__c` work items
+from the finalizer transaction.
 
 The retry path closes the loop from the other direction: `AsyncTriggerHandler`
 watches for `Async__c` updates where `Status__c` flips from `Error` back to
@@ -363,9 +413,9 @@ re-drive failed work.
 | `setMock` | `@testVisible static void setMock(AsyncMock mock)` | Replaces all three service singletons with the mock's equivalents. Test-visible only. |
 | `enqueue` | `public static void enqueue(Type jobType, List<SObject> records)` | Creates one `Async__c` work item per record Id (Ids are plucked from the list). |
 | `enqueue` | `public static void enqueue(Type jobType, Set<Id> recordIds)` | Creates one `Async__c` work item per Id in `recordIds`. |
-| `stage` | `public static void stage(Type jobType, List<SObject> records)` | **Stub — not yet implemented.** Declared for a future staging path; body is empty. |
-| `stage` | `public static void stage(Type jobType, Set<Id> recordIds)` | **Stub — not yet implemented.** Declared for a future staging path; body is empty. |
-| `flush` | `public static void flush()` | **Stub — not yet implemented.** Declared as the companion flush for the staging path; body is empty. |
+| `stage` | `public static void stage(Type jobType, List<SObject> records)` | Adds record Ids to the current transaction's async work buffer. Ids are plucked from the list. |
+| `stage` | `public static void stage(Type jobType, Set<Id> recordIds)` | Adds record Ids to the current transaction's async work buffer. Duplicate Ids are merged by job type. |
+| `flush` | `public static void flush()` | Creates all buffered work items in one DML call, or defers them to the finalizer when called from inside an `Async` job. |
 
 ### Instance members (`Async`)
 
@@ -425,8 +475,14 @@ needs a non-default batch size:
   current data, not a stale snapshot.
 - **Override only `execute(Set<Id> ids)`.** The rest of the class is framework
   machinery. As a subscriber you should not need to touch it.
-- **`stage(...)` and `flush()` are empty stubs.** They are declared in `Async`
-  but do nothing yet. Do not call them in production code — they have no effect.
+- **Setup-object support applies inside Bedrock-managed async work.** When an
+  `Async` job touches setup objects and then enqueues or flushes more work,
+  Bedrock creates the child `Async__c` rows from the finalizer. Outside the
+  framework, `enqueue` still creates work immediately in the caller's
+  transaction.
+- **Use `stage(...)` with `flush()` deliberately.** Staged work stays in the
+  transaction buffer until `flush()` is called. If nothing flushes it, no work
+  items are created.
 - **Tune batch size to the work.** Heavy jobs (callouts, large DML, CPU-intensive
   processing) need smaller batches to stay inside one Queueable's governor limits;
   light jobs can use larger batches to finish faster. Configure per class in
