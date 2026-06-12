@@ -18,9 +18,10 @@ today; inspect the code before depending on exact behavior.
 
 - `Async` is a `virtual` class implementing `Queueable` and
   `Database.AllowsCallouts`. Subclasses override `execute(Set<Id> ids)`.
-- Three injectable service singletons drive behavior: `Async.jobs`
-  (`JobService`), `Async.work` (`WorkService`), and `Async.queries`
-  (`QueryService`). `Async.setMock(AsyncMock)` swaps all three for tests.
+- Four injectable service singletons drive behavior: `Async.jobs`
+  (`JobService`), `Async.work` (`WorkService`), `Async.queries`
+  (`QueryService`), and `Async.metadata` (`MetadataService`).
+  `Async.setMock(AsyncMock)` swaps all four for tests.
 - `Async.enqueue(Type, List<SObject>)` and `Async.enqueue(Type, Set<Id>)` create
   one `Async__c` work item per record Id (via `Pluck.ids`) in `Pending` status,
   tagged with the current request's thread id and the target Apex type.
@@ -41,21 +42,41 @@ today; inspect the code before depending on exact behavior.
   the batch size (default 5), pulls a matching batch of same-Apex work items,
   instantiates the Apex job by name, and enqueues it as `Running`.
 - `Async.JobWatcher` (a `Finalizer`) marks the batch `Done` and chains the next
-  job on success, or records `Error` with truncated message/stack trace and
-  re-enqueues on failure.
+  job on success. On failure it delegates to `JobService.handleFailure`, which
+  reads each item's `Retry_Count__c`, compares it against the job type's
+  `Async_Config__mdt.Max_Retries__c` (via `JobService.shouldAutoRetry`), and
+  partitions the batch: items under the cap are re-pended with
+  `Retry_Count__c` incremented (`WorkService.autoRetry`) so the chain re-runs
+  them, and items at/over the cap (or with no/zero `Max_Retries__c`) record a
+  terminal `Error` with truncated message/stack trace. The finalizer then chains
+  the next job. Manual `Error → Pending` flips are unbounded, always honored, and
+  never increment `Retry_Count__c` (`AsyncFilters.shouldRetry` is unchanged).
+- `Async.MetadataService` owns all `Async_Config__mdt` reads behind a
+  transaction-scoped cache keyed by Apex name, so repeated config reads for the
+  same job type across a chained-job transaction issue one query.
+  `QueryService.getJobConfig` delegates to it; no inline `Async_Config__mdt` SOQL
+  remains in `QueryService`. When no config row exists for a job type it returns
+  a default with `Batch_Size__c = 5` (the `SettingsService` `Default_Batch_Size__c`
+  fallback is still roadmap).
 - `WorkService` owns the `Async__c` status transitions (`create`, `running`,
-  `complete`, `fail`, `retry`) through `DML`. `QueryService` owns all
-  `Async__c` and `Async_Config__mdt` reads through `Query`.
-- `AsyncMock` provides test subclasses of the three services, including a
-  `canEnqueue()` toggle and a bounded `maximumQueueableStackDepth` thread start.
+  `complete`, `fail`, `retry`, `autoRetry`) through `DML`. `QueryService` owns
+  the `Async__c` reads through `Query`; `Async_Config__mdt` reads live in
+  `MetadataService`.
+- `AsyncMock` provides test subclasses of the four services, including a
+  `canEnqueue()` toggle, a bounded `maximumQueueableStackDepth` thread start, and
+  a `config(Type, Async_Config__mdt)` seam that injects job-type config into the
+  `MetadataService` cache without DML.
 - `Async.AsyncException` is the framework's error type.
 
 ## Schema
 
 This framework relies on the `Async__c` object (fields `Apex__c`,
-`Record_Id__c`, `Status__c`, `Thread__c`, `Priority__c`, `Error_Message__c`,
-`Error_Stack_Trace__c`) and the `Async_Config__mdt` type (`Apex__c`,
-`Batch_Size__c`), both under `force-app/bedrock/lib/async/objects`.
+`Record_Id__c`, `Status__c`, `Thread__c`, `Priority__c`, `Retry_Count__c`,
+`Error_Message__c`, `Error_Stack_Trace__c`) and the `Async_Config__mdt` type
+(`Apex__c`, `Batch_Size__c`, `Max_Retries__c`), both under
+`force-app/bedrock/lib/async/objects`. `Retry_Count__c` (default `0`) tracks how
+many times the framework has re-run an item; `Max_Retries__c` (absent/`0` ⇒
+auto-retry off) caps framework auto-retries per job type.
 
 ## Composition
 

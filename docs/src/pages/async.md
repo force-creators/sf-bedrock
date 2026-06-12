@@ -229,6 +229,7 @@ custom metadata type. Create a record with:
 | --- | --- |
 | `Apex__c` | The exact name of your `Async` subclass, e.g. `FlagStaleContactsAsync`. |
 | `Batch_Size__c` | How many work items one batch (one `execute` call) processes. |
+| `Max_Retries__c` | How many times the framework auto-retries a failed item before it rests in `Error`. Absent or `0` ⇒ auto-retry off. |
 
 For example, a record with `Apex__c = FlagStaleContactsAsync` and
 `Batch_Size__c = 50` makes each `execute` call receive up to 50 record Ids
@@ -249,6 +250,28 @@ batch comfortably fits inside one Queueable's limits.
 > If no `Async_Config__mdt` record exists for your class, the framework falls
 > back to a batch size of **5**. You only need a metadata record when you want
 > something other than the default.
+
+### Bounded auto-retry
+
+When a batch fails, the framework can retry it for you instead of leaving every
+item in `Error`. Set `Max_Retries__c` on the job type's `Async_Config__mdt`
+record to turn it on:
+
+- Each `Async__c` work item carries a `Retry_Count__c` (starts at `0`) that
+  tracks how many times the framework has re-run it.
+- On failure, an item whose `Retry_Count__c` is **under** `Max_Retries__c` is
+  re-queued to `Pending` with its counter incremented, and the chain runs it
+  again.
+- Once `Retry_Count__c` reaches `Max_Retries__c`, the item rests in terminal
+  `Error`. A job with `Max_Retries__c = 3` therefore runs once, retries up to
+  three more times, then stops.
+- With `Max_Retries__c` absent or `0`, a failed item goes straight to `Error` —
+  no auto-retry.
+
+Auto-retry is for transient failures that self-heal (a row lock, a brief callout
+hiccup). It does not change manual recovery: flipping an `Error` item back to
+`Pending` yourself is still unbounded, always honored, and never touches
+`Retry_Count__c`.
 
 ## Testing
 
@@ -380,10 +403,14 @@ Queueable.
 **Three: a `Finalizer` closes the loop.** `Async.JobWatcher` is attached before
 your `execute` runs. On success it marks the batch `Done`, creates any child work
 that was enqueued or flushed from inside the job, and chains the next batch by
-calling `enqueueNextJob()` again. On failure it marks the batch `Error`, saving
-the truncated message and stack trace on the `Async__c` rows, then chains the
-remaining work. Failures are recorded, not silent, and they do not stop the rest
-of the queue.
+calling `enqueueNextJob()` again. On failure it hands the batch to
+`JobService.handleFailure`, which checks each item against its job type's
+`Max_Retries__c`: items still under the cap are re-queued to `Pending` with
+`Retry_Count__c` incremented (so the chain re-runs them), and items at the cap —
+or any item when auto-retry is off — are marked `Error` with the truncated
+message and stack trace saved on the `Async__c` rows. Either way it then chains
+the remaining work. Failures are recorded, not silent, and they do not stop the
+rest of the queue.
 
 That finalizer handoff is what makes framework-managed child work safe after
 setup-object DML. Your subscriber can touch setup objects in `execute`, then call
@@ -409,8 +436,9 @@ re-drive failed work.
 | --- | --- | --- |
 | `jobs` | `public static JobService` | Service singleton for thread start and job dispatch. Swap via `setMock`. |
 | `work` | `public static WorkService` | Service singleton for `Async__c` status transitions. Swap via `setMock`. |
-| `queries` | `public static QueryService` | Service singleton for all `Async__c` and `Async_Config__mdt` reads. Swap via `setMock`. |
-| `setMock` | `@testVisible static void setMock(AsyncMock mock)` | Replaces all three service singletons with the mock's equivalents. Test-visible only. |
+| `queries` | `public static QueryService` | Service singleton for `Async__c` reads. Swap via `setMock`. |
+| `metadata` | `public static MetadataService` | Service singleton for cached `Async_Config__mdt` reads, keyed by Apex name. Swap via `setMock`. |
+| `setMock` | `@testVisible static void setMock(AsyncMock mock)` | Replaces all four service singletons with the mock's equivalents. Test-visible only. |
 | `enqueue` | `public static void enqueue(Type jobType, List<SObject> records)` | Creates one `Async__c` work item per record Id (Ids are plucked from the list). |
 | `enqueue` | `public static void enqueue(Type jobType, Set<Id> recordIds)` | Creates one `Async__c` work item per Id in `recordIds`. |
 | `stage` | `public static void stage(Type jobType, List<SObject> records)` | Adds record Ids to the current transaction's async work buffer. Ids are plucked from the list. |
@@ -433,9 +461,11 @@ is called on the base class without being overridden.
 | Member | Signature | Description |
 | --- | --- | --- |
 | `canEnqueue` | `public AsyncMock canEnqueue()` | Enables thread enqueuing inside a test. Returns `this` for fluent chaining. By default `AsyncMock.JobService.canEnqueue()` returns `false` and no thread starts. |
+| `config` | `public AsyncMock config(Type jobType, Async_Config__mdt config)` | Injects config for a job type into the `MetadataService` cache without DML. Returns `this` for fluent chaining. |
 | `work` | `public WorkService work` | Mock `WorkService` (extends `Async.WorkService`). |
 | `jobs` | `public JobService jobs` | Mock `JobService` (extends `Async.JobService`). Caps `maximumQueueableStackDepth` at 5. |
 | `queries` | `public QueryService queries` | Mock `QueryService` (extends `Async.QueryService`). |
+| `metadata` | `public MetadataService metadata` | Mock `MetadataService` (extends `Async.MetadataService`). Serves injected config before falling back to a real read. |
 
 ### Schema
 
@@ -451,16 +481,18 @@ The framework relies on two metadata types in
 | `Status__c` | Lifecycle status: `Pending`, `Running`, `Done`, `Error`. |
 | `Thread__c` | Request Id that groups work items enqueued in the same transaction. |
 | `Priority__c` | Higher values are processed first within a thread. |
+| `Retry_Count__c` | Number of times the framework has re-run this item. Starts at `0`; incremented on each auto-retry. |
 | `Error_Message__c` | Truncated exception message on failure (max 32,768 chars). |
 | `Error_Stack_Trace__c` | Truncated stack trace on failure (max 32,768 chars). |
 
 **`Async_Config__mdt`** (custom metadata type) — one record per subclass that
-needs a non-default batch size:
+needs a non-default batch size or auto-retry:
 
 | Field | Purpose |
 | --- | --- |
 | `Apex__c` | API name of the `Async` subclass. |
 | `Batch_Size__c` | Number of work items per `execute` call. Defaults to 5 when no record exists. |
+| `Max_Retries__c` | Cap on framework auto-retries for failed items. Absent or `0` ⇒ auto-retry off. |
 
 ## Notes & Edge Cases
 
@@ -490,9 +522,12 @@ needs a non-default batch size:
 - **Errors are recorded, not hidden.** A failing batch marks its work items
   `Error` with the message and stack trace saved on the `Async__c` record. Check
   there when a background job does not produce the expected results.
-- **Failed items can be retried.** Flipping a failed `Async__c` row back to
-  `Pending` (with the correct `Thread__c`) triggers `AsyncTriggerHandler` to
-  start a new thread for those items via `AsyncFilters.shouldRetry`.
+- **Failed items can be retried two ways.** The framework auto-retries failures
+  up to `Async_Config__mdt.Max_Retries__c` (off by default), incrementing
+  `Retry_Count__c` each time. Separately, flipping a failed `Async__c` row back to
+  `Pending` (with the correct `Thread__c`) triggers `AsyncTriggerHandler` to start
+  a new thread via `AsyncFilters.shouldRetry`. Manual flips are unbounded — they
+  work even past `Max_Retries__c` — and never change `Retry_Count__c`.
 - **`canEnqueue()` must be called to run the chain in tests.** Without
   `new AsyncMock().canEnqueue()`, `JobService.canEnqueue()` returns `false` and no
   thread starts — `enqueue` inserts work items but nothing processes them.

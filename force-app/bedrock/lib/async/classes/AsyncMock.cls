@@ -3,15 +3,22 @@ public with sharing class AsyncMock {
     public WorkService work;
     public JobService jobs;
     public QueryService queries;
+    public MetadataService metadata;
 
     public AsyncMock() {
         this.work = new WorkService();
         this.jobs = new JobService();
         this.queries = new QueryService();
+        this.metadata = new MetadataService();
     }
 
     public AsyncMock canEnqueue() {
         this.jobs.canEnqueue = true;
+        return this;
+    }
+
+    public AsyncMock config(Type jobType, Async_Config__mdt config) {
+        this.metadata.configByApex.put(String.valueOf(jobType), config);
         return this;
     }
 
@@ -36,5 +43,16 @@ public with sharing class AsyncMock {
     }
 
     public with sharing class QueryService extends Async.QueryService {
+    }
+
+    public with sharing class MetadataService extends Async.MetadataService {
+        public Map<String, Async_Config__mdt> configByApex = new Map<String, Async_Config__mdt>();
+
+        public override Async_Config__mdt getConfig(String apexClass) {
+            if (this.configByApex.containsKey(apexClass)) {
+                return this.configByApex.get(apexClass);
+            }
+            return super.getConfig(apexClass);
+        }
     }
 }

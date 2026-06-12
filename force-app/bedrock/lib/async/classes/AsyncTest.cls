@@ -109,6 +109,169 @@ public with sharing class AsyncTest {
         }
     }
 
+    @istest static void testMetadataService_cachesConfigReadsForSameJobType() {
+        CountingMetadataService metadata = new CountingMetadataService();
+
+        metadata.getConfig('Some_Async_Class');
+        metadata.getConfig('Some_Async_Class');
+        metadata.getConfig('Some_Async_Class');
+
+        Assert.areEqual(1, metadata.loadCount, 'Expected repeated config reads for the same job type to load once and serve the transaction cache.');
+
+        metadata.getConfig('Another_Async_Class');
+
+        Assert.areEqual(2, metadata.loadCount, 'Expected a distinct job type to trigger one additional load.');
+    }
+
+    @istest static void testMetadataService_fallsBackToDefaultWhenNoConfigRow() {
+        Async_Config__mdt config = new Async.MetadataService().getConfig('No_Such_Async_Config_Row');
+
+        Assert.areEqual(5, config.Batch_Size__c, 'Expected the default batch size when no Async_Config__mdt row exists for the job type.');
+        Assert.areEqual(null, config.Max_Retries__c, 'Expected no Max_Retries__c on the default config so auto-retry stays off.');
+    }
+
+    @istest static void testShouldAutoRetry_respectsConfiguredCap() {
+        AsyncMock mock = new AsyncMock()
+            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 3));
+        Async.setMock(mock);
+
+        Async.JobService jobs = new Async.JobService();
+        String apex = String.valueOf(MyTestAsync.class);
+
+        Assert.isTrue(jobs.shouldAutoRetry(new Async__c(Apex__c = apex, Retry_Count__c = 0)),
+            'Expected a fresh failure under the cap to auto-retry.');
+        Assert.isTrue(jobs.shouldAutoRetry(new Async__c(Apex__c = apex, Retry_Count__c = 2)),
+            'Expected a work item one retry below the cap to auto-retry.');
+        Assert.isFalse(jobs.shouldAutoRetry(new Async__c(Apex__c = apex, Retry_Count__c = 3)),
+            'Expected a work item at the cap to stay terminal Error.');
+        Assert.isFalse(jobs.shouldAutoRetry(new Async__c(Apex__c = apex, Retry_Count__c = 5)),
+            'Expected a work item over the cap to stay terminal Error.');
+    }
+
+    @istest static void testShouldAutoRetry_offWhenMaxAbsentOrZero() {
+        AsyncMock mock = new AsyncMock()
+            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 0));
+        Async.setMock(mock);
+
+        Async.JobService jobs = new Async.JobService();
+
+        Assert.isFalse(jobs.shouldAutoRetry(new Async__c(Apex__c = String.valueOf(MyTestAsync.class), Retry_Count__c = 0)),
+            'Expected auto-retry off when Max_Retries__c is zero.');
+        Assert.isFalse(jobs.shouldAutoRetry(new Async__c(Apex__c = 'Unconfigured_Async_Class', Retry_Count__c = 0)),
+            'Expected auto-retry off when no Async_Config__mdt row supplies Max_Retries__c.');
+    }
+
+    @istest static void testAutoRetry_incrementsRetryCountAndRepends() {
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+
+        List<Async__c> workItems = (List<Async__c>) new TestData(Async__c.sObjectType)
+            .mockIds()
+            .count(2)
+            .build();
+        workItems[0].Retry_Count__c = 0;
+        workItems[1].Retry_Count__c = 4;
+
+        new Async.WorkService().autoRetry(workItems);
+
+        Assert.areEqual(1, dmlMock.updates.size(), 'Expected a single update batch for the auto-retried work items.');
+
+        Map<Id, Async__c> updatedById = new Map<Id, Async__c>();
+        for (Async__c updated : (List<Async__c>) dmlMock.updates[0]) {
+            updatedById.put(updated.Id, updated);
+        }
+
+        Assert.areEqual('Pending', updatedById.get(workItems[0].Id).Status__c, 'Expected the auto-retried work item to be re-pended.');
+        Assert.areEqual(1, updatedById.get(workItems[0].Id).Retry_Count__c, 'Expected Retry_Count__c to increment from 0 to 1.');
+        Assert.areEqual(5, updatedById.get(workItems[1].Id).Retry_Count__c, 'Expected Retry_Count__c to increment from 4 to 5.');
+    }
+
+    @istest static void testHandleFailure_rependsUnderCapAndFailsAtCap() {
+        Contact contact = new Contact(LastName = 'Failure');
+        insert contact;
+
+        AsyncMock mock = new AsyncMock()
+            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 2));
+        Async.setMock(mock);
+
+        String apex = String.valueOf(MyTestAsync.class);
+        String threadId = Request.getCurrent().getRequestId();
+        Async__c underCap = new Async__c(Apex__c = apex, Record_Id__c = contact.Id, Status__c = 'Running', Retry_Count__c = 0, Thread__c = threadId);
+        Async__c atCap = new Async__c(Apex__c = apex, Record_Id__c = contact.Id, Status__c = 'Running', Retry_Count__c = 2, Thread__c = threadId);
+        insert new List<Async__c> { underCap, atCap };
+
+        Async.jobs.handleFailure(new Set<Id> { underCap.Id, atCap.Id }, 'boom', 'stack-trace');
+
+        Async__c retried = [SELECT Status__c, Retry_Count__c FROM Async__c WHERE Id = :underCap.Id];
+        Assert.areEqual('Pending', retried.Status__c, 'Expected the under-cap work item to be re-pended for auto-retry.');
+        Assert.areEqual(1, retried.Retry_Count__c, 'Expected the under-cap work item Retry_Count__c to increment from 0 to 1.');
+
+        Async__c terminal = [SELECT Status__c, Retry_Count__c, Error_Message__c FROM Async__c WHERE Id = :atCap.Id];
+        Assert.areEqual('Error', terminal.Status__c, 'Expected the at-cap work item to rest in terminal Error.');
+        Assert.areEqual(2, terminal.Retry_Count__c, 'Expected the at-cap work item Retry_Count__c to stay at the cap.');
+        Assert.areEqual('boom', terminal.Error_Message__c, 'Expected the terminal failure to record the error message.');
+    }
+
+    @istest static void testHandleFailure_noAutoRetryWhenDisabled() {
+        Contact contact = new Contact(LastName = 'Disabled');
+        insert contact;
+
+        AsyncMock mock = new AsyncMock()
+            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 0));
+        Async.setMock(mock);
+
+        Async__c item = new Async__c(
+            Apex__c = String.valueOf(MyTestAsync.class),
+            Record_Id__c = contact.Id,
+            Status__c = 'Running',
+            Retry_Count__c = 0,
+            Thread__c = Request.getCurrent().getRequestId()
+        );
+        insert item;
+
+        Async.jobs.handleFailure(new Set<Id> { item.Id }, 'boom', 'stack-trace');
+
+        Async__c result = [SELECT Status__c, Retry_Count__c FROM Async__c WHERE Id = :item.Id];
+        Assert.areEqual('Error', result.Status__c, 'Expected a terminal Error when auto-retry is disabled.');
+        Assert.areEqual(0, result.Retry_Count__c, 'Expected Retry_Count__c to stay 0 when auto-retry is disabled.');
+    }
+
+    @istest static void testManualRetry_pastCapDoesNotBumpRetryCount() {
+        Contact contact = new Contact(LastName = 'Manual');
+        insert contact;
+
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 2));
+        Async.setMock(mock);
+
+        Async__c workItem = new Async__c(
+            Apex__c = String.valueOf(MyTestAsync.class),
+            Record_Id__c = contact.Id,
+            Status__c = 'Error',
+            Retry_Count__c = 5,
+            Thread__c = Request.getCurrent().getRequestId()
+        );
+        insert workItem;
+
+        Test.startTest();
+            update new Async__c(Id = workItem.Id, Status__c = 'Pending');
+        Test.stopTest();
+
+        Async__c result = [SELECT Status__c, Retry_Count__c FROM Async__c WHERE Id = :workItem.Id];
+        Assert.areEqual('Done', result.Status__c, 'Expected a manual re-queue past the cap to be honored and run to completion.');
+        Assert.areEqual(5, result.Retry_Count__c, 'Expected a manual re-queue not to increment Retry_Count__c.');
+    }
+
+    public with sharing class CountingMetadataService extends Async.MetadataService {
+        public Integer loadCount = 0;
+
+        protected override Async_Config__mdt loadConfig(String apexClass) {
+            this.loadCount++;
+            return new Async_Config__mdt(Batch_Size__c = 5);
+        }
+    }
+
     public with sharing class MyTestAsync extends Async {
         public override void execute(Set<Id> ids) {
             List<Contact> contacts = [SELECT Id, FirstName, LastName FROM Contact WHERE Id IN :ids];
