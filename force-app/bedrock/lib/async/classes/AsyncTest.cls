@@ -128,6 +128,80 @@ public with sharing class AsyncTest {
 
         Assert.areEqual(5, config.Batch_Size__c, 'Expected the default batch size when no Async_Config__mdt row exists for the job type.');
         Assert.areEqual(null, config.Max_Retries__c, 'Expected no Max_Retries__c on the default config so auto-retry stays off.');
+        Assert.areEqual(0, config.Priority__c, 'Expected the default priority to seed work items at the lowest priority when no config row exists.');
+    }
+
+    @istest static void testCreate_seedsConfiguredPriorityOnWorkItems() {
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Async.setMock(new AsyncMock().config(MyPriorityAsync.class, new Async_Config__mdt(Priority__c = 42)));
+
+        List<SObject> contacts = new TestData(Contact.sObjectType)
+            .mockIds()
+            .count(2)
+            .build();
+
+        Async.enqueue(MyPriorityAsync.class, Pluck.ids(contacts));
+
+        Assert.areEqual(1, dmlMock.inserts.size(), 'Expected one insert batch when enqueuing seeded work items.');
+        for (Async__c workItem : (List<Async__c>) dmlMock.inserts[0]) {
+            Assert.areEqual(42, workItem.Priority__c, 'Expected each enqueued work item to inherit the configured priority for its job type.');
+        }
+    }
+
+    @istest static void testCreate_defaultsPriorityToLowestWhenConfigMissingOrBlank() {
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Async.setMock(new AsyncMock().config(MyBlankPriorityAsync.class, new Async_Config__mdt()));
+
+        List<SObject> contacts = new TestData(Contact.sObjectType)
+            .mockIds()
+            .count(2)
+            .build();
+
+        Async.enqueue(MyTestAsync.class, new Set<Id> { contacts[0].Id });
+        Async.enqueue(MyBlankPriorityAsync.class, new Set<Id> { contacts[1].Id });
+
+        List<Async__c> inserted = new List<Async__c>();
+        for (List<SObject> batch : dmlMock.inserts) {
+            inserted.addAll((List<Async__c>) batch);
+        }
+
+        Assert.areEqual(2, inserted.size(), 'Expected one work item per enqueue call.');
+        for (Async__c workItem : inserted) {
+            Assert.areEqual(0, workItem.Priority__c, 'Expected missing config rows and blank priority values to seed the lowest priority.');
+        }
+    }
+
+    @istest static void testEnqueueNextJob_drainsHigherPriorityJobTypeFirst() {
+        List<Contact> contacts = new List<Contact> {
+            new Contact(LastName = 'High Priority'),
+            new Contact(LastName = 'Low Priority')
+        };
+        insert contacts;
+
+        AsyncMock mock = new AsyncMock()
+            .config(MyPriorityAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Priority__c = 100))
+            .config(MyLowPriorityAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Priority__c = 1));
+        Async.setMock(mock);
+
+        Async.enqueue(MyLowPriorityAsync.class, new Set<Id> { contacts[1].Id });
+        Async.enqueue(MyPriorityAsync.class, new Set<Id> { contacts[0].Id });
+
+        Test.startTest();
+            Async.jobs.enqueueNextJob();
+
+            List<Async__c> runningItems = [
+                SELECT Apex__c, Priority__c, Status__c
+                FROM Async__c
+                WHERE Status__c = 'Running'
+            ];
+            Assert.areEqual(1, runningItems.size(), 'Expected one batch to be marked Running when the next async job is dispatched.');
+            Assert.areEqual(String.valueOf(MyPriorityAsync.class), runningItems[0].Apex__c,
+                'Expected the higher-priority job type to dispatch before lower-priority work in the same backlog.');
+            Assert.areEqual(100, runningItems[0].Priority__c,
+                'Expected the running work item to retain its seeded priority.');
+        Test.stopTest();
     }
 
     @istest static void testShouldAutoRetry_respectsConfiguredCap() {
@@ -322,6 +396,21 @@ public with sharing class AsyncTest {
                 contact.FirstName = 'Child';
             }
             update contacts;
+        }
+    }
+
+    public with sharing class MyPriorityAsync extends Async {
+        public override void execute(Set<Id> ids) {
+        }
+    }
+
+    public with sharing class MyBlankPriorityAsync extends Async {
+        public override void execute(Set<Id> ids) {
+        }
+    }
+
+    public with sharing class MyLowPriorityAsync extends Async {
+        public override void execute(Set<Id> ids) {
         }
     }
 }

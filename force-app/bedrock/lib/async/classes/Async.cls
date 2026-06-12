@@ -193,6 +193,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
         List<Async__c> newWorkItems(String apexClass, Set<Id> recordIds) {
             List<Async__c> workItems = new List<Async__c>();
+            Decimal priority = this.getPriority(apexClass);
 
             if (String.isBlank(apexClass) || recordIds == null || recordIds.isEmpty()) return workItems;
             for (Id recordId : recordIds) {
@@ -200,11 +201,17 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                     Record_Id__c = String.valueOf(recordId),
                     Status__c = 'Pending',
                     Thread__c = jobs.threadId,
-                    Apex__c = apexClass
+                    Apex__c = apexClass,
+                    Priority__c = priority
                 ));
             }
 
             return workItems;
+        }
+
+        Decimal getPriority(String apexClass) {
+            Decimal priority = Async.metadata.getConfig(apexClass).Priority__c;
+            return priority == null ? 0 : priority;
         }
 
         Boolean shouldDefer() {
@@ -364,12 +371,12 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
         protected virtual Async_Config__mdt loadConfig(String apexClass) {
             List<Async_Config__mdt> configs = (List<Async_Config__mdt>) Query.records([
-                SELECT Apex__c, Batch_Size__c, Max_Retries__c
+                SELECT Apex__c, Batch_Size__c, Max_Retries__c, Priority__c
                 FROM Async_Config__mdt
                 WHERE Apex__c = :apexClass
                 LIMIT 1
             ]);
-            return !configs.isEmpty() ? configs[0] : new Async_Config__mdt(Batch_Size__c = 5);
+            return !configs.isEmpty() ? configs[0] : new Async_Config__mdt(Batch_Size__c = 5, Priority__c = 0);
         }
     }
 
