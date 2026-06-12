@@ -18,10 +18,11 @@ today; inspect the code before depending on exact behavior.
 
 - `Async` is a `virtual` class implementing `Queueable` and
   `Database.AllowsCallouts`. Subclasses override `execute(Set<Id> ids)`.
-- Four injectable service singletons drive behavior: `Async.jobs`
+- Five injectable service singletons drive behavior: `Async.jobs`
   (`JobService`), `Async.work` (`WorkService`), `Async.queries`
-  (`QueryService`), and `Async.metadata` (`MetadataService`).
-  `Async.setMock(AsyncMock)` swaps all four for tests.
+  (`QueryService`), `Async.metadata` (`MetadataService`), and
+  `Async.settings` (`SettingsService`). `Async.setMock(AsyncMock)` swaps all
+  five for tests.
 - `Async.enqueue(Type, List<SObject>)` and `Async.enqueue(Type, Set<Id>)` create
   one `Async__c` work item per record Id (via `Pluck.ids`) in `Pending` status,
   tagged with the current request's thread id and the target Apex type.
@@ -61,14 +62,20 @@ today; inspect the code before depending on exact behavior.
   remains in `QueryService`. When no config row exists for a job type it returns
   a default with `Batch_Size__c = 5` and `Priority__c = 0` (the
   `SettingsService` `Default_Batch_Size__c` fallback is still roadmap).
+- `Async.SettingsService` owns the transaction-scoped cached read of the
+  hierarchical `Async_Settings__c` custom setting. In this Bucket 1
+  implementation it exposes only a narrow test seam for seeding the backing
+  value; consumer-specific accessors land with the settings fields that need
+  them.
 - `WorkService` owns the `Async__c` status transitions (`create`, `running`,
   `complete`, `fail`, `retry`, `autoRetry`) through `DML`. `QueryService` owns
   the `Async__c` reads through `Query`; `Async_Config__mdt` reads live in
   `MetadataService`.
-- `AsyncMock` provides test subclasses of the four services, including a
-  `canEnqueue()` toggle, a bounded `maximumQueueableStackDepth` thread start, and
-  a `config(Type, Async_Config__mdt)` seam that injects job-type config into the
-  `MetadataService` cache without DML.
+- `AsyncMock` provides test subclasses of the five services, including a
+  `canEnqueue()` toggle, a bounded `maximumQueueableStackDepth` thread start, a
+  `config(Type, Async_Config__mdt)` seam that injects job-type config into the
+  `MetadataService` cache without DML, and `seedSettings(Async_Settings__c)` for
+  the settings cache.
 - `Async.AsyncException` is the framework's error type.
 
 ## Schema
@@ -77,6 +84,7 @@ This framework relies on the `Async__c` object (fields `Apex__c`,
 `Record_Id__c`, `Status__c`, `Thread__c`, `Priority__c`, `Retry_Count__c`,
 `Error_Message__c`, `Error_Stack_Trace__c`) and the `Async_Config__mdt` type
 (`Apex__c`, `Batch_Size__c`, `Max_Retries__c`, `Priority__c`), both under
+plus the hierarchical custom setting `Async_Settings__c`, all under
 `force-app/bedrock/lib/async/objects`. `Retry_Count__c` (default `0`) tracks how
 many times the framework has re-run an item; `Max_Retries__c` (absent/`0` ⇒
 auto-retry off) caps framework auto-retries per job type. `Priority__c`
