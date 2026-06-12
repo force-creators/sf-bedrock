@@ -130,6 +130,33 @@ public with sharing class AsyncTest {
         Assert.areEqual(null, config.Max_Retries__c, 'Expected no Max_Retries__c on the default config so auto-retry stays off.');
     }
 
+    @istest static void testSettingsService_cachesResolvedSettingsPerTransaction() {
+        CountingSettingsService settings = new CountingSettingsService();
+
+        settings.getSettings();
+        settings.getSettings();
+        settings.getSettings();
+
+        Assert.areEqual(1, settings.loadCount, 'Expected repeated settings reads in one transaction to load once and serve the transaction cache.');
+    }
+
+    @istest static void testSetMock_replacesSettingsService() {
+        AsyncMock mock = new AsyncMock().seedSettings(new Async_Settings__c(SetupOwnerId = UserInfo.getUserId()));
+        Async.setMock(mock);
+
+        Assert.isTrue(Async.settings instanceof AsyncMock.SettingsService, 'Expected Async.setMock to replace the settings singleton with the mock settings service.');
+    }
+
+    @istest static void testSettingsService_returnsSeededValuesWithoutLoad() {
+        CountingSettingsService settings = new CountingSettingsService();
+        settings.setSettings(new Async_Settings__c(SetupOwnerId = UserInfo.getUserId()));
+
+        Async_Settings__c cached = settings.getSettings();
+
+        Assert.areEqual(0, settings.loadCount, 'Expected seeded settings values to be served from memory without loading org state.');
+        Assert.areEqual(UserInfo.getUserId(), cached.SetupOwnerId, 'Expected the seeded settings values to be returned unchanged from memory.');
+    }
+
     @istest static void testShouldAutoRetry_respectsConfiguredCap() {
         AsyncMock mock = new AsyncMock()
             .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 3));
@@ -269,6 +296,15 @@ public with sharing class AsyncTest {
         protected override Async_Config__mdt loadConfig(String apexClass) {
             this.loadCount++;
             return new Async_Config__mdt(Batch_Size__c = 5);
+        }
+    }
+
+    public with sharing class CountingSettingsService extends Async.SettingsService {
+        public Integer loadCount = 0;
+
+        protected override Async_Settings__c loadSettings() {
+            this.loadCount++;
+            return new Async_Settings__c();
         }
     }
 

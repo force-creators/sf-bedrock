@@ -438,7 +438,8 @@ re-drive failed work.
 | `work` | `public static WorkService` | Service singleton for `Async__c` status transitions. Swap via `setMock`. |
 | `queries` | `public static QueryService` | Service singleton for `Async__c` reads. Swap via `setMock`. |
 | `metadata` | `public static MetadataService` | Service singleton for cached `Async_Config__mdt` reads, keyed by Apex name. Swap via `setMock`. |
-| `setMock` | `@testVisible static void setMock(AsyncMock mock)` | Replaces all four service singletons with the mock's equivalents. Test-visible only. |
+| `settings` | `public static SettingsService` | Service singleton for the transaction-cached `Async_Settings__c` hierarchical custom setting. Swap via `setMock`. |
+| `setMock` | `@testVisible static void setMock(AsyncMock mock)` | Replaces all five service singletons with the mock's equivalents. Test-visible only. |
 | `enqueue` | `public static void enqueue(Type jobType, List<SObject> records)` | Creates one `Async__c` work item per record Id (Ids are plucked from the list). |
 | `enqueue` | `public static void enqueue(Type jobType, Set<Id> recordIds)` | Creates one `Async__c` work item per Id in `recordIds`. |
 | `stage` | `public static void stage(Type jobType, List<SObject> records)` | Adds record Ids to the current transaction's async work buffer. Ids are plucked from the list. |
@@ -462,14 +463,16 @@ is called on the base class without being overridden.
 | --- | --- | --- |
 | `canEnqueue` | `public AsyncMock canEnqueue()` | Enables thread enqueuing inside a test. Returns `this` for fluent chaining. By default `AsyncMock.JobService.canEnqueue()` returns `false` and no thread starts. |
 | `config` | `public AsyncMock config(Type jobType, Async_Config__mdt config)` | Injects config for a job type into the `MetadataService` cache without DML. Returns `this` for fluent chaining. |
+| `seedSettings` | `public AsyncMock seedSettings(Async_Settings__c settings)` | Seeds the backing `Async_Settings__c` value on the mock `SettingsService`. Returns `this` for fluent chaining. |
 | `work` | `public WorkService work` | Mock `WorkService` (extends `Async.WorkService`). |
 | `jobs` | `public JobService jobs` | Mock `JobService` (extends `Async.JobService`). Caps `maximumQueueableStackDepth` at 5. |
 | `queries` | `public QueryService queries` | Mock `QueryService` (extends `Async.QueryService`). |
 | `metadata` | `public MetadataService metadata` | Mock `MetadataService` (extends `Async.MetadataService`). Serves injected config before falling back to a real read. |
+| `settings` | `public SettingsService settings` | Mock `SettingsService` (extends `Async.SettingsService`). Serves a seeded `Async_Settings__c` value from memory. |
 
 ### Schema
 
-The framework relies on two metadata types in
+The framework relies on three schema artifacts in
 `force-app/bedrock/lib/async/objects`.
 
 **`Async__c`** (custom object) — one row per work item:
@@ -493,6 +496,13 @@ needs a non-default batch size or auto-retry:
 | `Apex__c` | API name of the `Async` subclass. |
 | `Batch_Size__c` | Number of work items per `execute` call. Defaults to 5 when no record exists. |
 | `Max_Retries__c` | Cap on framework auto-retries for failed items. Absent or `0` ⇒ auto-retry off. |
+
+**`Async_Settings__c`** (hierarchical custom setting) — transaction-cached
+framework settings storage:
+
+- Bucket 1 infrastructure is implemented here.
+- Consumer fields and typed production accessors land with the features that
+  read them.
 
 ## Notes & Edge Cases
 
