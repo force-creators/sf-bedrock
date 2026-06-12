@@ -1,0 +1,60 @@
+<template>
+    <lightning-card title="Completed" icon-name="utility:success">
+        <div slot="actions" class="card-actions">
+            <span class="slds-text-body_small slds-text-color_weak">{lastRefreshedLabel}</span>
+
+            <lightning-input
+                class="filter-input"
+                type="search"
+                variant="label-hidden"
+                label="Filter completed jobs"
+                placeholder="Filter by job, class, record, or thread"
+                value={searchTerm}
+                onchange={handleSearchChange}
+            ></lightning-input>
+
+            <lightning-button-icon
+                icon-name="utility:refresh"
+                alternative-text="Refresh completed jobs"
+                title="Refresh completed jobs"
+                onclick={handleRefresh}
+                disabled={isLoading}
+            ></lightning-button-icon>
+
+            <lightning-badge label={recordCountLabel}></lightning-badge>
+        </div>
+
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template lwc:if={hasError}>
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                    <span class="slds-assistive-text">Error</span>
+                    {errorMessage}
+                </div>
+            </template>
+
+            <template lwc:elseif={hasRows}>
+                <lightning-datatable
+                    key-field="id"
+                    columns={columns}
+                    data={rows}
+                    hide-checkbox-column
+                    sorted-by={sortBy}
+                    sorted-direction={sortDirection}
+                    is-loading={isLoading}
+                    onsort={handleSort}
+                ></lightning-datatable>
+            </template>
+
+            <template lwc:else>
+                <div class="empty-state slds-text-align_center" role="status">
+                    <lightning-icon
+                        icon-name="utility:success"
+                        size="medium"
+                        alternative-text=""
+                    ></lightning-icon>
+                    <p class="slds-m-top_small">No completed async jobs found.</p>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>

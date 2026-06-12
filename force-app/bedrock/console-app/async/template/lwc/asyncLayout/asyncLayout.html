@@ -42,6 +42,9 @@
                     <template lwc:elseif={isBacklog}>
                         <c-async-backlog oncountchange={handleBacklogCountChange}></c-async-backlog>
                     </template>
+                    <template lwc:elseif={isCompleted}>
+                        <c-async-completed></c-async-completed>
+                    </template>
                     <template lwc:elseif={isErrors}>
                         <c-async-errors oncountchange={handleErrorsCountChange}></c-async-errors>
                     </template>
