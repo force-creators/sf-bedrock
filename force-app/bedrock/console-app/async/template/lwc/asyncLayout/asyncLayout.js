@@ -4,6 +4,7 @@ import getMetrics from '@salesforce/apex/AsyncDashboardController.getMetrics';
 const NAV_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', iconName: 'utility:home' },
     { id: 'backlog', label: 'Backlog', iconName: 'utility:rows' },
+    { id: 'completed', label: 'Completed', iconName: 'utility:success' },
     { id: 'errors', label: 'Errors', iconName: 'utility:error' },
     {
         id: 'job-configurations',
@@ -52,6 +53,10 @@ export default class AsyncLayout extends LightningElement {
 
     get isErrors() {
         return this.selectedId === 'errors';
+    }
+
+    get isCompleted() {
+        return this.selectedId === 'completed';
     }
 
     get isJobConfigurations() {
