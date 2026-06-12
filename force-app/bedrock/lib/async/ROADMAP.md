@@ -42,26 +42,13 @@ rather than being everyone's safety net.
 
 ## Retry — `Retry_Count__c` + bounded auto-retry
 
-Status: unblocked.
-
-**Schema:** add `Retry_Count__c` (Number, default `0`) to `Async__c`; add
-`Max_Retries__c` (Number) to `Async_Config__mdt`.
-
-`Retry_Count__c` tracks how many times a work item has been run by the
-framework. When `Max_Retries__c` is absent or zero, framework auto-retry is off
-for that job type.
-
-**Behavior:**
-
-- In `JobWatcher`'s failure path, a new job-service method
-  (`jobs.shouldAutoRetry(...)` or similar) compares `Retry_Count__c` against the
-  configured max:
-  - Under the cap: `WorkService` increments `Retry_Count__c` and sets
-    `Status__c = 'Pending'` so the trigger re-enqueues it.
-  - At or over the cap: the work item stays terminal `Error`.
-- Manual `Error → Pending` flips remain unbounded and are always honored. They
-  are not gated by `Retry_Count__c` and do not increment it.
-  `AsyncFilters.shouldRetry` keeps its current behavior unchanged.
+Status: **implemented.** See `JobService.handleFailure` / `shouldAutoRetry`,
+`WorkService.autoRetry`, and the `Retry_Count__c` / `Max_Retries__c` fields.
+`JobWatcher`'s failure path partitions the batch: items under the configured cap
+are re-pended with `Retry_Count__c` incremented and re-run by the chain, items at
+or over the cap (or with no/zero `Max_Retries__c`) stay terminal `Error`. Manual
+`Error → Pending` flips remain unbounded, always honored, and never increment the
+counter (`AsyncFilters.shouldRetry` unchanged).
 
 ## Performance Tracking
 
@@ -116,15 +103,15 @@ Split into two buckets:
 
 ## MetadataService — cached `Async_Config__mdt` reads
 
-Status: unblocked.
+Status: **implemented.** `Async.MetadataService` is the fourth injectable
+singleton (`Async.metadata`); it owns all `Async_Config__mdt` reads behind a
+transaction-scoped cache keyed by Apex name, `QueryService.getJobConfig`
+delegates to it, and `AsyncMock.config(...)` injects config without DML.
 
-Promote the inline `Async_Config__mdt` queries out of `QueryService` into a
-dedicated `Async.MetadataService` inner class with a transaction-level cache.
-`QueryService` delegates config reads to it. This removes repeated SOQL for the
-same metadata row across a chained-job transaction and gives tests a clean seam
-to control config values. Reads `Default_Batch_Size__c` from
-`Async.SettingsService` as a fallback when no `Async_Config__mdt` row exists for
-a job type.
+Remaining roadmap tie-in: when no `Async_Config__mdt` row exists it currently
+returns a default `Batch_Size__c = 5`. Once `SettingsService` (#4) lands, the
+no-row fallback should read `Default_Batch_Size__c` from `Async.SettingsService`
+instead of the hard-coded default.
 
 ## Priority — default per job type from config
 

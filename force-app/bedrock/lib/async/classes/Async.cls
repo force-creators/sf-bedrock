@@ -2,11 +2,13 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     public static JobService jobs = new JobService();
     public static WorkService work = new WorkService();
     public static QueryService queries = new QueryService();
+    public static MetadataService metadata = new MetadataService();
 
     @testVisible static void setMock(AsyncMock mock) {
         jobs = mock.jobs;
         work = mock.work;
         queries = mock.queries;
+        metadata = mock.metadata;
     }
 
     public static void enqueue(Type jobType, List<SObject> records) { 
@@ -104,6 +106,30 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
         public void retry(Set<Id> workItemIds) {
             work.retry(workItemIds);
+        }
+
+        public virtual void handleFailure(Set<Id> workItemIds, String message, String stackTrace) {
+            List<Async__c> toRetry = new List<Async__c>();
+            Set<Id> toFail = new Set<Id>();
+
+            for (Async__c workItem : queries.getWorkItemsById(workItemIds)) {
+                if (this.shouldAutoRetry(workItem)) {
+                    toRetry.add(workItem);
+                } else {
+                    toFail.add(workItem.Id);
+                }
+            }
+
+            work.fail(toFail, message, stackTrace);
+            work.autoRetry(toRetry);
+        }
+
+        public virtual Boolean shouldAutoRetry(Async__c workItem) {
+            Decimal maxRetries = Async.metadata.getConfig(workItem.Apex__c).Max_Retries__c;
+            if (maxRetries == null || maxRetries <= 0) return false;
+
+            Decimal retryCount = workItem.Retry_Count__c == null ? 0 : workItem.Retry_Count__c;
+            return retryCount < maxRetries;
         }
 
         public virtual Boolean canEnqueue() {
@@ -225,6 +251,23 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             updateStatus(workItemIds, new Async__c(Status__c = 'Pending', Thread__c = jobs.threadId));
         }
 
+        public virtual void autoRetry(List<Async__c> workItems) {
+            if (workItems == null || workItems.isEmpty()) return;
+
+            List<SObject> updates = new List<SObject>();
+            for (Async__c workItem : workItems) {
+                Decimal retryCount = workItem.Retry_Count__c == null ? 0 : workItem.Retry_Count__c;
+                updates.add(new Async__c(
+                    Id = workItem.Id,
+                    Status__c = 'Pending',
+                    Thread__c = jobs.threadId,
+                    Retry_Count__c = retryCount + 1
+                ));
+            }
+
+            DML.updateRecords(updates);
+        }
+
         public virtual void running(Set<Id> workItemIds) {
             updateStatus(workItemIds, new Async__c(Status__c = 'Running'));
         }
@@ -297,18 +340,31 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
         public virtual List<Async__c> getWorkItemsById(Set<Id> workItemIds) {
             List<Async__c> workItems = (List<Async__c>) Query.records([
-                SELECT Id, Apex__c, Thread__c, Record_Id__c, Priority__c
+                SELECT Id, Apex__c, Thread__c, Record_Id__c, Priority__c, Retry_Count__c
                 FROM Async__c
                 WHERE Id IN :workItemIds
             ]);
             return workItems;
         }
 
-
-
         public virtual Async_Config__mdt getJobConfig(String apexClass) {
+            return Async.metadata.getConfig(apexClass);
+        }
+    }
+
+    public virtual with sharing class MetadataService {
+        @testVisible Map<String, Async_Config__mdt> configByApex = new Map<String, Async_Config__mdt>();
+
+        public virtual Async_Config__mdt getConfig(String apexClass) {
+            if (!this.configByApex.containsKey(apexClass)) {
+                this.configByApex.put(apexClass, this.loadConfig(apexClass));
+            }
+            return this.configByApex.get(apexClass);
+        }
+
+        protected virtual Async_Config__mdt loadConfig(String apexClass) {
             List<Async_Config__mdt> configs = (List<Async_Config__mdt>) Query.records([
-                SELECT Apex__c, Batch_Size__c
+                SELECT Apex__c, Batch_Size__c, Max_Retries__c
                 FROM Async_Config__mdt
                 WHERE Apex__c = :apexClass
                 LIMIT 1
@@ -339,7 +395,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 }
 
                 Exception error = context.getException();
-                work.fail(
+                jobs.handleFailure(
                     this.workItemIds,
                     error == null ? String.valueOf(context.getResult()) : error.getMessage(),
                     error == null ? null : error.getStackTraceString()
