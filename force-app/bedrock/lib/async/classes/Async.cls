@@ -3,12 +3,14 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     public static WorkService work = new WorkService();
     public static QueryService queries = new QueryService();
     public static MetadataService metadata = new MetadataService();
+    public static SettingsService settings = new SettingsService();
 
     @testVisible static void setMock(AsyncMock mock) {
         jobs = mock.jobs;
         work = mock.work;
         queries = mock.queries;
         metadata = mock.metadata;
+        settings = mock.settings;
     }
 
     public static void enqueue(Type jobType, List<SObject> records) { 
@@ -370,6 +372,26 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 LIMIT 1
             ]);
             return !configs.isEmpty() ? configs[0] : new Async_Config__mdt(Batch_Size__c = 5);
+        }
+    }
+
+    public virtual with sharing class SettingsService {
+        @testVisible Async_Settings__c values;
+
+        public virtual Async_Settings__c getSettings() {
+            if (this.values == null) {
+                this.values = this.loadSettings();
+            }
+            return this.values;
+        }
+
+        public virtual void setSettings(Async_Settings__c values) {
+            this.values = values;
+        }
+
+        protected virtual Async_Settings__c loadSettings() {
+            Async_Settings__c settings = Async_Settings__c.getInstance();
+            return settings == null ? new Async_Settings__c() : settings;
         }
     }
 

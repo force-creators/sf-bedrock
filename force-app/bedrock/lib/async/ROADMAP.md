@@ -71,22 +71,23 @@ the overhead is not wanted.
 
 ## SettingsService — `Async_Settings__c`
 
-Status: unblocked. Foundational; other features read from it.
+Status: **Bucket 1 implemented.** Bucket 2 remains pending; consumer fields land
+with the features that read them.
 
 Split into two buckets:
 
-**Bucket 1 — infrastructure (standalone deliverable):**
+**Bucket 1 — infrastructure (implemented):**
 
 - Create `Async_Settings__c` as a hierarchical custom setting (Org / Profile /
   User), so framework defaults can be overridden per user.
-- Add `Async.SettingsService` as a fourth injectable singleton alongside
-  `JobService`, `WorkService`, `QueryService`. It reads
+- Add `Async.SettingsService` as a fifth injectable singleton alongside
+  `JobService`, `WorkService`, `QueryService`, and `MetadataService`. It reads
   `Async_Settings__c.getInstance()`, caches for the transaction, exposes typed
-  accessors, and is mockable via `Async.setMock`.
+  access to the backing settings row, and is mockable via `Async.setMock`.
 - Expose a single advanced test hook to set the backing `Async_Settings__c`
   values directly, rather than a wide mock surface — keep the lever light.
 
-**Bucket 2 — field definitions (each feature declares what it reads):**
+**Bucket 2 — field definitions (pending; each feature declares what it reads):**
 
 | Setting field | Consumed by |
 |---|---|
@@ -109,9 +110,9 @@ transaction-scoped cache keyed by Apex name, `QueryService.getJobConfig`
 delegates to it, and `AsyncMock.config(...)` injects config without DML.
 
 Remaining roadmap tie-in: when no `Async_Config__mdt` row exists it currently
-returns a default `Batch_Size__c = 5`. Once `SettingsService` (#4) lands, the
-no-row fallback should read `Default_Batch_Size__c` from `Async.SettingsService`
-instead of the hard-coded default.
+returns a default `Batch_Size__c = 5`. Once `Default_Batch_Size__c` lands in
+Bucket 2, the no-row fallback should read that value from
+`Async.SettingsService` instead of the hard-coded default.
 
 ## Priority — default per job type from config
 

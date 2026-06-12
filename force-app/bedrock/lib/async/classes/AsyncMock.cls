@@ -4,12 +4,14 @@ public with sharing class AsyncMock {
     public JobService jobs;
     public QueryService queries;
     public MetadataService metadata;
+    public SettingsService settings;
 
     public AsyncMock() {
         this.work = new WorkService();
         this.jobs = new JobService();
         this.queries = new QueryService();
         this.metadata = new MetadataService();
+        this.settings = new SettingsService();
     }
 
     public AsyncMock canEnqueue() {
@@ -19,6 +21,11 @@ public with sharing class AsyncMock {
 
     public AsyncMock config(Type jobType, Async_Config__mdt config) {
         this.metadata.configByApex.put(String.valueOf(jobType), config);
+        return this;
+    }
+
+    public AsyncMock seedSettings(Async_Settings__c settings) {
+        this.settings.setSettings(settings);
         return this;
     }
 
@@ -54,5 +61,8 @@ public with sharing class AsyncMock {
             }
             return super.getConfig(apexClass);
         }
+    }
+
+    public with sharing class SettingsService extends Async.SettingsService {
     }
 }
