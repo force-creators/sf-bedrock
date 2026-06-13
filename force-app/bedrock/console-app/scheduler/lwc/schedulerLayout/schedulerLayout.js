@@ -13,12 +13,14 @@ const METRIC_DEFINITIONS = [
 
 export default class SchedulerLayout extends LightningElement {
     jobs = [];
+    scheduleSections = [];
     metrics = this.emptyMetrics();
     isLoading = false;
     errorMessage;
     lastRefreshedAt;
     hasMetadataChanges = false;
     metadataRecalculationAt;
+    errorJobCount = 0;
     refreshTimer;
 
     connectedCallback() {
@@ -31,11 +33,19 @@ export default class SchedulerLayout extends LightningElement {
     }
 
     get hasJobs() {
-        return this.jobs.length > 0;
+        return this.scheduleSections.length > 0;
     }
 
     get hasError() {
         return Boolean(this.errorMessage);
+    }
+
+    get hasJobErrors() {
+        return this.errorJobCount > 0;
+    }
+
+    get errorSummaryLabel() {
+        return `${this.errorJobCount} scheduler ${this.errorJobCount === 1 ? 'job has' : 'jobs have'} a stored error`;
     }
 
     get metadataRecalculationLabel() {
@@ -78,13 +88,17 @@ export default class SchedulerLayout extends LightningElement {
             const state = await getSchedule();
             this.hasMetadataChanges = Boolean(state?.hasMetadataChanges);
             this.metadataRecalculationAt = state?.metadataRecalculationAt;
+            this.errorJobCount = state?.errorJobCount || 0;
             this.metrics = this.buildMetrics(state);
             this.jobs = this.buildJobs(state?.jobs || []);
+            this.scheduleSections = this.groupJobs(this.jobs);
         } catch (error) {
             this.jobs = [];
+            this.scheduleSections = [];
             this.metrics = this.emptyMetrics();
             this.hasMetadataChanges = false;
             this.metadataRecalculationAt = undefined;
+            this.errorJobCount = 0;
             this.errorMessage = this.reduceErrors(error);
         } finally {
             this.lastRefreshedAt = new Date();
@@ -107,6 +121,8 @@ export default class SchedulerLayout extends LightningElement {
     }
 
     buildJobs(rows) {
+        const now = Date.now();
+
         return rows
             .map((row) => {
                 const key = row.id || row.configKey;
@@ -115,13 +131,101 @@ export default class SchedulerLayout extends LightningElement {
                 return {
                     ...row,
                     key,
+                    statusLabel: this.statusLabel(row, now),
                     statusClass: this.statusClass(status),
-                    timelineClass: `timeline-item ${status === 'Disabled' ? 'timeline-disabled' : ''}`,
+                    timelineClass: this.timelineClass(row),
                     lastExecutedLabel: this.formatDateTime(row.lastExecutedAt, EMPTY_LABEL),
                     nextScheduledLabel: this.formatDateTime(row.nextScheduledAt, status === 'Disabled' ? 'Paused' : 'Due now')
                 };
             })
             .sort((first, second) => this.compareJobs(first, second));
+    }
+
+    groupJobs(jobs) {
+        const sections = [];
+        const sectionsByKey = new Map();
+
+        jobs.forEach((job) => {
+            const section = this.sectionForJob(job);
+
+            if (!sectionsByKey.has(section.key)) {
+                sectionsByKey.set(section.key, {
+                    ...section,
+                    jobs: []
+                });
+                sections.push(sectionsByKey.get(section.key));
+            }
+
+            sectionsByKey.get(section.key).jobs.push(job);
+        });
+
+        return sections.map((section) => ({
+            ...section,
+            countLabel: `${section.jobs.length} ${section.jobs.length === 1 ? 'job' : 'jobs'}`
+        }));
+    }
+
+    sectionForJob(job) {
+        if (job.status === 'Disabled') {
+            return {
+                key: 'paused',
+                label: 'Paused',
+                description: 'Disabled scheduler jobs'
+            };
+        }
+
+        if (job.status === 'Due Now' || !job.nextScheduledAt || new Date(job.nextScheduledAt).getTime() <= Date.now()) {
+            return {
+                key: 'due-now',
+                label: 'Due Now',
+                description: 'Ready for the next Scheduler heartbeat'
+            };
+        }
+
+        const nextRun = new Date(job.nextScheduledAt);
+        const today = this.startOfToday();
+        const tomorrow = this.addDays(today, 1);
+        const dayAfterTomorrow = this.addDays(today, 2);
+        const nextWeek = this.addDays(today, 7);
+        const followingWeek = this.addDays(today, 14);
+
+        if (nextRun < tomorrow) {
+            return {
+                key: 'today',
+                label: 'Today',
+                description: this.formatSectionDate(today)
+            };
+        }
+
+        if (nextRun < dayAfterTomorrow) {
+            return {
+                key: 'tomorrow',
+                label: 'Tomorrow',
+                description: this.formatSectionDate(tomorrow)
+            };
+        }
+
+        if (nextRun < nextWeek) {
+            return {
+                key: 'this-week',
+                label: 'This Week',
+                description: 'Later this week'
+            };
+        }
+
+        if (nextRun < followingWeek) {
+            return {
+                key: 'next-week',
+                label: 'Next Week',
+                description: '7 to 14 days out'
+            };
+        }
+
+        return {
+            key: `date-${nextRun.getFullYear()}-${nextRun.getMonth()}-${nextRun.getDate()}`,
+            label: this.formatSectionDate(nextRun),
+            description: 'Further out'
+        };
     }
 
     compareJobs(first, second) {
@@ -135,6 +239,37 @@ export default class SchedulerLayout extends LightningElement {
         return (first.configKey || '').localeCompare(second.configKey || '');
     }
 
+    statusLabel(row, now) {
+        if (row.status === 'Disabled') {
+            return 'Disabled';
+        }
+
+        if (row.status === 'Due Now' || !row.nextScheduledAt) {
+            return 'Due now';
+        }
+
+        const millisecondsUntilRun = new Date(row.nextScheduledAt).getTime() - now;
+        if (millisecondsUntilRun <= 0) {
+            return 'Due now';
+        }
+
+        return `In ${this.formatDuration(millisecondsUntilRun)}`;
+    }
+
+    timelineClass(row) {
+        const classes = ['timeline-item'];
+
+        if (row.status === 'Disabled') {
+            classes.push('timeline-disabled');
+        }
+
+        if (row.hasError) {
+            classes.push('timeline-error');
+        }
+
+        return classes.join(' ');
+    }
+
     statusClass(status) {
         const variant = {
             'Due Now': 'due',
@@ -143,6 +278,40 @@ export default class SchedulerLayout extends LightningElement {
         }[status] || 'scheduled';
 
         return `status-pill status-${variant}`;
+    }
+
+    formatDuration(milliseconds) {
+        const totalMinutes = Math.max(1, Math.ceil(milliseconds / 60000));
+        const days = Math.floor(totalMinutes / 1440);
+        const hours = Math.floor((totalMinutes % 1440) / 60);
+        const minutes = totalMinutes % 60;
+
+        if (days > 0) {
+            return `${days}d${hours > 0 ? ` ${hours}h` : ''}`;
+        }
+
+        if (hours > 0) {
+            return `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`;
+        }
+
+        return `${minutes}m`;
+    }
+
+    startOfToday() {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    addDays(date, days) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+    }
+
+    formatSectionDate(date) {
+        return new Intl.DateTimeFormat(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
+        }).format(date);
     }
 
     formatDateTime(value, fallback) {

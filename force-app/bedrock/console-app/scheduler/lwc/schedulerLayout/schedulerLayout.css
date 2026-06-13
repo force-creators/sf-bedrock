@@ -69,6 +69,20 @@ h1 {
     text-align: left;
 }
 
+.job-error-alert {
+    align-items: center;
+    background: #ba0517;
+    border: 1px solid #8e030f;
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    color: #ffffff;
+    display: flex;
+    gap: var(--lwc-spacingXSmall, 0.5rem);
+    justify-content: flex-start;
+    margin-bottom: var(--lwc-spacingMedium, 1rem);
+    padding: var(--lwc-spacingSmall, 0.75rem) var(--lwc-spacingMedium, 1rem);
+    text-align: left;
+}
+
 .alert-icon {
     flex: 0 0 auto;
 }
@@ -152,6 +166,50 @@ h1 {
     margin-top: 0.2rem;
 }
 
+.schedule-sections {
+    display: grid;
+    gap: var(--lwc-spacingLarge, 1.5rem);
+}
+
+.schedule-section {
+    background: #fbfdff;
+    border: 1px solid #e7eef7;
+    border-radius: 0.85rem;
+    padding: var(--lwc-spacingMedium, 1rem);
+}
+
+.schedule-section-heading {
+    align-items: flex-start;
+    display: flex;
+    gap: var(--lwc-spacingMedium, 1rem);
+    justify-content: space-between;
+    margin-bottom: var(--lwc-spacingMedium, 1rem);
+}
+
+.schedule-section-heading h3 {
+    color: #102a43;
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.schedule-section-heading p {
+    color: var(--lwc-colorTextWeak, #444444);
+    font-size: 0.8rem;
+    margin-top: 0.2rem;
+}
+
+.schedule-section-heading span {
+    background: #eef6ff;
+    border-radius: 999rem;
+    color: #014486;
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1;
+    padding: 0.4rem 0.6rem;
+    text-transform: uppercase;
+}
+
 .timeline {
     list-style: none;
     margin: 0;
@@ -193,10 +251,19 @@ h1 {
     box-shadow: 0 0 0 0.35rem #f3f3f3;
 }
 
+.timeline-error .timeline-marker {
+    border-color: #ba0517;
+    box-shadow: 0 0 0 0.35rem #fef1ee;
+}
+
 .job-card {
     border: 1px solid var(--lwc-colorBorder, #dddbda);
     border-radius: 0.75rem;
     padding: var(--lwc-spacingMedium, 1rem);
+}
+
+.timeline-error .job-card {
+    border-color: #f4b6ad;
 }
 
 .job-main,
@@ -354,6 +421,15 @@ h1 {
 
     .badge-row {
         justify-content: flex-start;
+        margin-top: var(--lwc-spacingSmall, 0.75rem);
+    }
+
+    .schedule-section-heading {
+        display: block;
+    }
+
+    .schedule-section-heading span {
+        display: inline-block;
         margin-top: var(--lwc-spacingSmall, 0.75rem);
     }
 }

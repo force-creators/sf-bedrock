@@ -42,18 +42,18 @@ scheduler job that is due.
   is not read by current Scheduler code.
 - `Scheduler__c` persists one runtime row per metadata job
   (`Config_Key__c`, `Apex__c`, `Is_Enabled__c`, `Frequency__c`,
-  `Frequency_Value__c`, `Metadata_Hash__c`, `Last_Executed_At__c`,
-  `Last_Error__c`).
+  `Frequency_Value__c`, `Metadata_Hash__c`, `Next_Run_At__c`,
+  `Last_Executed_At__c`, `Last_Error__c`).
 
 ## Notes
 
 - Removed metadata rows are not deleted from `Scheduler__c` in this MVP. They
   are disabled so runtime history remains available.
-- Cadence is based on `Last_Executed_At__c`, which is recorded by the heartbeat
-  before the Queueable is enqueued. Queueable start delay must not push the next
-  due window later. `Minutes`, `Hours`, and `Days` jobs run once they are
-  overdue by `Frequency_Value__c`. Minute values are clamped to a minimum of
-  five minutes.
+- Cadence is based on `Next_Run_At__c`. New or newly enabled jobs wait one full
+  configured interval before their first run, so the UI does not report a run
+  before one actually happened. Queueable start delay must not push the next due
+  window later. `Minutes`, `Hours`, and `Days` jobs run once they reach
+  `Next_Run_At__c`. Minute values are clamped to a minimum of five minutes.
 - Run or enqueue failures for one logical row are recorded on that row and do
   not stop the rest of the tick.
 - Unhandled Queueable failures are recorded by `Scheduler.JobFinalizer`.

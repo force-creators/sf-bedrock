@@ -127,7 +127,8 @@ public with sharing class RefreshExchangeRates extends Scheduler {
 ```
 
 With `Frequency__c = Hours` and `Frequency_Value__c = 4`, the job runs when it
-has never run, or when its last run was at least four hours ago.
+reaches its next scheduled run time. After each run is queued, Scheduler moves
+the next run time four hours forward.
 
 ### Run every day
 
@@ -142,7 +143,8 @@ public with sharing class SendDailyDigest extends Scheduler {
 ```
 
 With `Frequency__c = Days` and `Frequency_Value__c = 1`, the job runs when it
-has never run, or when its last run was at least a day ago.
+reaches its next scheduled run time. After each run is queued, Scheduler moves
+the next run time one day forward.
 
 ## Configuration
 
@@ -162,9 +164,10 @@ To change how often a job runs, edit the metadata record. There is no job class
 to redeploy and no per-job scheduled Apex record to recreate. The change applies
 on the next five-minute heartbeat.
 
-To check production status, read the job's `Scheduler__c` runtime row. Scheduler
-writes `Last_Executed_At__c` when a heartbeat enqueues the job. The Queueable
-then clears or writes `Last_Error__c` depending on the result.
+To check production status, read the job's `Scheduler__c` runtime row.
+`Next_Run_At__c` shows when the job is next eligible to run. The Queueable writes
+`Last_Executed_At__c` and clears or writes `Last_Error__c` depending on the
+result.
 
 ## Testing
 
@@ -212,17 +215,17 @@ hour. Salesforce sees twelve scheduled Apex jobs. Bedrock sees one heartbeat.
 records into `Scheduler__c` runtime rows. Removed metadata records are disabled,
 not deleted, so their run history stays visible.
 
-**Three: each due logical job runs as its own Queueable.** A job is due when it
-has never run, or when enough time has passed since `Last_Executed_At__c`.
-Scheduler records the heartbeat attempt time before it enqueues each due job.
-After the Queueable finishes, it either clears `Last_Error__c` or stores the
-thrown message. A Queueable Finalizer also records unhandled queueable failures,
-such as governor limit exceptions that cannot be caught by normal Apex
-`try/catch`.
+**Three: each due logical job runs as its own Queueable.** A job is due when
+`Next_Run_At__c` is reached. Scheduler advances `Next_Run_At__c` before it
+enqueues each due job, so Queueable start delay does not push the cadence later.
+After the Queueable finishes, it writes `Last_Executed_At__c` and either clears
+`Last_Error__c` or stores the thrown message. A Queueable Finalizer also records
+unhandled queueable failures, such as governor limit exceptions that cannot be
+caught by normal Apex `try/catch`.
 
-> Cadence is measured from the last scheduler attempt, not from Queueable start
-> time or from the wall clock. A daily job runs roughly 24 hours after its last
-> scheduler attempt. It does not align itself to midnight.
+> A newly translated job does not run on the first heartbeat. Scheduler sets
+> `Next_Run_At__c` from the configured cadence first, so a daily job starts with
+> a next run about one day later. It does not align itself to midnight.
 
 ## Public API
 
@@ -271,13 +274,15 @@ heartbeat.
 | `Frequency__c` | Runtime cadence unit copied from metadata. |
 | `Frequency_Value__c` | Runtime cadence amount copied from metadata. |
 | `Metadata_Hash__c` | Internal hash of the metadata state that produced the runtime row. |
-| `Last_Executed_At__c` | Last attempted run time. |
+| `Next_Run_At__c` | Next heartbeat time when the job is eligible to run. |
+| `Last_Executed_At__c` | Last actual Queueable execution attempt. |
 | `Last_Error__c` | Last error message, or blank after a successful run. |
 
 ## Notes & Edge Cases
 
-- **A new job starts on the next heartbeat.** New and edited config records are
-  picked up within about five minutes.
+- **A new job is scheduled on the next heartbeat.** New and edited config
+  records are picked up within about five minutes, but new jobs wait until their
+  first `Next_Run_At__c` before running.
 
 - **Minute cadences are five-minute increments.** Use `Minutes` with
   `Frequency_Value__c = 5` for the fastest cadence.
@@ -286,7 +291,7 @@ heartbeat.
   an outage. If a daily job missed three days, it runs once on the next
   successful heartbeat.
 
-- **Cadence is measured from the last attempt.** Hourly and daily jobs are not
+- **Cadence is measured from `Next_Run_At__c`.** Hourly and daily jobs are not
   aligned to the top of the hour or midnight. Queueable start delay does not
   push the next due window later.
 
@@ -296,7 +301,7 @@ heartbeat.
 
 - **Unhandled queueable failures are recorded by a finalizer.** If a scheduler
   job fails in a way normal Apex cannot catch, Scheduler still updates
-  `Last_Error__c` from the finalizer transaction.
+  `Last_Executed_At__c` and `Last_Error__c` from the finalizer transaction.
 
 - **Each job runs in its own Queueable.** Keep `execute()` bulk-safe and within a
   single Queueable's governor limits. Query once. Do not put SOQL or DML inside

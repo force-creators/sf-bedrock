@@ -43,6 +43,21 @@
             </div>
         </template>
 
+        <template lwc:if={hasJobErrors}>
+            <div class="slds-notify slds-notify_alert job-error-alert" role="alert">
+                <span class="slds-assistive-text">Error</span>
+                <lightning-icon
+                    icon-name="utility:error"
+                    size="x-small"
+                    variant="inverse"
+                    class="alert-icon"
+                ></lightning-icon>
+                <span>
+                    {errorSummaryLabel}. Review the highlighted job rows below for the stored error message.
+                </span>
+            </div>
+        </template>
+
         <div class="metrics">
             <template for:each={metrics} for:item="metric">
                 <article key={metric.id} class={metric.className}>
@@ -64,49 +79,63 @@
             </div>
 
             <template lwc:if={hasJobs}>
-                <ol class="timeline">
-                    <template for:each={jobs} for:item="job">
-                        <li key={job.key} class={job.timelineClass}>
-                            <div class="timeline-marker" aria-hidden="true"></div>
-                            <article class="job-card">
-                                <div class="job-main">
-                                    <div>
-                                        <p class="job-key">{job.configKey}</p>
-                                        <h3>{job.apexClass}</h3>
-                                    </div>
-                                    <div class="badge-row">
-                                        <span class={job.statusClass}>{job.status}</span>
-                                        <template lwc:if={job.hasError}>
-                                            <span class="error-badge">Last run error</span>
-                                        </template>
-                                    </div>
+                <div class="schedule-sections">
+                    <template for:each={scheduleSections} for:item="section">
+                        <section key={section.key} class="schedule-section">
+                            <div class="schedule-section-heading">
+                                <div>
+                                    <h3>{section.label}</h3>
+                                    <p>{section.description}</p>
                                 </div>
+                                <span>{section.countLabel}</span>
+                            </div>
 
-                                <dl class="job-times">
-                                    <div>
-                                        <dt>Last ran</dt>
-                                        <dd>{job.lastExecutedLabel}</dd>
-                                    </div>
-                                    <div>
-                                        <dt>Next run</dt>
-                                        <dd>{job.nextScheduledLabel}</dd>
-                                    </div>
-                                    <div>
-                                        <dt>Cadence</dt>
-                                        <dd>{job.cadence}</dd>
-                                    </div>
-                                </dl>
+                            <ol class="timeline">
+                                <template for:each={section.jobs} for:item="job">
+                                    <li key={job.key} class={job.timelineClass}>
+                                        <div class="timeline-marker" aria-hidden="true"></div>
+                                        <article class="job-card">
+                                            <div class="job-main">
+                                                <div>
+                                                    <p class="job-key">{job.configKey}</p>
+                                                    <h3>{job.apexClass}</h3>
+                                                </div>
+                                                <div class="badge-row">
+                                                    <span class={job.statusClass}>{job.statusLabel}</span>
+                                                    <template lwc:if={job.hasError}>
+                                                        <span class="error-badge">Last run error</span>
+                                                    </template>
+                                                </div>
+                                            </div>
 
-                                <template lwc:if={job.hasError}>
-                                    <div class="last-error">
-                                        <span>Last error</span>
-                                        <p>{job.lastError}</p>
-                                    </div>
+                                            <dl class="job-times">
+                                                <div>
+                                                    <dt>Last ran</dt>
+                                                    <dd>{job.lastExecutedLabel}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Next run</dt>
+                                                    <dd>{job.nextScheduledLabel}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Cadence</dt>
+                                                    <dd>{job.cadence}</dd>
+                                                </div>
+                                            </dl>
+
+                                            <template lwc:if={job.hasError}>
+                                                <div class="last-error">
+                                                    <span>Last error</span>
+                                                    <p>{job.lastError}</p>
+                                                </div>
+                                            </template>
+                                        </article>
+                                    </li>
                                 </template>
-                            </article>
-                        </li>
+                            </ol>
+                        </section>
                     </template>
-                </ol>
+                </div>
             </template>
 
             <template lwc:else>

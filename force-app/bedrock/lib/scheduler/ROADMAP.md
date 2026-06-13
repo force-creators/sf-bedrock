@@ -9,7 +9,7 @@ The current implementation provides twelve physical scheduled Apex jobs that
 together fire one heartbeat every five minutes. Each heartbeat translates
 `Scheduler_Config__mdt` into `Scheduler__c` when configuration changes, then
 enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`, and
-`Days` cadence units using `Frequency_Value__c` and `Last_Executed_At__c`.
+`Days` cadence units using `Frequency_Value__c` and `Next_Run_At__c`.
 
 ## Current MVP Scope
 
@@ -18,9 +18,9 @@ enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`, and
 - Each due logical job runs as its own Queueable.
 - `Scheduler_Config__mdt` defines Apex class, enabled state, frequency, and
   frequency value.
-- `Scheduler__c` stores translated runtime state, including last execution and
-  last error. It also stores the metadata hash used to short-circuit
-  translation when runtime rows already match the current config.
+- `Scheduler__c` stores translated runtime state, including next run time, last
+  execution, and last error. It also stores the metadata hash used to
+  short-circuit translation when runtime rows already match the current config.
 - Outages self-heal by running overdue jobs once on the next scheduler tick.
 
 ## Near-Term Integration
