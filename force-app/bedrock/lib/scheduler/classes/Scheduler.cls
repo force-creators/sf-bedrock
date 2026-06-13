@@ -26,8 +26,8 @@ public virtual with sharing class Scheduler implements Queueable {
         jobs.tick();
     }
 
-    public static Id schedule() {
-        return jobs.schedule();
+    public static void schedule() {
+        jobs.schedule();
     }
 
     public Scheduler setSchedulerJob(Id schedulerJobId) {
@@ -68,11 +68,10 @@ public virtual with sharing class Scheduler implements Queueable {
     }
 
     public virtual with sharing class JobService {
-        public virtual Id schedule() {
-            Id firstJobId = System.schedule('Bedrock Scheduler 00', '0 0,15,30,45 * * * ? *', new ScheduleTick());
+        public virtual void schedule() {
+            System.schedule('Bedrock Scheduler 00', '0 0,15,30,45 * * * ? *', new ScheduleTick());
             System.schedule('Bedrock Scheduler 05', '0 5,20,35,50 * * * ? *', new ScheduleTick());
             System.schedule('Bedrock Scheduler 10', '0 10,25,40,55 * * * ? *', new ScheduleTick());
-            return firstJobId;
         }
 
         public virtual void tick() {

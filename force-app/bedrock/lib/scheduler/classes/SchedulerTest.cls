@@ -213,7 +213,7 @@ public with sharing class SchedulerTest {
 
     @istest static void testSchedule_usesThreeOffsetCronJobs() {
         Test.startTest();
-        Id jobId = Scheduler.schedule();
+        Scheduler.schedule();
         Test.stopTest();
 
         List<CronTrigger> cronTriggers = [
@@ -227,7 +227,6 @@ public with sharing class SchedulerTest {
             cronExpressions.add(cronTrigger.CronExpression);
         }
 
-        Assert.isNotNull(jobId, 'Expected scheduler setup to return the first scheduled job id.');
         Assert.areEqual(3, cronTriggers.size(), 'Expected scheduler setup to create three staggered scheduler jobs.');
         Assert.isTrue(
             cronExpressions.contains('0 0,15,30,45 * * * ? *'),
