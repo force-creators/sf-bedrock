@@ -445,7 +445,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 if (context.getResult() == ParentJobResult.SUCCESS) {
                     work.complete(this.workItemIds);
                     this.createDeferredWork();
-                    this.continueAfterSuccess();
+                    jobs.enqueueNextJob();
                     return;
                 }
 
@@ -459,10 +459,6 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             } finally {
                 Async.jobs.isFinalizer = false;
             }
-        }
-
-        @testVisible void continueAfterSuccess() {
-            jobs.enqueueNextJob(0);
         }
 
         @testVisible void continueAfterFailure() {

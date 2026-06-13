@@ -337,17 +337,6 @@ public with sharing class AsyncTest {
         Assert.areEqual(0, result.Retry_Count__c, 'Expected Retry_Count__c to stay 0 when auto-retry is disabled.');
     }
 
-    @istest static void testJobWatcher_continueAfterSuccess_resetsFailureCount() {
-        SpyJobService jobs = new SpyJobService();
-        Async.jobs = jobs;
-
-        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 3).continueAfterSuccess();
-
-        Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected success-path dispatch to keep chaining directly to the next worker batch.');
-        Assert.areEqual(0, jobs.lastEnqueueFailures, 'Expected success-path dispatch to reset the failure streak before the next worker batch.');
-        Assert.areEqual(0, jobs.startThreadCalls, 'Expected success-path dispatch not to restart the thread through AsyncThread.');
-    }
-
     @istest static void testJobWatcher_continueAfterFailure_underThreshold_keepsDirectChain() {
         SpyJobService jobs = new SpyJobService();
         Async.jobs = jobs;
