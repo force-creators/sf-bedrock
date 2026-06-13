@@ -10,7 +10,7 @@ on exact method behavior.
 
 `Scheduler` is a lightweight recordless job framework. Twelve physical
 scheduled Apex jobs fire one shared heartbeat every five minutes. Each heartbeat
-checks whether `Scheduler_Config__mdt` changed, translates metadata rows into
+checks whether `Scheduler_Job__mdt` changed, translates metadata rows into
 `Scheduler__c` runtime rows when needed, and then invokes each enabled logical
 scheduler job that is due.
 
@@ -26,9 +26,9 @@ scheduler job that is due.
 - `Scheduler.schedule()` replaces existing `Bedrock Scheduler %` jobs and then
   creates twelve scheduled Apex jobs at the five-minute marks in each hour.
 - `Scheduler.JobService` owns the tick flow: compare metadata hash, translate
-  `Scheduler_Config__mdt` into `Scheduler__c`, then re-query enabled jobs and
+  `Scheduler_Job__mdt` into `Scheduler__c`, then re-query enabled jobs and
   enqueue only the jobs whose cadence is due.
-- `Scheduler.MetadataService` reads `Scheduler_Config__mdt` and computes the
+- `Scheduler.MetadataService` reads `Scheduler_Job__mdt` and computes the
   stable config hash used to short-circuit translation when matching runtime
   rows already exist.
 - `Scheduler.QueryService` owns `Scheduler__c` reads through `Query`.
@@ -37,23 +37,21 @@ scheduler job that is due.
 
 ## Schema
 
-- `Scheduler_Config__mdt` describes logical jobs (`Apex__c`, `Is_Enabled__c`,
-  `Frequency__c`, `Frequency_Value__c`). `Interval__c` is legacy metadata and
-  is not read by current Scheduler code.
+- `Scheduler_Job__mdt` describes logical jobs (`Apex__c`, `Enabled__c`,
+  `Frequency__c`, `Interval__c`). `Apex__c` is the logical job key.
 - `Scheduler__c` persists one runtime row per metadata job
-  (`Config_Key__c`, `Apex__c`, `Is_Enabled__c`, `Frequency__c`,
-  `Frequency_Value__c`, `Metadata_Hash__c`, `Next_Run_At__c`,
-  `Last_Executed_At__c`, `Last_Error__c`).
+  (`Apex__c`, `Enabled__c`, `Frequency__c`, `Interval__c`, `Hash__c`,
+  `Next_Run__c`, `Last_Executed__c`, `Error_Message__c`).
 
 ## Notes
 
 - Removed metadata rows are not deleted from `Scheduler__c` in this MVP. They
   are disabled so runtime history remains available.
-- Cadence is based on `Next_Run_At__c`. New or newly enabled jobs wait one full
+- Cadence is based on `Next_Run__c`. New or newly enabled jobs wait one full
   configured interval before their first run, so the UI does not report a run
   before one actually happened. Queueable start delay must not push the next due
   window later. `Minutes`, `Hours`, `Days`, `Weeks`, and `Months` jobs run once
-  they reach `Next_Run_At__c`. Minute values are clamped to `5` through `55`,
+  they reach `Next_Run__c`. Minute values are clamped to `5` through `55`,
   day values to `1` through `31`, week values to `1` through `52`, and month
   values to `1` through `12`.
 - Run or enqueue failures for one logical row are recorded on that row and do

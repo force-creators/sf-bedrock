@@ -29,7 +29,7 @@ const JOB_CONFIGURATION_COLUMNS = [
     { label: 'Apex Class', fieldName: 'apexClass' },
     { label: 'Enabled', fieldName: 'isEnabled', type: 'boolean', initialWidth: 110 },
     { label: 'Frequency', fieldName: 'frequency', initialWidth: 130 },
-    { label: 'Value', fieldName: 'frequencyValue', initialWidth: 100 },
+    { label: 'Interval', fieldName: 'frequencyValue', initialWidth: 100 },
     { label: 'Cadence', fieldName: 'cadence', initialWidth: 150 }
 ];
 
@@ -149,7 +149,7 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
                 type: 'standard__recordPage',
                 attributes: {
                     recordId: row.id,
-                    objectApiName: 'Scheduler_Config__mdt',
+                    objectApiName: 'Scheduler_Job__mdt',
                     actionName: 'view'
                 }
             }).then((url) => {
@@ -177,7 +177,7 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
 
         return rows
             .map((row) => {
-                const key = row.id || row.configKey;
+                const key = row.id || row.apexClass;
                 const status = row.status || 'Scheduled';
 
                 return {
@@ -288,7 +288,7 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
             return firstTime - secondTime;
         }
 
-        return (first.configKey || '').localeCompare(second.configKey || '');
+        return (first.apexClass || '').localeCompare(second.apexClass || '');
     }
 
     statusLabel(row, now) {

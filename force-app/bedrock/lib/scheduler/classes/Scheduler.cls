@@ -62,7 +62,7 @@ public virtual with sharing class Scheduler implements Queueable {
         DML.updateRecords(new List<SObject> {
             new Scheduler__c(
                 Id = schedulerJobId,
-                Next_Run_At__c = nextRunAt
+                Next_Run__c = nextRunAt
             )
         });
     }
@@ -73,8 +73,8 @@ public virtual with sharing class Scheduler implements Queueable {
         DML.updateRecords(new List<SObject> {
             new Scheduler__c(
                 Id = schedulerJobId,
-                Last_Executed_At__c = executedAt,
-                Last_Error__c = truncateError(errorMessage)
+                Last_Executed__c = executedAt,
+                Error_Message__c = truncateError(errorMessage)
             )
         });
     }
@@ -85,7 +85,7 @@ public virtual with sharing class Scheduler implements Queueable {
         DML.updateRecords(new List<SObject> {
             new Scheduler__c(
                 Id = schedulerJobId,
-                Last_Error__c = truncateError(errorMessage)
+                Error_Message__c = truncateError(errorMessage)
             )
         });
     }
@@ -134,54 +134,54 @@ public virtual with sharing class Scheduler implements Queueable {
         }
 
         public virtual void translateMetadata() {
-            List<Scheduler_Config__mdt> configs = metadata.getConfigs();
+            List<Scheduler_Job__mdt> configs = metadata.getConfigs();
             String metadataHash = metadata.getHash(configs);
             DateTime heartbeatAt = getHeartbeatAt(System.now());
-            Map<String, Scheduler__c> jobsByKey = new Map<String, Scheduler__c>();
+            Map<String, Scheduler__c> jobsByApexClass = new Map<String, Scheduler__c>();
 
-            for (Scheduler__c job : queries.getJobsByKeys(metadata.getConfigKeys(configs))) {
-                jobsByKey.put(job.Config_Key__c, job);
+            for (Scheduler__c job : queries.getJobsByApexClasses(metadata.getApexClasses(configs))) {
+                jobsByApexClass.put(job.Apex__c, job);
             }
 
             List<SObject> jobs = new List<SObject>();
-            Set<String> keys = new Set<String>();
+            Set<String> apexClasses = new Set<String>();
 
-            for (Scheduler_Config__mdt config : configs) {
-                String key = config.DeveloperName;
-                keys.add(key);
+            for (Scheduler_Job__mdt config : configs) {
+                String apexClass = config.Apex__c;
+                apexClasses.add(apexClass);
 
-                Scheduler__c job = jobsByKey.get(key);
+                Scheduler__c job = jobsByApexClass.get(apexClass);
                 Boolean isNew = job == null;
-                Boolean wasEnabled = !isNew && job.Is_Enabled__c == true;
+                Boolean wasEnabled = !isNew && job.Enabled__c == true;
                 String previousFrequency = isNew ? null : job.Frequency__c;
-                String previousValue = isNew ? null : job.Frequency_Value__c;
-                if (isNew) job = new Scheduler__c(Config_Key__c = key);
+                Decimal previousInterval = isNew ? null : job.Interval__c;
+                if (isNew) job = new Scheduler__c(Apex__c = apexClass);
 
                 job.Apex__c = config.Apex__c;
-                job.Is_Enabled__c = config.Is_Enabled__c;
-                job.Metadata_Hash__c = metadataHash;
+                job.Enabled__c = config.Enabled__c;
+                job.Hash__c = metadataHash;
                 String unit = frequency(config.Frequency__c);
-                String value = String.valueOf(interval(config.Frequency_Value__c, unit));
+                Integer amount = interval(config.Interval__c, unit);
                 job.Frequency__c = unit;
-                job.Frequency_Value__c = value;
-                if (job.Is_Enabled__c != true) {
-                    job.Next_Run_At__c = null;
-                } else if (shouldResetNextRun(isNew, wasEnabled, job, previousFrequency, previousValue)) {
-                    Boolean waitFromNow = isNew || (!wasEnabled && job.Is_Enabled__c == true) || job.Last_Executed_At__c == null;
-                    job.Next_Run_At__c = getInitialNextRunAt(job, heartbeatAt, unit, Integer.valueOf(value), waitFromNow);
+                job.Interval__c = amount;
+                if (job.Enabled__c != true) {
+                    job.Next_Run__c = null;
+                } else if (shouldResetNextRun(isNew, wasEnabled, job, previousFrequency, previousInterval)) {
+                    Boolean waitFromNow = isNew || (!wasEnabled && job.Enabled__c == true) || job.Last_Executed__c == null;
+                    job.Next_Run__c = getInitialNextRunAt(job, heartbeatAt, unit, amount, waitFromNow);
                 }
                 jobs.add(job);
             }
 
-            for (Scheduler__c job : queries.getJobsNotInKeys(keys)) {
-                job.Is_Enabled__c = false;
-                job.Metadata_Hash__c = metadataHash;
-                job.Next_Run_At__c = null;
+            for (Scheduler__c job : queries.getJobsNotInApexClasses(apexClasses)) {
+                job.Enabled__c = false;
+                job.Hash__c = metadataHash;
+                job.Next_Run__c = null;
                 jobs.add(job);
             }
 
             if (!jobs.isEmpty()) {
-                DML.upsertRecords(jobs, Scheduler__c.Fields.Config_Key__c);
+                DML.upsertRecords(jobs, Scheduler__c.Fields.Apex__c);
             }
         }
 
@@ -197,23 +197,23 @@ public virtual with sharing class Scheduler implements Queueable {
         }
 
         public virtual Boolean isDue(Scheduler__c job, DateTime now) {
-            return job.Next_Run_At__c != null && job.Next_Run_At__c <= now;
+            return job.Next_Run__c != null && job.Next_Run__c <= now;
         }
 
-        Boolean shouldResetNextRun(Boolean isNew, Boolean wasEnabled, Scheduler__c job, String previousFrequency, String previousValue) {
-            if (isNew || job.Next_Run_At__c == null) return true;
-            if (!wasEnabled && job.Is_Enabled__c == true) return true;
-            return previousFrequency != job.Frequency__c || previousValue != job.Frequency_Value__c;
+        Boolean shouldResetNextRun(Boolean isNew, Boolean wasEnabled, Scheduler__c job, String previousFrequency, Decimal previousInterval) {
+            if (isNew || job.Next_Run__c == null) return true;
+            if (!wasEnabled && job.Enabled__c == true) return true;
+            return previousFrequency != job.Frequency__c || previousInterval != job.Interval__c;
         }
 
         DateTime getInitialNextRunAt(Scheduler__c job, DateTime now, String unit, Integer amount, Boolean waitFromNow) {
-            DateTime anchor = waitFromNow ? now : job.Last_Executed_At__c;
+            DateTime anchor = waitFromNow ? now : job.Last_Executed__c;
             return addInterval(anchor, unit, amount);
         }
 
         DateTime getNextRunAt(Scheduler__c job, DateTime now) {
             String unit = frequency(job.Frequency__c);
-            Integer amount = interval(job.Frequency_Value__c, unit);
+            Integer amount = interval(job.Interval__c, unit);
             return addInterval(now, unit, amount);
         }
 
@@ -253,7 +253,22 @@ public virtual with sharing class Scheduler implements Queueable {
             }
         }
 
+        Integer interval(Decimal value) {
+            if (value == null) return 1;
+            Integer amount = value.intValue();
+            return amount < 1 ? 1 : amount;
+        }
+
         @testVisible Integer interval(String value, String unit) {
+            Integer amount = interval(value);
+            if (unit == MINUTES) return Math.min(55, amount < 5 ? 5 : amount);
+            if (unit == DAYS) return Math.min(31, amount);
+            if (unit == WEEKS) return Math.min(52, amount);
+            if (unit == MONTHS) return Math.min(12, amount);
+            return amount;
+        }
+
+        @testVisible Integer interval(Decimal value, String unit) {
             Integer amount = interval(value);
             if (unit == MINUTES) return Math.min(55, amount < 5 ? 5 : amount);
             if (unit == DAYS) return Math.min(31, amount);
@@ -268,96 +283,96 @@ public virtual with sharing class Scheduler implements Queueable {
     }
 
     public virtual with sharing class MetadataService {
-        public virtual List<Scheduler_Config__mdt> getConfigs() {
+        public virtual List<Scheduler_Job__mdt> getConfigs() {
             return [
-                SELECT DeveloperName, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c
-                FROM Scheduler_Config__mdt
+                SELECT DeveloperName, Apex__c, Enabled__c, Frequency__c, Interval__c
+                FROM Scheduler_Job__mdt
                 ORDER BY DeveloperName
             ];
         }
 
-        public virtual Set<String> getConfigKeys(List<Scheduler_Config__mdt> configs) {
-            Set<String> keys = new Set<String>();
-            for (Scheduler_Config__mdt config : configs) {
-                keys.add(config.DeveloperName);
+        public virtual Set<String> getApexClasses(List<Scheduler_Job__mdt> configs) {
+            Set<String> apexClasses = new Set<String>();
+            for (Scheduler_Job__mdt config : configs) {
+                apexClasses.add(config.Apex__c);
             }
-            return keys;
+            return apexClasses;
         }
 
         public virtual Boolean hasChanged() {
-            List<Scheduler_Config__mdt> configs = getConfigs();
+            List<Scheduler_Job__mdt> configs = getConfigs();
             String currentHash = getHash(configs);
-            Set<String> keys = getConfigKeys(configs);
+            Set<String> apexClasses = getApexClasses(configs);
 
-            if (keys.isEmpty()) {
-                List<Scheduler__c> jobs = queries.getJobsNotInKeys(keys);
+            if (apexClasses.isEmpty()) {
+                List<Scheduler__c> jobs = queries.getJobsNotInApexClasses(apexClasses);
                 if (jobs.isEmpty()) return false;
                 return queries.getJobsByMetadataHash(currentHash).size() != jobs.size();
             }
 
-            List<Scheduler__c> jobs = queries.getJobsByKeysAndMetadataHash(keys, currentHash);
-            if (jobs.size() != keys.size()) return true;
+            List<Scheduler__c> jobs = queries.getJobsByApexClassesAndMetadataHash(apexClasses, currentHash);
+            if (jobs.size() != apexClasses.size()) return true;
 
             for (Scheduler__c job : jobs) {
-                if (job.Is_Enabled__c == true && job.Next_Run_At__c == null) return true;
+                if (job.Enabled__c == true && job.Next_Run__c == null) return true;
             }
             return false;
         }
 
-        public virtual String getHash(List<Scheduler_Config__mdt> configs) {
+        public virtual String getHash(List<Scheduler_Job__mdt> configs) {
             return String.valueOf(System.hashCode(configs));
         }
     }
 
     public virtual with sharing class QueryService {
-        public virtual List<Scheduler__c> getJobsByKeys(Set<String> keys) {
-            if (keys == null || keys.isEmpty()) return new List<Scheduler__c>();
+        public virtual List<Scheduler__c> getJobsByApexClasses(Set<String> apexClasses) {
+            if (apexClasses == null || apexClasses.isEmpty()) return new List<Scheduler__c>();
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Metadata_Hash__c, Next_Run_At__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Apex__c, Enabled__c, Frequency__c, Interval__c, Hash__c, Next_Run__c, Last_Executed__c, Error_Message__c
                 FROM Scheduler__c
-                WHERE Config_Key__c IN :keys
+                WHERE Apex__c IN :apexClasses
             ]);
         }
 
-        public virtual List<Scheduler__c> getJobsByKeysAndMetadataHash(Set<String> keys, String metadataHash) {
-            if (keys == null || keys.isEmpty()) return new List<Scheduler__c>();
+        public virtual List<Scheduler__c> getJobsByApexClassesAndMetadataHash(Set<String> apexClasses, String metadataHash) {
+            if (apexClasses == null || apexClasses.isEmpty()) return new List<Scheduler__c>();
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Is_Enabled__c, Metadata_Hash__c, Next_Run_At__c
+                SELECT Id, Apex__c, Enabled__c, Hash__c, Next_Run__c
                 FROM Scheduler__c
-                WHERE Config_Key__c IN :keys
-                AND Metadata_Hash__c = :metadataHash
+                WHERE Apex__c IN :apexClasses
+                AND Hash__c = :metadataHash
             ]);
         }
 
         public virtual List<Scheduler__c> getJobsByMetadataHash(String metadataHash) {
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Metadata_Hash__c, Next_Run_At__c
+                SELECT Id, Apex__c, Hash__c, Next_Run__c
                 FROM Scheduler__c
-                WHERE Metadata_Hash__c = :metadataHash
+                WHERE Hash__c = :metadataHash
             ]);
         }
 
-        public virtual List<Scheduler__c> getJobsNotInKeys(Set<String> keys) {
-            if (keys == null || keys.isEmpty()) {
+        public virtual List<Scheduler__c> getJobsNotInApexClasses(Set<String> apexClasses) {
+            if (apexClasses == null || apexClasses.isEmpty()) {
                 return (List<Scheduler__c>) Query.records([
-                    SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Metadata_Hash__c, Next_Run_At__c, Last_Executed_At__c, Last_Error__c
+                    SELECT Id, Apex__c, Enabled__c, Frequency__c, Interval__c, Hash__c, Next_Run__c, Last_Executed__c, Error_Message__c
                     FROM Scheduler__c
                 ]);
             }
 
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Metadata_Hash__c, Next_Run_At__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Apex__c, Enabled__c, Frequency__c, Interval__c, Hash__c, Next_Run__c, Last_Executed__c, Error_Message__c
                 FROM Scheduler__c
-                WHERE Config_Key__c NOT IN :keys
+                WHERE Apex__c NOT IN :apexClasses
             ]);
         }
 
         public virtual List<Scheduler__c> getEnabledJobs() {
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Metadata_Hash__c, Next_Run_At__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Apex__c, Enabled__c, Frequency__c, Interval__c, Hash__c, Next_Run__c, Last_Executed__c, Error_Message__c
                 FROM Scheduler__c
-                WHERE Is_Enabled__c = true
-                ORDER BY Config_Key__c
+                WHERE Enabled__c = true
+                ORDER BY Apex__c
             ]);
         }
     }

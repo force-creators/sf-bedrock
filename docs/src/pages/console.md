@@ -52,7 +52,7 @@ configuration.
 
 ## Scheduler Views
 
-The Scheduler console reads from `Scheduler__c` and `Scheduler_Config__mdt`.
+The Scheduler console reads from `Scheduler__c` and `Scheduler_Job__mdt`.
 
 It shows enabled and disabled jobs, jobs with errors, due jobs, next scheduled
 times, last execution times, cadence labels, and whether metadata changes are

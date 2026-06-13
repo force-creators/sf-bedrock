@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>Metadata_Hash__c</fullName>
-    <externalId>false</externalId>
-    <label>Metadata Hash</label>
-    <length>255</length>
+    <fullName>Next_Run__c</fullName>
+    <label>Next Run</label>
     <required>false</required>
     <trackTrending>false</trackTrending>
-    <type>Text</type>
+    <type>DateTime</type>
 </CustomField>

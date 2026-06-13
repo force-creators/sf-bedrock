@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Bedrock scheduler job configuration.</description>
-    <label>Scheduler Config</label>
-    <pluralLabel>Scheduler Configs</pluralLabel>
+    <description>Bedrock scheduler job definition.</description>
+    <label>Scheduler Job</label>
+    <pluralLabel>Scheduler Jobs</pluralLabel>
     <visibility>Public</visibility>
 </CustomObject>

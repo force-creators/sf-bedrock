@@ -38,7 +38,7 @@ public with sharing class SchedulerConsoleController {
             }
         }
 
-        for (Scheduler_Config__mdt config : queries.getJobConfigurations()) {
+        for (Scheduler_Job__mdt config : queries.getJobConfigurations()) {
             state.jobConfigurations.add(new JobConfigurationRow(config));
         }
 
@@ -58,18 +58,18 @@ public with sharing class SchedulerConsoleController {
     }
 
     static Datetime nextScheduledAt(Scheduler__c job, Datetime now) {
-        if (job.Is_Enabled__c != true) return null;
-        if (job.Next_Run_At__c != null) return job.Next_Run_At__c;
-        if (job.Last_Executed_At__c == null) return now;
+        if (job.Enabled__c != true) return null;
+        if (job.Next_Run__c != null) return job.Next_Run__c;
+        if (job.Last_Executed__c == null) return now;
 
         String unit = frequency(job.Frequency__c);
-        Integer amount = interval(job.Frequency_Value__c, unit);
+        Integer amount = interval(job.Interval__c, unit);
 
-        if (unit == Scheduler.HOURS) return job.Last_Executed_At__c.addHours(amount);
-        if (unit == Scheduler.DAYS) return job.Last_Executed_At__c.addDays(amount);
-        if (unit == Scheduler.WEEKS) return job.Last_Executed_At__c.addDays(amount * 7);
-        if (unit == Scheduler.MONTHS) return job.Last_Executed_At__c.addMonths(amount);
-        return job.Last_Executed_At__c.addMinutes(amount);
+        if (unit == Scheduler.HOURS) return job.Last_Executed__c.addHours(amount);
+        if (unit == Scheduler.DAYS) return job.Last_Executed__c.addDays(amount);
+        if (unit == Scheduler.WEEKS) return job.Last_Executed__c.addDays(amount * 7);
+        if (unit == Scheduler.MONTHS) return job.Last_Executed__c.addMonths(amount);
+        return job.Last_Executed__c.addMinutes(amount);
     }
 
     static String frequency(String value) {
@@ -87,6 +87,17 @@ public with sharing class SchedulerConsoleController {
                 amount = 1;
             }
         }
+
+        if (amount < 1) amount = 1;
+        if (unit == Scheduler.MINUTES) return Math.min(55, amount < 5 ? 5 : amount);
+        if (unit == Scheduler.DAYS) return Math.min(31, amount);
+        if (unit == Scheduler.WEEKS) return Math.min(52, amount);
+        if (unit == Scheduler.MONTHS) return Math.min(12, amount);
+        return amount;
+    }
+
+    static Integer interval(Decimal value, String unit) {
+        Integer amount = value == null ? 1 : value.intValue();
 
         if (amount < 1) amount = 1;
         if (unit == Scheduler.MINUTES) return Math.min(55, amount < 5 ? 5 : amount);
@@ -123,17 +134,17 @@ public with sharing class SchedulerConsoleController {
     public virtual with sharing class QueryService {
         public virtual List<Scheduler__c> getJobs() {
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c,
-                    Next_Run_At__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Apex__c, Enabled__c, Frequency__c, Interval__c,
+                    Next_Run__c, Last_Executed__c, Error_Message__c
                 FROM Scheduler__c
-                ORDER BY Next_Run_At__c ASC NULLS LAST, Config_Key__c ASC
+                ORDER BY Next_Run__c ASC NULLS LAST, Apex__c ASC
             ]);
         }
 
-        public virtual List<Scheduler_Config__mdt> getJobConfigurations() {
+        public virtual List<Scheduler_Job__mdt> getJobConfigurations() {
             return [
-                SELECT Id, DeveloperName, MasterLabel, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c
-                FROM Scheduler_Config__mdt
+                SELECT Id, DeveloperName, MasterLabel, Apex__c, Enabled__c, Frequency__c, Interval__c
+                FROM Scheduler_Job__mdt
                 WITH USER_MODE
                 ORDER BY DeveloperName ASC
                 LIMIT 500
@@ -151,14 +162,14 @@ public with sharing class SchedulerConsoleController {
         @AuraEnabled public String frequencyValue;
         @AuraEnabled public String cadence;
 
-        JobConfigurationRow(Scheduler_Config__mdt config) {
+        JobConfigurationRow(Scheduler_Job__mdt config) {
             this.id = config.Id;
             this.developerName = config.DeveloperName;
             this.label = config.MasterLabel;
             this.apexClass = config.Apex__c;
-            this.isEnabled = config.Is_Enabled__c;
+            this.isEnabled = config.Enabled__c;
             this.frequency = frequency(config.Frequency__c);
-            Integer amount = interval(config.Frequency_Value__c, this.frequency);
+            Integer amount = interval(config.Interval__c, this.frequency);
             this.frequencyValue = String.valueOf(amount);
             this.cadence = cadenceLabel(this.frequency, amount);
         }
@@ -166,7 +177,6 @@ public with sharing class SchedulerConsoleController {
 
     public class JobRow {
         @AuraEnabled public Id id;
-        @AuraEnabled public String configKey;
         @AuraEnabled public String apexClass;
         @AuraEnabled public Boolean isEnabled;
         @AuraEnabled public String frequency;
@@ -180,17 +190,16 @@ public with sharing class SchedulerConsoleController {
 
         JobRow(Scheduler__c job, Datetime now) {
             this.id = job.Id;
-            this.configKey = job.Config_Key__c;
             this.apexClass = job.Apex__c;
-            this.isEnabled = job.Is_Enabled__c == true;
+            this.isEnabled = job.Enabled__c == true;
             this.frequency = frequency(job.Frequency__c);
-            Integer amount = interval(job.Frequency_Value__c, this.frequency);
+            Integer amount = interval(job.Interval__c, this.frequency);
             this.frequencyValue = String.valueOf(amount);
             this.cadence = cadenceLabel(this.frequency, amount);
-            this.lastExecutedAt = job.Last_Executed_At__c;
+            this.lastExecutedAt = job.Last_Executed__c;
             this.nextScheduledAt = SchedulerConsoleController.nextScheduledAt(job, now);
-            this.hasError = !String.isBlank(job.Last_Error__c);
-            this.lastError = job.Last_Error__c;
+            this.hasError = !String.isBlank(job.Error_Message__c);
+            this.lastError = job.Error_Message__c;
             this.status = SchedulerConsoleController.status(this.isEnabled, this.nextScheduledAt, now);
         }
     }

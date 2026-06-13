@@ -10,14 +10,14 @@ public with sharing class SchedulerMock {
         queries = new QueryService();
     }
 
-    public SchedulerMock config(Scheduler_Config__mdt config) {
+    public SchedulerMock config(Scheduler_Job__mdt config) {
         metadata.configs.add(config);
         return this;
     }
 
     public SchedulerMock job(Scheduler__c job) {
-        if (currentHash != null && job.Metadata_Hash__c == null) {
-            job.Metadata_Hash__c = currentHash;
+        if (currentHash != null && job.Hash__c == null) {
+            job.Hash__c = currentHash;
         }
         queries.jobs.add(job);
         return this;
@@ -26,7 +26,7 @@ public with sharing class SchedulerMock {
     public SchedulerMock seedCurrentHash() {
         currentHash = metadata.getHash(metadata.configs);
         for (Scheduler__c job : queries.jobs) {
-            job.Metadata_Hash__c = currentHash;
+            job.Hash__c = currentHash;
         }
         return this;
     }
@@ -47,9 +47,9 @@ public with sharing class SchedulerMock {
     }
 
     public with sharing class MetadataService extends Scheduler.MetadataService {
-        public List<Scheduler_Config__mdt> configs = new List<Scheduler_Config__mdt>();
+        public List<Scheduler_Job__mdt> configs = new List<Scheduler_Job__mdt>();
 
-        public override List<Scheduler_Config__mdt> getConfigs() {
+        public override List<Scheduler_Job__mdt> getConfigs() {
             return configs;
         }
     }
@@ -57,24 +57,24 @@ public with sharing class SchedulerMock {
     public with sharing class QueryService extends Scheduler.QueryService {
         public List<Scheduler__c> jobs = new List<Scheduler__c>();
 
-        public override List<Scheduler__c> getJobsByKeys(Set<String> keys) {
+        public override List<Scheduler__c> getJobsByApexClasses(Set<String> apexClasses) {
             List<Scheduler__c> rows = new List<Scheduler__c>();
-            if (keys == null || keys.isEmpty()) return rows;
+            if (apexClasses == null || apexClasses.isEmpty()) return rows;
 
             for (Scheduler__c job : jobs) {
-                if (keys.contains(job.Config_Key__c)) {
+                if (apexClasses.contains(job.Apex__c)) {
                     rows.add(job);
                 }
             }
             return rows;
         }
 
-        public override List<Scheduler__c> getJobsByKeysAndMetadataHash(Set<String> keys, String metadataHash) {
+        public override List<Scheduler__c> getJobsByApexClassesAndMetadataHash(Set<String> apexClasses, String metadataHash) {
             List<Scheduler__c> rows = new List<Scheduler__c>();
-            if (keys == null || keys.isEmpty()) return rows;
+            if (apexClasses == null || apexClasses.isEmpty()) return rows;
 
             for (Scheduler__c job : jobs) {
-                if (keys.contains(job.Config_Key__c) && job.Metadata_Hash__c == metadataHash) {
+                if (apexClasses.contains(job.Apex__c) && job.Hash__c == metadataHash) {
                     rows.add(job);
                 }
             }
@@ -84,17 +84,17 @@ public with sharing class SchedulerMock {
         public override List<Scheduler__c> getJobsByMetadataHash(String metadataHash) {
             List<Scheduler__c> rows = new List<Scheduler__c>();
             for (Scheduler__c job : jobs) {
-                if (job.Metadata_Hash__c == metadataHash) {
+                if (job.Hash__c == metadataHash) {
                     rows.add(job);
                 }
             }
             return rows;
         }
 
-        public override List<Scheduler__c> getJobsNotInKeys(Set<String> keys) {
+        public override List<Scheduler__c> getJobsNotInApexClasses(Set<String> apexClasses) {
             List<Scheduler__c> rows = new List<Scheduler__c>();
             for (Scheduler__c job : jobs) {
-                if (keys == null || !keys.contains(job.Config_Key__c)) {
+                if (apexClasses == null || !apexClasses.contains(job.Apex__c)) {
                     rows.add(job);
                 }
             }
@@ -104,7 +104,7 @@ public with sharing class SchedulerMock {
         public override List<Scheduler__c> getEnabledJobs() {
             List<Scheduler__c> rows = new List<Scheduler__c>();
             for (Scheduler__c job : jobs) {
-                if (job.Is_Enabled__c) {
+                if (job.Enabled__c) {
                     rows.add(job);
                 }
             }

@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>Config_Key__c</fullName>
-    <externalId>true</externalId>
-    <label>Config Key</label>
+    <fullName>Hash__c</fullName>
+    <externalId>false</externalId>
+    <label>Hash</label>
     <length>255</length>
-    <required>true</required>
+    <required>false</required>
     <trackTrending>false</trackTrending>
     <type>Text</type>
-    <unique>true</unique>
 </CustomField>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>Next_Run_At__c</fullName>
-    <label>Next Run At</label>
+    <fullName>Last_Executed__c</fullName>
+    <label>Last Executed</label>
     <required>false</required>
     <trackTrending>false</trackTrending>
     <type>DateTime</type>

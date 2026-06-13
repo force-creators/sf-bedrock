@@ -282,19 +282,11 @@ h1 {
     justify-content: space-between;
 }
 
-.job-key {
-    color: #2e5b88;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
 .job-main h3 {
     color: #102a43;
     font-size: 1rem;
     font-weight: 800;
-    margin-top: 0.15rem;
+    margin-top: 0;
 }
 
 .badge-row {

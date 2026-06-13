@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>Frequency_Value__c</fullName>
+    <fullName>Interval__c</fullName>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <label>Frequency Value</label>
+    <label>Interval</label>
     <required>false</required>
     <type>Picklist</type>
     <valueSet>

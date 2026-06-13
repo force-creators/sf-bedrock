@@ -7,20 +7,20 @@ sequencing and the "keep the pools separate" principle live in the repo root
 
 The current implementation provides twelve physical scheduled Apex jobs that
 together fire one heartbeat every five minutes. Each heartbeat translates
-`Scheduler_Config__mdt` into `Scheduler__c` when configuration changes, then
+`Scheduler_Job__mdt` into `Scheduler__c` when configuration changes, then
 enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`,
-`Days`, `Weeks`, and `Months` cadence units using `Frequency_Value__c` and
-`Next_Run_At__c`.
+`Days`, `Weeks`, and `Months` cadence units using `Interval__c` and
+`Next_Run__c`.
 
 ## Current MVP Scope
 
 - Twelve physical scheduler slots via the top-level `SchedulerTick` entrypoint.
 - Logical jobs extend `Scheduler` and override `execute()` with no parameters.
 - Each due logical job runs as its own Queueable.
-- `Scheduler_Config__mdt` defines Apex class, enabled state, frequency, and
+- `Scheduler_Job__mdt` defines Apex class, enabled state, frequency, and
   frequency value.
 - `Scheduler__c` stores translated runtime state, including next run time, last
-  execution, and last error. It also stores the metadata hash used to
+  execution, and last error. It also stores `Hash__c`, the marker used to
   short-circuit translation when runtime rows already match the current config.
 - Outages self-heal by running overdue jobs once on the next scheduler tick.
 
