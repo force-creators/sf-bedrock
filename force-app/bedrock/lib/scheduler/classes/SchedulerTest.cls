@@ -211,7 +211,7 @@ public with sharing class SchedulerTest {
         Assert.areEqual('Scheduler job failed.', updatedJob.Last_Error__c, 'Expected the scheduler to persist the thrown error message.');
     }
 
-    @istest static void testSchedule_usesThreeOffsetCronJobs() {
+    @istest static void testSchedule_usesQuarterHourCronJobs() {
         Test.startTest();
         Scheduler.schedule();
         Test.stopTest();
@@ -227,18 +227,22 @@ public with sharing class SchedulerTest {
             cronExpressions.add(cronTrigger.CronExpression);
         }
 
-        Assert.areEqual(3, cronTriggers.size(), 'Expected scheduler setup to create three staggered scheduler jobs.');
+        Assert.areEqual(4, cronTriggers.size(), 'Expected scheduler setup to create four quarter-hour scheduler jobs.');
         Assert.isTrue(
-            cronExpressions.contains('0 0,15,30,45 * * * ? *'),
-            'Expected scheduler setup to create the top-of-window scheduler job.'
+            cronExpressions.contains('0 0 * * * ? *'),
+            'Expected scheduler setup to create the top-of-hour scheduler job.'
         );
         Assert.isTrue(
-            cronExpressions.contains('0 5,20,35,50 * * * ? *'),
-            'Expected scheduler setup to create the five-minute offset scheduler job.'
+            cronExpressions.contains('0 15 * * * ? *'),
+            'Expected scheduler setup to create the fifteen-minute scheduler job.'
         );
         Assert.isTrue(
-            cronExpressions.contains('0 10,25,40,55 * * * ? *'),
-            'Expected scheduler setup to create the ten-minute offset scheduler job.'
+            cronExpressions.contains('0 30 * * * ? *'),
+            'Expected scheduler setup to create the thirty-minute scheduler job.'
+        );
+        Assert.isTrue(
+            cronExpressions.contains('0 45 * * * ? *'),
+            'Expected scheduler setup to create the forty-five-minute scheduler job.'
         );
     }
 

@@ -69,9 +69,10 @@ public virtual with sharing class Scheduler implements Queueable {
 
     public virtual with sharing class JobService {
         public virtual void schedule() {
-            System.schedule('Bedrock Scheduler 00', '0 0,15,30,45 * * * ? *', new ScheduleTick());
-            System.schedule('Bedrock Scheduler 05', '0 5,20,35,50 * * * ? *', new ScheduleTick());
-            System.schedule('Bedrock Scheduler 10', '0 10,25,40,55 * * * ? *', new ScheduleTick());
+            System.schedule('Bedrock Scheduler 00', '0 0 * * * ? *', new ScheduleTick());
+            System.schedule('Bedrock Scheduler 15', '0 15 * * * ? *', new ScheduleTick());
+            System.schedule('Bedrock Scheduler 30', '0 30 * * * ? *', new ScheduleTick());
+            System.schedule('Bedrock Scheduler 45', '0 45 * * * ? *', new ScheduleTick());
         }
 
         public virtual void tick() {
