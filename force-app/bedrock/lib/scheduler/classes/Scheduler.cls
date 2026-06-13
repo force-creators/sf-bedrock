@@ -44,19 +44,19 @@ public virtual with sharing class Scheduler implements Queueable {
         DateTime attemptedAt = System.now();
 
         try {
-            this.execute();
-            this.recordExecution(attemptedAt, null);
+            execute();
+            recordExecution(attemptedAt, null);
         } catch (Exception error) {
-            this.recordExecution(attemptedAt, error.getMessage());
+            recordExecution(attemptedAt, error.getMessage());
         }
     }
 
     void recordExecution(DateTime attemptedAt, String errorMessage) {
-        if (this.schedulerJobId == null) return;
+        if (schedulerJobId == null) return;
 
         DML.updateRecords(new List<SObject> {
             new Scheduler__c(
-                Id = this.schedulerJobId,
+                Id = schedulerJobId,
                 Last_Executed_At__c = attemptedAt,
                 Last_Error__c = truncateError(errorMessage)
             )
@@ -75,45 +75,46 @@ public virtual with sharing class Scheduler implements Queueable {
 
         public virtual void tick() {
             if (metadata.hasChanged()) {
-                this.translateMetadata();
+                translateMetadata();
             }
 
             for (Scheduler__c job : queries.getRunnableJobs()) {
-                this.run(job);
+                run(job);
             }
         }
 
         public virtual void translateMetadata() {
             List<Scheduler_Config__mdt> configs = metadata.getConfigs();
-            Map<String, Scheduler__c> existingJobsByKey = new Map<String, Scheduler__c>();
+            Map<String, Scheduler__c> jobsByKey = new Map<String, Scheduler__c>();
 
             for (Scheduler__c job : queries.getJobsByKeys(metadata.getConfigKeys(configs))) {
-                existingJobsByKey.put(job.Config_Key__c, job);
+                jobsByKey.put(job.Config_Key__c, job);
             }
 
-            List<SObject> jobsToUpsert = new List<SObject>();
-            Set<String> activeKeys = new Set<String>();
+            List<SObject> jobs = new List<SObject>();
+            Set<String> keys = new Set<String>();
 
             for (Scheduler_Config__mdt config : configs) {
-                activeKeys.add(config.DeveloperName);
+                String key = config.DeveloperName;
+                keys.add(key);
 
-                Scheduler__c job = existingJobsByKey.get(config.DeveloperName);
+                Scheduler__c job = jobsByKey.get(key);
                 if (job == null) {
-                    job = new Scheduler__c(Config_Key__c = config.DeveloperName);
+                    job = new Scheduler__c(Config_Key__c = key);
                 }
 
                 job.Apex__c = config.Apex__c;
                 job.Is_Enabled__c = config.Is_Enabled__c;
-                jobsToUpsert.add(job);
+                jobs.add(job);
             }
 
-            for (Scheduler__c staleJob : queries.getJobsNotInKeys(activeKeys)) {
-                staleJob.Is_Enabled__c = false;
-                jobsToUpsert.add(staleJob);
+            for (Scheduler__c job : queries.getJobsNotInKeys(keys)) {
+                job.Is_Enabled__c = false;
+                jobs.add(job);
             }
 
-            if (!jobsToUpsert.isEmpty()) {
-                DML.upsertRecords(jobsToUpsert, Scheduler__c.Fields.Config_Key__c);
+            if (!jobs.isEmpty()) {
+                DML.upsertRecords(jobs, Scheduler__c.Fields.Config_Key__c);
             }
 
             settings.saveHash(metadata.getHash(configs));
@@ -136,23 +137,20 @@ public virtual with sharing class Scheduler implements Queueable {
 
         public virtual Set<String> getConfigKeys(List<Scheduler_Config__mdt> configs) {
             Set<String> keys = new Set<String>();
-
             for (Scheduler_Config__mdt config : configs) {
                 keys.add(config.DeveloperName);
             }
-
             return keys;
         }
 
         public virtual Boolean hasChanged() {
-            String currentHash = this.getHash(this.getConfigs());
+            String currentHash = getHash(getConfigs());
             String previousHash = settings.getSettings().Metadata_Hash__c;
             return currentHash != previousHash;
         }
 
         public virtual String getHash(List<Scheduler_Config__mdt> configs) {
             List<String> parts = new List<String>();
-
             for (Scheduler_Config__mdt config : configs) {
                 parts.add(String.join(new List<String> {
                     config.DeveloperName,
@@ -169,7 +167,6 @@ public virtual with sharing class Scheduler implements Queueable {
     public virtual with sharing class QueryService {
         public virtual List<Scheduler__c> getJobsByKeys(Set<String> keys) {
             if (keys == null || keys.isEmpty()) return new List<Scheduler__c>();
-
             return (List<Scheduler__c>) Query.records([
                 SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Last_Executed_At__c, Last_Error__c
                 FROM Scheduler__c
@@ -206,24 +203,24 @@ public virtual with sharing class Scheduler implements Queueable {
         Scheduler_Settings__c schedulerSettings;
 
         public virtual Scheduler_Settings__c getSettings() {
-            if (this.schedulerSettings == null) {
-                this.schedulerSettings = Scheduler_Settings__c.getOrgDefaults();
+            if (schedulerSettings == null) {
+                schedulerSettings = Scheduler_Settings__c.getOrgDefaults();
 
-                if (this.schedulerSettings == null) {
-                    this.schedulerSettings = new Scheduler_Settings__c(
+                if (schedulerSettings == null) {
+                    schedulerSettings = new Scheduler_Settings__c(
                         SetupOwnerId = UserInfo.getOrganizationId()
                     );
                 }
             }
 
-            return this.schedulerSettings;
+            return schedulerSettings;
         }
 
         public virtual void saveHash(String hash) {
-            Scheduler_Settings__c settings = this.getSettings();
-            settings.Metadata_Hash__c = hash;
-            settings.Translated_At__c = System.now();
-            DML.upsertRecords(new List<SObject> { settings });
+            Scheduler_Settings__c row = getSettings();
+            row.Metadata_Hash__c = hash;
+            row.Translated_At__c = System.now();
+            DML.upsertRecords(new List<SObject> { row });
         }
     }
 

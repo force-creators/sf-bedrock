@@ -33,7 +33,6 @@ public with sharing class SchedulerTest {
     }
 
     @istest static void testTick_translatesChangedMetadataAndPersistsHash() {
-        TestData.IdService ids = new TestData.IdService();
         successfulExecutions = 0;
         SchedulerMock mock = new SchedulerMock()
             .config(new Scheduler_Config__mdt(
@@ -41,12 +40,7 @@ public with sharing class SchedulerTest {
                 Apex__c = 'SchedulerTest.SchedulerSuccessfulJob',
                 Is_Enabled__c = true
             ))
-            .job(new Scheduler__c(
-                Id = ids.get(Scheduler__c.SObjectType),
-                Config_Key__c = 'OldJob',
-                Apex__c = 'OldSchedulerJob',
-                Is_Enabled__c = true
-            ));
+            .job(job('OldJob', 'OldSchedulerJob', true, null));
 
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
@@ -72,20 +66,9 @@ public with sharing class SchedulerTest {
 
     @istest static void testTick_runsEnabledJobsAndClearsPriorErrorOnSuccess() {
         successfulExecutions = 0;
-        TestData.IdService ids = new TestData.IdService();
-
         SchedulerMock mock = new SchedulerMock()
-            .seedSettings(new Scheduler_Settings__c(
-                SetupOwnerId = UserInfo.getOrganizationId(),
-                Metadata_Hash__c = 'same-hash'
-            ))
-            .job(new Scheduler__c(
-                Id = ids.get(Scheduler__c.SObjectType),
-                Config_Key__c = 'ArchiveJobs',
-                Apex__c = 'SchedulerTest.SchedulerSuccessfulJob',
-                Is_Enabled__c = true,
-                Last_Error__c = 'previous failure'
-            ));
+            .seedSettings(settings('same-hash'))
+            .job(job('ArchiveJobs', 'SchedulerTest.SchedulerSuccessfulJob', true, 'previous failure'));
 
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
@@ -102,18 +85,9 @@ public with sharing class SchedulerTest {
     }
 
     @istest static void testTick_recordsErrorMessageWhenJobFails() {
-        TestData.IdService ids = new TestData.IdService();
         SchedulerMock mock = new SchedulerMock()
-            .seedSettings(new Scheduler_Settings__c(
-                SetupOwnerId = UserInfo.getOrganizationId(),
-                Metadata_Hash__c = 'same-hash'
-            ))
-            .job(new Scheduler__c(
-                Id = ids.get(Scheduler__c.SObjectType),
-                Config_Key__c = 'ResumeJobs',
-                Apex__c = 'SchedulerTest.SchedulerFailingJob',
-                Is_Enabled__c = true
-            ));
+            .seedSettings(settings('same-hash'))
+            .job(job('ResumeJobs', 'SchedulerTest.SchedulerFailingJob', true, null));
 
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
@@ -141,5 +115,26 @@ public with sharing class SchedulerTest {
         ];
 
         Assert.areEqual('0 0/5 * * * ? *', cronTrigger.CronExpression, 'Expected scheduler setup to use a five-minute cron expression.');
+    }
+
+    static Id schedulerId() {
+        return new TestData.IdService().get(Scheduler__c.SObjectType);
+    }
+
+    static Scheduler_Settings__c settings(String hash) {
+        return new Scheduler_Settings__c(
+            SetupOwnerId = UserInfo.getOrganizationId(),
+            Metadata_Hash__c = hash
+        );
+    }
+
+    static Scheduler__c job(String key, String apex, Boolean isEnabled, String lastError) {
+        return new Scheduler__c(
+            Id = schedulerId(),
+            Config_Key__c = key,
+            Apex__c = apex,
+            Is_Enabled__c = isEnabled,
+            Last_Error__c = lastError
+        );
     }
 }
