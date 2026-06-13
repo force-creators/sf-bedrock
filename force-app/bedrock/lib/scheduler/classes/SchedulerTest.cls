@@ -2,13 +2,13 @@
 public with sharing class SchedulerTest {
     static Integer successfulExecutions = 0;
 
-    class SchedulerSuccessfulJob extends Scheduler {
+    public class SchedulerSuccessfulJob extends Scheduler {
         public override void execute() {
             successfulExecutions++;
         }
     }
 
-    class SchedulerFailingJob extends Scheduler {
+    public class SchedulerFailingJob extends Scheduler {
         public override void execute() {
             throw new Scheduler.SchedulerException('Scheduler job failed.');
         }
@@ -40,8 +40,9 @@ public with sharing class SchedulerTest {
                 Apex__c = 'SchedulerTest.SchedulerSuccessfulJob',
                 Is_Enabled__c = true,
                 Frequency__c = Scheduler.HOURS,
-                Interval__c = 2
+                Frequency_Value__c = '2'
             ))
+            .job(job('ArchiveJobs', 'OldSchedulerJob', false, null))
             .job(job('OldJob', 'OldSchedulerJob', true, null));
 
         DMLMock dmlMock = new DMLMock();
@@ -64,15 +65,15 @@ public with sharing class SchedulerTest {
             'Expected translation time to be recorded when metadata is re-evaluated.'
         );
         Scheduler__c archiveJob = findJob(dmlMock.upserts[0], 'ArchiveJobs');
-        Assert.areEqual(Scheduler.HOURS, archiveJob.Frequency__c, 'Expected metadata frequency to be translated onto the scheduler row.');
-        Assert.areEqual(2, archiveJob.Interval__c.intValue(), 'Expected metadata interval to be translated onto the scheduler row.');
+        Assert.areEqual(Scheduler.HOURS, archiveJob.Frequency__c, 'Expected metadata frequency unit to be translated onto the scheduler row.');
+        Assert.areEqual('2', archiveJob.Frequency_Value__c, 'Expected metadata frequency value to be translated onto the scheduler row.');
         Assert.areEqual(1, successfulExecutions, 'Expected translated enabled jobs to be enqueued and run after the metadata sync.');
     }
 
     @istest static void testTick_runsEnabledJobsAndClearsPriorErrorOnSuccess() {
         successfulExecutions = 0;
         SchedulerMock mock = new SchedulerMock()
-            .seedSettings(settings('same-hash'))
+            .seedCurrentHash()
             .job(job('ArchiveJobs', 'SchedulerTest.SchedulerSuccessfulJob', true, 'previous failure'));
 
         DMLMock dmlMock = new DMLMock();
@@ -89,18 +90,18 @@ public with sharing class SchedulerTest {
         Assert.areEqual(null, updatedJob.Last_Error__c, 'Expected a successful run to clear the previous error message.');
     }
 
-    @istest static void testTick_runsEveryFiveMinuteJobEvenWhenRecentlyExecuted() {
+    @istest static void testTick_runsMinuteJobAfterInterval() {
         successfulExecutions = 0;
         SchedulerMock mock = new SchedulerMock()
-            .seedSettings(settings('same-hash'))
+            .seedCurrentHash()
             .job(job(
                 'ArchiveJobs',
                 'SchedulerTest.SchedulerSuccessfulJob',
                 true,
                 null,
-                Scheduler.EVERY_FIVE_MINUTES,
-                1,
-                System.now()
+                Scheduler.MINUTES,
+                '5',
+                System.now().addMinutes(-5)
             ));
 
         DMLMock dmlMock = new DMLMock();
@@ -111,21 +112,47 @@ public with sharing class SchedulerTest {
         Scheduler.tick();
         Test.stopTest();
 
-        Assert.areEqual(1, successfulExecutions, 'Expected every-five-minute jobs to run on each scheduler tick.');
-        Assert.areEqual(1, dmlMock.updates.size(), 'Expected a recent every-five-minute job to still record execution.');
+        Assert.areEqual(1, successfulExecutions, 'Expected minute-based jobs to run once their interval has elapsed.');
+        Assert.areEqual(1, dmlMock.updates.size(), 'Expected due minute-based jobs to record execution.');
+    }
+
+    @istest static void testTick_skipsMinuteJobBeforeInterval() {
+        successfulExecutions = 0;
+        SchedulerMock mock = new SchedulerMock()
+            .seedCurrentHash()
+            .job(job(
+                'ArchiveJobs',
+                'SchedulerTest.SchedulerSuccessfulJob',
+                true,
+                null,
+                Scheduler.MINUTES,
+                '10',
+                System.now().addMinutes(-5)
+            ));
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
+        Test.startTest();
+        Scheduler.tick();
+        Test.stopTest();
+
+        Assert.areEqual(0, successfulExecutions, 'Expected minute-based jobs to wait until their interval has elapsed.');
+        Assert.areEqual(0, dmlMock.updates.size(), 'Expected skipped minute-based jobs not to record a new execution.');
     }
 
     @istest static void testTick_skipsHourlyJobBeforeInterval() {
         successfulExecutions = 0;
         SchedulerMock mock = new SchedulerMock()
-            .seedSettings(settings('same-hash'))
+            .seedCurrentHash()
             .job(job(
                 'ArchiveJobs',
                 'SchedulerTest.SchedulerSuccessfulJob',
                 true,
                 null,
                 Scheduler.HOURS,
-                2,
+                '2',
                 System.now().addHours(-1)
             ));
 
@@ -144,14 +171,14 @@ public with sharing class SchedulerTest {
     @istest static void testTick_runsHourlyJobAfterInterval() {
         successfulExecutions = 0;
         SchedulerMock mock = new SchedulerMock()
-            .seedSettings(settings('same-hash'))
+            .seedCurrentHash()
             .job(job(
                 'ArchiveJobs',
                 'SchedulerTest.SchedulerSuccessfulJob',
                 true,
                 null,
                 Scheduler.HOURS,
-                2,
+                '2',
                 System.now().addHours(-2)
             ));
 
@@ -170,14 +197,14 @@ public with sharing class SchedulerTest {
     @istest static void testTick_runsDailyJobAfterInterval() {
         successfulExecutions = 0;
         SchedulerMock mock = new SchedulerMock()
-            .seedSettings(settings('same-hash'))
+            .seedCurrentHash()
             .job(job(
                 'ArchiveJobs',
                 'SchedulerTest.SchedulerSuccessfulJob',
                 true,
                 null,
                 Scheduler.DAYS,
-                2,
+                '2',
                 System.now().addDays(-2)
             ));
 
@@ -195,7 +222,7 @@ public with sharing class SchedulerTest {
 
     @istest static void testTick_recordsErrorMessageWhenJobFails() {
         SchedulerMock mock = new SchedulerMock()
-            .seedSettings(settings('same-hash'))
+            .seedCurrentHash()
             .job(job('ResumeJobs', 'SchedulerTest.SchedulerFailingJob', true, null));
 
         DMLMock dmlMock = new DMLMock();
@@ -211,19 +238,78 @@ public with sharing class SchedulerTest {
         Assert.areEqual('Scheduler job failed.', updatedJob.Last_Error__c, 'Expected the scheduler to persist the thrown error message.');
     }
 
-    @istest static void testSchedule_usesFiveMinuteCron() {
+    @istest static void testTick_recordsRunErrorAndContinuesToNextJob() {
+        successfulExecutions = 0;
+        Scheduler__c badJob = job('BadJob', 'MissingSchedulerJob', true, null);
+        Scheduler__c goodJob = job('GoodJob', 'SchedulerTest.SchedulerSuccessfulJob', true, null);
+        SchedulerMock mock = new SchedulerMock()
+            .seedCurrentHash()
+            .job(badJob)
+            .job(goodJob);
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
         Test.startTest();
-        Id jobId = Scheduler.schedule();
+        Scheduler.tick();
         Test.stopTest();
 
-        CronTrigger cronTrigger = [
-            SELECT CronExpression
+        Scheduler__c failedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Scheduler__c successfulJob = (Scheduler__c) dmlMock.updates[1][0];
+        Assert.areEqual(1, successfulExecutions, 'Expected a later due job to run after a previous scheduler row fails to enqueue.');
+        Assert.areEqual(badJob.Id, failedJob.Id, 'Expected the failed scheduler row to be recorded first.');
+        Assert.isNotNull(failedJob.Last_Error__c, 'Expected scheduler run errors to be recorded on the failed row.');
+        Assert.areEqual(goodJob.Id, successfulJob.Id, 'Expected the later successful scheduler row to record execution normally.');
+        Assert.areEqual(null, successfulJob.Last_Error__c, 'Expected the later successful scheduler row to clear any previous error.');
+    }
+
+    @istest static void testSchedule_usesFiveMinuteCronJobs() {
+        Test.startTest();
+        Scheduler.schedule();
+        Test.stopTest();
+
+        List<CronTrigger> cronTriggers = [
+            SELECT CronExpression, CronJobDetail.Name
             FROM CronTrigger
-            WHERE Id = :jobId
-            LIMIT 1
+            WHERE CronJobDetail.Name LIKE 'Bedrock Scheduler %'
+            AND State != 'DELETED'
         ];
 
-        Assert.areEqual('0 0/5 * * * ? *', cronTrigger.CronExpression, 'Expected scheduler setup to use a five-minute cron expression.');
+        Set<String> cronExpressions = new Set<String>();
+        for (CronTrigger cronTrigger : cronTriggers) {
+            cronExpressions.add(cronTrigger.CronExpression);
+        }
+
+        Set<String> expectedCronExpressions = new Set<String>();
+        for (Integer minute = 0; minute < 60; minute += 5) {
+            expectedCronExpressions.add('0 ' + String.valueOf(minute) + ' * * * ? *');
+        }
+
+        Assert.areEqual(12, cronTriggers.size(), 'Expected scheduler setup to create twelve five-minute scheduler jobs.');
+        Assert.areEqual(
+            expectedCronExpressions,
+            cronExpressions,
+            'Expected scheduler setup to create one scheduler job for each five-minute mark in the hour.'
+        );
+    }
+
+    @istest static void testSchedulerTick_delegatesToScheduler() {
+        successfulExecutions = 0;
+        SchedulerMock mock = new SchedulerMock()
+            .seedCurrentHash()
+            .job(job('ArchiveJobs', 'SchedulerTest.SchedulerSuccessfulJob', true, null));
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
+        Test.startTest();
+        new SchedulerTick().execute(null);
+        Test.stopTest();
+
+        Assert.areEqual(1, successfulExecutions, 'Expected the top-level schedulable entrypoint to run Scheduler.tick().');
+        Assert.areEqual(1, dmlMock.updates.size(), 'Expected jobs run through SchedulerTick to record execution.');
     }
 
     static Id schedulerId() {
@@ -238,7 +324,7 @@ public with sharing class SchedulerTest {
     }
 
     static Scheduler__c job(String key, String apex, Boolean isEnabled, String lastError) {
-        return job(key, apex, isEnabled, lastError, Scheduler.EVERY_FIVE_MINUTES, 1, null);
+        return job(key, apex, isEnabled, lastError, Scheduler.MINUTES, '5', null);
     }
 
     static Scheduler__c job(
@@ -247,7 +333,7 @@ public with sharing class SchedulerTest {
         Boolean isEnabled,
         String lastError,
         String frequency,
-        Integer interval,
+        String interval,
         DateTime lastExecutedAt
     ) {
         return new Scheduler__c(
@@ -256,7 +342,7 @@ public with sharing class SchedulerTest {
             Apex__c = apex,
             Is_Enabled__c = isEnabled,
             Frequency__c = frequency,
-            Interval__c = interval,
+            Frequency_Value__c = interval,
             Last_Executed_At__c = lastExecutedAt,
             Last_Error__c = lastError
         );
