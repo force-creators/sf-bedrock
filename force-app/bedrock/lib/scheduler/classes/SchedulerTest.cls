@@ -1,5 +1,11 @@
 @istest
 public with sharing class SchedulerTest {
+    class SchedulerFailingJob extends Scheduler {
+        public override void execute() {
+            throw new Scheduler.SchedulerException('Scheduler job failed.');
+        }
+    }
+
     @testSetup
     static void setup() {
         Scheduler.reset();
@@ -97,7 +103,7 @@ public with sharing class SchedulerTest {
             .job(new Scheduler__c(
                 Id = ids.get(Scheduler__c.SObjectType),
                 Config_Key__c = 'ResumeJobs',
-                Apex__c = 'SchedulerFailingJob',
+                Apex__c = 'SchedulerTest.SchedulerFailingJob',
                 Is_Enabled__c = true
             ));
 
