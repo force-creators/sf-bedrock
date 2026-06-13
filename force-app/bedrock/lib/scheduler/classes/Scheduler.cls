@@ -178,19 +178,7 @@ public virtual with sharing class Scheduler implements Queueable {
         }
 
         public virtual String getHash(List<Scheduler_Config__mdt> configs) {
-            List<String> parts = new List<String>();
-            for (Scheduler_Config__mdt config : configs) {
-                parts.add(String.join(new List<String> {
-                    config.DeveloperName,
-                    String.valueOf(config.Apex__c),
-                    String.valueOf(config.Is_Enabled__c),
-                    String.valueOf(config.Frequency__c),
-                    String.valueOf(config.Interval__c)
-                }, '|'));
-            }
-
-            Blob digest = Crypto.generateDigest('SHA-256', Blob.valueOf(String.join(parts, '\n')));
-            return EncodingUtil.convertToHex(digest);
+            return String.valueOf(System.hashCode(configs));
         }
     }
 
