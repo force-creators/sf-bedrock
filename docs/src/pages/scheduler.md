@@ -1,10 +1,10 @@
 ---
 layout: ../layouts/DocsLayout.astro
 title: Scheduler | sf-bedrock docs
-description: Run all of your recurring Apex jobs from just four of your org's scheduled-job slots, on a schedule as tight as every fifteen minutes.
+description: Run recurring Apex jobs from a fixed set of scheduled-job slots, with logical jobs configured in custom metadata.
 eyebrow: Async Services
 heading: Scheduler
-lede: Salesforce caps your org at 100 scheduled Apex jobs — a limit you share with every installed package. Scheduler runs all of your recurring jobs from just four of those slots, on a schedule as tight as every fifteen minutes. You write a class and add one metadata record; the framework handles the scheduling.
+lede: Salesforce scheduled Apex slots are shared across your org and installed packages. Scheduler gives you one Bedrock heartbeat every five minutes, then runs your logical jobs from metadata when they are due.
 sections:
   - label: Overview
     href: "#overview"
@@ -26,39 +26,32 @@ sections:
 
 ## Overview
 
-Sooner or later every org needs work that runs on a clock: a nightly cleanup, an
-hourly sync with an outside system, a check that runs every few minutes. The
-Salesforce tool for that is a scheduled Apex job — and it comes with two
-squeezes.
+Use `Scheduler` for Apex work that runs on a clock: retrying integrations,
+cleaning old rows, refreshing cached data, sending digests, or checking for work
+that should happen every few minutes.
 
-First, **an org can hold only 100 scheduled Apex jobs at once, and that limit is
-shared with every managed package you install.** Give each recurring task its
-own scheduled job and a few packages can crowd you out of your own org.
+Salesforce scheduled Apex works, but each scheduled job consumes one of your
+org's 100 scheduled-job slots. That limit is shared with installed packages. A
+large org can run out faster than you expect.
 
-Second, scheduling each job is fiddly: a `Schedulable` class wired up by hand or
-a cron expression per task, and the setup screen only offers coarse preset times.
+`Scheduler` keeps the scheduled Apex footprint fixed. Bedrock creates twelve
+physical scheduled jobs, one for each five-minute mark in the hour. Those jobs
+all call the same top-level `SchedulerTick` entrypoint. On each tick, the
+framework reads your logical job configuration and enqueues only the jobs that
+are due.
 
-Scheduler removes both problems. It runs **every** job you write from just
-**four** scheduled-job slots, no matter how many jobs you add, and it gives you a
-heartbeat as tight as every fifteen minutes. You write a class and add a metadata
-record; the framework owns the scheduling. Your tenth or fiftieth job costs zero
-extra slots — it is one more row of configuration.
+**Use `Scheduler` when** the work is time-based and should run repeatedly.
 
-**Use Scheduler whenever you would reach for a Salesforce scheduled job** —
-anything that needs to run on a recurring cadence.
-
-**Reach for `Async` instead when** the work is driven by records and should
-process a set of Ids. `Async` runs work through record queues; Scheduler runs
-jobs on a clock.
+**Reach for `Async` instead when** the work starts from records and should
+process a set of Ids. `Async` owns queued record work. `Scheduler` owns recurring
+clock-based work.
 
 ## Quickstart
 
-Two steps: write the job, then declare it in metadata. You never schedule
-anything yourself — the framework keeps its own scheduled jobs running.
+There are three pieces: write the job, configure the job, and install the
+Bedrock heartbeat once.
 
-**Step 1** — extend `Scheduler` and override `execute()`. This parameterless
-method is the only code you write. It holds the work you want to run on a
-schedule.
+**Step 1** - extend `Scheduler` and override `execute()`.
 
 ```apex
 public with sharing class ExpireStaleQuotes extends Scheduler {
@@ -68,8 +61,7 @@ public with sharing class ExpireStaleQuotes extends Scheduler {
 }
 ```
 
-**Step 2** — create a `Scheduler_Config__mdt` record that points at the class and
-sets how often it runs.
+**Step 2** - create a `Scheduler_Config__mdt` record.
 
 | Field | Example |
 | --- | --- |
@@ -77,22 +69,30 @@ sets how often it runs.
 | `Apex__c` | `ExpireStaleQuotes` |
 | `Is_Enabled__c` | `true` |
 | `Frequency__c` | `Hours` |
-| `Interval__c` | `6` |
+| `Frequency_Value__c` | `6` |
 
-That is everything. Within fifteen minutes the framework picks up the new record
-and starts running `ExpireStaleQuotes` every six hours.
+That means: run `ExpireStaleQuotes` about every six hours.
+
+**Step 3** - schedule the Bedrock heartbeat once.
+
+```apex
+Scheduler.schedule();
+```
+
+`Scheduler.schedule()` creates twelve physical scheduled Apex jobs named
+`Bedrock Scheduler 00`, `Bedrock Scheduler 05`, and so on through
+`Bedrock Scheduler 55`. Re-running it replaces existing Bedrock scheduler jobs
+before creating the current set.
 
 ## Examples
 
-The cadence of a job comes entirely from its `Frequency__c` and `Interval__c`.
-The class never knows or cares how often it runs — keep the work in `execute()`
-and let metadata decide the schedule.
+The class does not know how often it runs. Keep the work in `execute()` and let
+metadata control the cadence.
 
-### Run every fifteen minutes
+### Run every five minutes
 
-`Every 15 Minutes` runs the job each time the framework wakes up — the right
-choice for time-sensitive work that should stay close to real time, like draining
-an inbound integration queue.
+Use `Minutes` for work that should stay close to real time, like draining an
+integration retry queue.
 
 ```apex
 public with sharing class RetryFailedCallouts extends Scheduler {
@@ -108,16 +108,15 @@ Config:
 | --- | --- |
 | `Apex__c` | `RetryFailedCallouts` |
 | `Is_Enabled__c` | `true` |
-| `Frequency__c` | `Every 15 Minutes` |
-| `Interval__c` | `1` |
+| `Frequency__c` | `Minutes` |
+| `Frequency_Value__c` | `5` |
 
-`Interval__c` is ignored for `Every 15 Minutes`; the cadence is fixed to the
-fifteen-minute heartbeat.
+Minute values are limited to five-minute increments: `5`, `10`, `15`, through
+`55`.
 
 ### Run every few hours
 
-`Hours` plus an interval is for work that should not run on every heartbeat, like
-refreshing exchange rates from an external provider.
+Use `Hours` for work that should run during the day, but not on every heartbeat.
 
 ```apex
 public with sharing class RefreshExchangeRates extends Scheduler {
@@ -127,12 +126,12 @@ public with sharing class RefreshExchangeRates extends Scheduler {
 }
 ```
 
-With `Frequency__c = Hours` and `Interval__c = 4`, the job runs when it has never
-run, or when its last run was at least four hours ago.
+With `Frequency__c = Hours` and `Frequency_Value__c = 4`, the job runs when it
+has never run, or when its last run was at least four hours ago.
 
-### Run once a day
+### Run every day
 
-`Days` is for low-frequency work like a nightly digest email.
+Use `Days` for lower-frequency maintenance, reporting, or digest work.
 
 ```apex
 public with sharing class SendDailyDigest extends Scheduler {
@@ -142,35 +141,35 @@ public with sharing class SendDailyDigest extends Scheduler {
 }
 ```
 
-With `Frequency__c = Days` and `Interval__c = 1`, the job runs when it has never
-run, or when its last run was at least a day ago.
+With `Frequency__c = Days` and `Frequency_Value__c = 1`, the job runs when it
+has never run, or when its last run was at least a day ago.
 
 ## Configuration
 
-You configure each job with one `Scheduler_Config__mdt` record. These are the
-fields that matter:
+Each logical job has one `Scheduler_Config__mdt` record.
 
 | Field | Meaning |
 | --- | --- |
 | `Apex__c` | API name of the class to run. The class must extend `Scheduler`. Required. |
-| `Is_Enabled__c` | Whether the job can run. Defaults to `true`. Set it to `false` to pause a job without deleting it. |
-| `Frequency__c` | `Every 15 Minutes`, `Hours`, or `Days`. Defaults to `Every 15 Minutes`. |
-| `Interval__c` | How many hours or days between runs. Defaults to `1`; values below `1` count as `1`; ignored by `Every 15 Minutes`. |
+| `Is_Enabled__c` | Whether the job can run. Defaults to `true`. Set it to `false` to pause a job. |
+| `Frequency__c` | Cadence unit. Supported values are `Minutes`, `Hours`, and `Days`. Blank values are treated as `Minutes`. |
+| `Frequency_Value__c` | Cadence amount. For `Minutes`, choose `5`, `10`, `15`, through `55`. For `Hours` and `Days`, choose `1` through `55`. |
 
-Configuration is the only place you set a schedule. To change how often a job
-runs, edit its record — there is no Apex to redeploy and no scheduled job to
-re-create. Changes take effect on the next heartbeat, within fifteen minutes.
+`Interval__c` is legacy metadata. Current Scheduler code reads
+`Frequency_Value__c` instead.
 
-To watch a job in production, look at its **`Scheduler__c` runtime row**. The
-framework keeps one per job and writes `Last_Executed_At__c` and `Last_Error__c`
-on every run, so you can see when a job last ran and whether it failed without
-digging through logs.
+To change how often a job runs, edit the metadata record. There is no job class
+to redeploy and no per-job scheduled Apex record to recreate. The change applies
+on the next five-minute heartbeat.
+
+To check production status, read the job's `Scheduler__c` runtime row. Scheduler
+writes `Last_Executed_At__c` after each attempt and clears or writes
+`Last_Error__c` depending on the result.
 
 ## Testing
 
-Your `execute()` is plain Apex, so test it the simplest possible way: construct
-the class and call it. You do not need the framework running, and you should not
-test the scheduling itself — that is the framework's job, not yours.
+Most job tests should not involve the scheduler framework. Your job is plain
+Apex, so construct it and call `execute()`.
 
 ```apex
 @istest
@@ -179,117 +178,120 @@ public with sharing class StampReviewedAccountsTest {
     @istest static void testExecute_stampsReviewedAccounts() {
         List<Account> accounts = (List<Account>) new TestData(Account.sObjectType)
             .put(Account.Name, 'Acme')
+            .mockIds()
             .count(3)
             .build();
-        DML.insertRecords(accounts);
 
-        new StampReviewedAccounts().execute();
+        StampReviewedAccounts.ReviewService service = new StampReviewedAccounts.ReviewService();
+        service.review(accounts);
 
-        for (Account account : (List<Account>) Query.records([
-            SELECT Description FROM Account
-        ])) {
-            Assert.areEqual('Reviewed by scheduled job', account.Description,
-                'Expected the scheduled job to stamp every account it processed.');
+        for (Account account : accounts) {
+            Assert.areEqual(
+                'Reviewed by scheduled job',
+                account.Description,
+                'Expected the scheduled job service to stamp each account it processed.'
+            );
         }
     }
 }
 ```
 
-If your `execute()` delegates to a service — the shape we recommend — test that
-service directly, the same way you would test any other Apex. The job class then
-needs nothing more than the one-line check that it calls the service.
+If the job delegates to a service, test the service directly. Keep the scheduled
+job class thin enough that it does not need much of its own coverage.
 
 ## How It Works
 
-Three ideas explain everything Scheduler does.
+Three ideas explain everything `Scheduler` does.
 
-**One: four scheduled jobs, one fifteen-minute heartbeat.** The framework keeps
-four scheduled Apex jobs running. Each one fires once an hour, but they are
-staggered fifteen minutes apart — at the top, quarter, half, and three-quarter
-mark — so together they wake the framework every fifteen minutes. That is four
-slots out of your hundred — fixed — no matter how many jobs you schedule.
+**One: twelve scheduled jobs, one five-minute heartbeat.** `Scheduler.schedule()`
+creates a top-level `SchedulerTick` scheduled job at each five-minute mark in the
+hour. Salesforce sees twelve scheduled Apex jobs. Bedrock sees one heartbeat.
 
-**Two: your jobs live in metadata, not in the schedule.** On each heartbeat the
-framework reads your `Scheduler_Config__mdt` records. When that configuration has
-changed, it syncs the records into one `Scheduler__c` runtime row per job; when
-nothing changed, it skips the sync and moves straight to running jobs. This is
-why a new or edited config record takes effect within fifteen minutes rather than
-instantly, and why you never touch a scheduled job by hand.
+**Two: logical jobs live in metadata.** On each heartbeat, Scheduler checks
+`Scheduler_Config__mdt`. If the metadata hash changed, it translates those
+records into `Scheduler__c` runtime rows. Removed metadata records are disabled,
+not deleted, so their run history stays visible.
 
-**Three: each due job runs as its own Queueable.** On every heartbeat the
-framework checks which jobs are due — a job is due if it has never run, or if
-enough time has passed since its last run — and runs each due job as a separate
-Queueable with its own governor limits. After the job runs, the framework records
-the time on its runtime row, and either clears the error on success or saves the
-thrown message on failure.
+**Three: each due logical job runs as its own Queueable.** A job is due when it
+has never run, or when enough time has passed since `Last_Executed_At__c`.
+Scheduler enqueues each due job separately. After the Queueable finishes, it
+records the attempt time and either clears `Last_Error__c` or stores the thrown
+message.
 
 > Cadence is measured from the last run, not from the wall clock. A daily job
-> runs roughly 24 hours after it last ran — not at midnight. This keeps the model
-> simple and tolerant of outages, at the cost of clock alignment.
+> runs roughly 24 hours after it last ran. It does not align itself to midnight.
 
 ## Public API
 
-As a developer you touch exactly two things: the `execute()` method you override,
-and the `Scheduler_Config__mdt` record that schedules it. Everything else — how
-the framework schedules itself, decides what is due, and records results — is
-internal, and you never call it.
+Most app code touches only one method: the `execute()` override in your
+`Scheduler` subclass. Setup code may call `Scheduler.schedule()` to install the
+heartbeat.
 
-### The job contract
+### Job contract
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `execute` | `public override void execute()` | The one method you write. Holds the work to run on a schedule. The base class throws if a subclass does not override it, so every job must implement it. |
+| `execute` | `public override void execute()` | Holds the scheduled work. The base implementation throws, so each job must override it. |
+
+### Setup methods
+
+| Member | Signature | Description |
+| --- | --- | --- |
+| `schedule` | `public static void schedule()` | Replaces existing `Bedrock Scheduler %` scheduled jobs and creates twelve five-minute `SchedulerTick` jobs. |
+| `tick` | `public static void tick()` | Runs one scheduler heartbeat. Usually called by `SchedulerTick`, not application code. |
+
+### Schedulable entrypoint
+
+| Class | Signature | Description |
+| --- | --- | --- |
+| `SchedulerTick` | `public with sharing class SchedulerTick implements Schedulable` | Top-level scheduled Apex class used by the physical Bedrock heartbeat jobs. It delegates to `Scheduler.tick()`. |
 
 ### Schema
 
-**`Scheduler_Config__mdt`** (custom metadata type) — one record per job, authored
-by you. This is your control panel:
+**`Scheduler_Config__mdt`** is one metadata record per logical job.
 
 | Field | Purpose |
 | --- | --- |
 | `Apex__c` | API name of the `Scheduler` subclass to run. Required. |
 | `Is_Enabled__c` | Whether the job can run. Defaults to `true`. |
-| `Frequency__c` | `Every 15 Minutes` (default), `Hours`, or `Days`. |
-| `Interval__c` | Number of hours or days between runs. Defaults to `1`. |
+| `Frequency__c` | Cadence unit: `Minutes`, `Hours`, or `Days`. |
+| `Frequency_Value__c` | Cadence amount. Minute values are five-minute increments from `5` through `55`; hour and day values are `1` through `55`. |
+| `Interval__c` | Legacy field retained for compatibility. Current Scheduler code does not read it. |
 
-**`Scheduler__c`** (custom object) — one framework-owned runtime row per job. You
-do not edit these; read them to see how a job is doing:
+**`Scheduler__c`** is one runtime row per logical job. Scheduler owns these rows.
 
 | Field | Purpose |
 | --- | --- |
-| `Last_Executed_At__c` | When the job last ran. |
-| `Last_Error__c` | The error from the last run, or blank if it succeeded. |
+| `Config_Key__c` | Metadata `DeveloperName` for the source config record. |
+| `Apex__c` | Class name copied from metadata. |
+| `Is_Enabled__c` | Runtime enabled flag copied from metadata. |
+| `Frequency__c` | Runtime cadence unit copied from metadata. |
+| `Frequency_Value__c` | Runtime cadence amount copied from metadata. |
+| `Last_Executed_At__c` | Last attempted run time. |
+| `Last_Error__c` | Last error message, or blank after a successful run. |
 
 ## Notes & Edge Cases
 
-- **A new job starts on the next heartbeat.** When you add or enable a config
-  record, the job begins running within fifteen minutes — not instantly.
+- **A new job starts on the next heartbeat.** New and edited config records are
+  picked up within about five minutes.
 
-- **Config changes take up to fifteen minutes.** The framework re-reads
-  `Scheduler_Config__mdt` once per heartbeat, so an edit applies on the next one.
+- **Minute cadences are five-minute increments.** Use `Minutes` with
+  `Frequency_Value__c = 5` for the fastest cadence.
 
-- **Overdue jobs run once, not once per missed window.** If an hourly job misses
-  six hours of heartbeats during an outage, it runs a single time when the
-  framework recovers. There is no backfill of missed runs.
+- **Overdue jobs run once.** Scheduler does not replay every missed window after
+  an outage. If a daily job missed three days, it runs once on the next
+  successful heartbeat.
 
-- **Hourly and daily cadence is measured from the last run.** It is not aligned to
-  midnight or the top of the hour — a daily job runs about 24 hours after it last
-  ran.
+- **Cadence is measured from the last attempt.** Hourly and daily jobs are not
+  aligned to the top of the hour or midnight.
 
-- **`Interval__c` is ignored for `Every 15 Minutes`.** That cadence always runs on
-  the heartbeat. An interval below `1` (or left blank) counts as `1`.
-
-- **Pause a job with `Is_Enabled__c`.** Set it to `false` to stop a job without
-  losing its configuration. Deleting the config record stops the job too, but
-  keeps its runtime row so its run history stays visible.
-
-- **`Apex__c` must name a real class that extends `Scheduler`.** It is resolved by
-  name at run time. If the name is wrong or the class does not extend `Scheduler`,
-  the job will not run — keep the value matching your deployed class exactly.
+- **A bad job row does not stop the whole tick.** If `Apex__c` names a missing
+  class or something that cannot be enqueued as a `Scheduler`, Scheduler records
+  the error on that row and continues to the next due job.
 
 - **Each job runs in its own Queueable.** Keep `execute()` bulk-safe and within a
-  single Queueable's governor limits: query once, never run SOQL or DML inside a
-  per-record loop.
+  single Queueable's governor limits. Query once. Do not put SOQL or DML inside
+  a per-record loop.
 
-- **There is no concurrency cap yet.** Every due, enabled job is run on each
-  heartbeat. Limits on how many run at once are planned, not built.
+- **There is no concurrency cap yet.** Every enabled, due job is enqueued on each
+  heartbeat. Limits on how many jobs run at once are planned, not built.
