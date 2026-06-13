@@ -25,6 +25,12 @@ public with sharing class AsyncDashboardController {
             WITH USER_MODE
         ];
 
+        metrics.totalJobs = [
+            SELECT COUNT()
+            FROM Async__c
+            WITH USER_MODE
+        ];
+
         return metrics;
     }
 
@@ -32,5 +38,6 @@ public with sharing class AsyncDashboardController {
         @AuraEnabled public Integer jobsCompletedToday;
         @AuraEnabled public Integer backlogCount;
         @AuraEnabled public Integer errors;
+        @AuraEnabled public Integer totalJobs;
     }
 }

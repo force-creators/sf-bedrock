@@ -8,7 +8,7 @@ public with sharing class AsyncCompletedController {
         'createdDate'
     };
 
-    @AuraEnabled(cacheable=true)
+    @AuraEnabled
     public static List<CompletedRow> getCompleted(String searchTerm, String sortBy, String sortDirection) {
         String normalizedSearchTerm = String.isBlank(searchTerm) ? null : searchTerm.trim().toLowerCase();
         String orderByField = sortField(sortBy);

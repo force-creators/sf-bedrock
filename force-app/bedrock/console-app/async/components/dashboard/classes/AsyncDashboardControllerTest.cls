@@ -28,5 +28,10 @@ public with sharing class AsyncDashboardControllerTest {
             metrics.errors,
             'The dashboard should count async jobs currently in error.'
         );
+        Assert.areEqual(
+            4,
+            metrics.totalJobs,
+            'The dashboard should count every async job regardless of status.'
+        );
     }
 }

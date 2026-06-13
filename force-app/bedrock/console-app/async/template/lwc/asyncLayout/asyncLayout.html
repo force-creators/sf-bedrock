@@ -1,58 +1,104 @@
 <template>
-    <div class="slds-grid slds-wrap layout-shell">
-        <aside class="slds-col slds-size_1-of-1 slds-medium-size_3-of-12 slds-large-size_2-of-12 nav-column">
-            <section class="slds-card nav-card">
-                <div class="slds-card__body slds-card__body_inner">
-                    <nav class="slds-nav-vertical" aria-label="Async Console Navigation">
-                        <div class="slds-nav-vertical__section">
-                            <h2 class="slds-nav-vertical__title">Async Console</h2>
-                            <ul>
-                                <template for:each={navItems} for:item="item">
-                                    <li key={item.id} class={item.itemClass}>
-                                        <button
-                                            class="slds-button slds-button_reset slds-nav-vertical__action nav-action"
-                                            data-id={item.id}
-                                            onclick={handleNavSelect}
-                                        >
-                                            <lightning-icon
-                                                icon-name={item.iconName}
-                                                size="x-small"
-                                                class="nav-icon"
-                                            ></lightning-icon>
-                                            <span class="nav-label">{item.label}</span>
-                                            <template lwc:if={item.showCount}>
-                                                <span class="slds-badge count-badge">{item.count}</span>
-                                            </template>
-                                        </button>
-                                    </li>
-                                </template>
-                            </ul>
-                        </div>
-                    </nav>
-                </div>
-            </section>
-        </aside>
+    <section class="console-shell">
+        <div class="hero">
+            <div>
+                <p class="eyebrow">Bedrock Async</p>
+                <h1>Async Jobs</h1>
+                <p class="hero-copy">
+                    Live view of queued work, terminal errors, completed jobs, and configured async job types.
+                </p>
+            </div>
 
-        <main class="slds-col slds-size_1-of-1 slds-medium-size_9-of-12 slds-large-size_10-of-12 content-column">
-            <section class="slds-card content-card">
-                <div class="slds-card__body slds-card__body_inner page-panel">
-                    <template lwc:if={isDashboard}>
-                        <c-async-dashboard></c-async-dashboard>
-                    </template>
-                    <template lwc:elseif={isBacklog}>
-                        <c-async-backlog oncountchange={handleBacklogCountChange}></c-async-backlog>
-                    </template>
-                    <template lwc:elseif={isCompleted}>
-                        <c-async-completed></c-async-completed>
-                    </template>
-                    <template lwc:elseif={isErrors}>
-                        <c-async-errors oncountchange={handleErrorsCountChange}></c-async-errors>
-                    </template>
-                    <template lwc:elseif={isJobConfigurations}>
+            <div class="hero-actions">
+                <lightning-badge label="Counts refresh every 15 seconds"></lightning-badge>
+                <lightning-button
+                    label="Refresh Counts"
+                    icon-name="utility:refresh"
+                    onclick={handleRefreshCounts}
+                    disabled={isLoadingMetrics}
+                ></lightning-button>
+            </div>
+        </div>
+
+        <template lwc:if={hasMetricsError}>
+            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+                <span class="slds-assistive-text">Error</span>
+                {metricsErrorMessage}
+            </div>
+        </template>
+
+        <div class="metrics">
+            <template for:each={metricCards} for:item="metric">
+                <article key={metric.id} class={metric.className}>
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                </article>
+            </template>
+        </div>
+
+        <section class="timeline-card">
+            <lightning-tabset>
+                <lightning-tab label="Backlog" value="backlog" onactive={handleTabActive}>
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Backlog</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                            <template lwc:if={isLoadingMetrics}>
+                                <lightning-spinner alternative-text="Loading async counts" size="small"></lightning-spinner>
+                            </template>
+                        </div>
+
+                        <c-async-backlog oncountchange={handlePageCountChange}></c-async-backlog>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Errors" value="errors" onactive={handleTabActive}>
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Errors</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                            <template lwc:if={isLoadingMetrics}>
+                                <lightning-spinner alternative-text="Loading async counts" size="small"></lightning-spinner>
+                            </template>
+                        </div>
+
+                        <c-async-errors oncountchange={handlePageCountChange}></c-async-errors>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Completed" value="completed" onactive={handleTabActive}>
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Completed</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                            <template lwc:if={isLoadingMetrics}>
+                                <lightning-spinner alternative-text="Loading async counts" size="small"></lightning-spinner>
+                            </template>
+                        </div>
+
+                        <c-async-completed oncountchange={handlePageCountChange}></c-async-completed>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Jobs" value="jobs">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Jobs</h2>
+                                <p>Async job configuration metadata</p>
+                            </div>
+                        </div>
+
                         <c-async-job-configurations></c-async-job-configurations>
-                    </template>
-                </div>
-            </section>
-        </main>
-    </div>
+                    </div>
+                </lightning-tab>
+            </lightning-tabset>
+        </section>
+    </section>
 </template>

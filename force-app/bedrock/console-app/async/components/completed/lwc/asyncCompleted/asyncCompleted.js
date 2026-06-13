@@ -1,4 +1,4 @@
-import { LightningElement } from 'lwc';
+import { LightningElement, api } from 'lwc';
 import getCompleted from '@salesforce/apex/AsyncCompletedController.getCompleted';
 
 const COLUMNS = [
@@ -56,6 +56,11 @@ export default class AsyncCompleted extends LightningElement {
         this.loadCompleted();
     }
 
+    @api
+    refreshCount() {
+        this.loadCompleted();
+    }
+
     handleSearchChange(event) {
         this.searchTerm = event.target.value;
 
@@ -90,7 +95,16 @@ export default class AsyncCompleted extends LightningElement {
         } finally {
             this.lastRefreshedAt = new Date();
             this.isLoading = false;
+            this.dispatchCountChange();
         }
+    }
+
+    dispatchCountChange() {
+        this.dispatchEvent(
+            new CustomEvent('countchange', {
+                detail: { count: this.rows.length }
+            })
+        );
     }
 
     reduceErrors(error) {

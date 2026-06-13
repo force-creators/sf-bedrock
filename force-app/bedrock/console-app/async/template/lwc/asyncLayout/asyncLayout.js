@@ -1,138 +1,124 @@
 import { LightningElement } from 'lwc';
 import getMetrics from '@salesforce/apex/AsyncDashboardController.getMetrics';
 
-const NAV_ITEMS = [
-    { id: 'dashboard', label: 'Dashboard', iconName: 'utility:home' },
-    { id: 'backlog', label: 'Backlog', iconName: 'utility:rows' },
-    { id: 'completed', label: 'Completed', iconName: 'utility:success' },
-    { id: 'errors', label: 'Errors', iconName: 'utility:error' },
-    {
-        id: 'job-configurations',
-        label: 'Job Configurations',
-        iconName: 'utility:settings'
-    }
+const REFRESH_INTERVAL_MS = 15000;
+
+const METRIC_DEFINITIONS = [
+    { id: 'backlogCount', label: 'Backlog', className: 'metric metric-backlog' },
+    { id: 'errors', label: 'Errors', className: 'metric metric-error' },
+    { id: 'jobsCompletedToday', label: 'Completed Today', className: 'metric metric-success' },
+    { id: 'totalJobs', label: 'Total Jobs', className: 'metric metric-muted' }
 ];
 
 export default class AsyncLayout extends LightningElement {
-    selectedId = 'dashboard';
-    backlogCount = 0;
-    errorCount = 0;
+    metrics = {};
+    isLoadingMetrics = false;
+    metricsErrorMessage;
+    lastRefreshedAt;
     refreshTimer;
 
     connectedCallback() {
-        this.loadCounts();
-        this.startCountRefresh();
+        this.loadMetrics();
+        this.startMetricsRefresh();
     }
 
     disconnectedCallback() {
-        this.stopCountRefresh();
+        this.stopMetricsRefresh();
     }
 
-    get navItems() {
-        return NAV_ITEMS.map((item) => {
-            const isActive = item.id === this.selectedId;
-            const isBacklog = item.id === 'backlog';
-            const isErrors = item.id === 'errors';
-
-            return {
-                ...item,
-                count: isBacklog ? this.backlogCount : this.errorCount,
-                showCount: isBacklog || isErrors,
-                itemClass: `slds-nav-vertical__item${isActive ? ' slds-is-active' : ''}`
-            };
-        });
+    get metricCards() {
+        return METRIC_DEFINITIONS.map((metric) => ({
+            ...metric,
+            value: this.formatNumber(this.metrics?.[metric.id] || 0)
+        }));
     }
 
-    get isDashboard() {
-        return this.selectedId === 'dashboard';
+    get hasMetricsError() {
+        return Boolean(this.metricsErrorMessage);
     }
 
-    get isBacklog() {
-        return this.selectedId === 'backlog';
-    }
-
-    get isErrors() {
-        return this.selectedId === 'errors';
-    }
-
-    get isCompleted() {
-        return this.selectedId === 'completed';
-    }
-
-    get isJobConfigurations() {
-        return this.selectedId === 'job-configurations';
-    }
-
-    get isPerformance() {
-        return this.selectedId === 'performance';
-    }
-
-    get isSettings() {
-        return this.selectedId === 'settings';
-    }
-
-    handleNavSelect(event) {
-        this.selectedId = event.currentTarget.dataset.id;
-
-        if (this.selectedId === 'backlog') {
-            Promise.resolve().then(() => {
-                this.refreshBacklogCountFromPage();
-            });
+    get lastRefreshedLabel() {
+        if (!this.lastRefreshedAt) {
+            return 'Counts last refreshed: Not yet';
         }
 
-        if (this.selectedId === 'errors') {
-            Promise.resolve().then(() => {
-                this.refreshErrorCountFromPage();
-            });
+        return `Counts last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
+    }
+
+    handleRefreshCounts() {
+        this.loadMetrics();
+    }
+
+    handlePageCountChange() {
+        this.loadMetrics();
+    }
+
+    handleTabActive(event) {
+        const selectedTab = event.target?.value;
+
+        if (selectedTab === 'backlog') {
+            this.refreshPage('c-async-backlog');
+        }
+
+        if (selectedTab === 'errors') {
+            this.refreshPage('c-async-errors');
+        }
+
+        if (selectedTab === 'completed') {
+            this.refreshPage('c-async-completed');
         }
     }
 
-    handleBacklogCountChange(event) {
-        this.backlogCount = event.detail?.count || 0;
-    }
+    async loadMetrics() {
+        this.isLoadingMetrics = true;
+        this.metricsErrorMessage = undefined;
 
-    handleErrorsCountChange(event) {
-        this.errorCount = event.detail?.count || 0;
-    }
-
-    async loadCounts() {
         try {
-            const metrics = await getMetrics();
-            this.backlogCount = metrics?.backlogCount || 0;
-            this.errorCount = metrics?.errors || 0;
-        } catch {
-            this.backlogCount = 0;
-            this.errorCount = 0;
+            this.metrics = await getMetrics();
+        } catch (error) {
+            this.metrics = {};
+            this.metricsErrorMessage = this.reduceErrors(error);
+        } finally {
+            this.lastRefreshedAt = new Date();
+            this.isLoadingMetrics = false;
         }
     }
 
-    startCountRefresh() {
-        this.stopCountRefresh();
+    startMetricsRefresh() {
+        this.stopMetricsRefresh();
         this.refreshTimer = setInterval(() => {
-            this.loadCounts();
-        }, 15000);
+            if (!this.isLoadingMetrics) {
+                this.loadMetrics();
+            }
+        }, REFRESH_INTERVAL_MS);
     }
 
-    stopCountRefresh() {
+    stopMetricsRefresh() {
         if (this.refreshTimer) {
             clearInterval(this.refreshTimer);
             this.refreshTimer = undefined;
         }
     }
 
-    refreshBacklogCountFromPage() {
-        const backlog = this.template.querySelector('c-async-backlog');
+    refreshPage(selector) {
+        Promise.resolve().then(() => {
+            const page = this.template.querySelector(selector);
 
-        if (backlog?.refreshCount) {
-            backlog.refreshCount();
-        }
+            if (page?.refreshCount) {
+                page.refreshCount();
+            }
+        });
     }
 
-    refreshErrorCountFromPage() {
-        const errors = this.template.querySelector('c-async-errors');
+    formatNumber(value) {
+        return new Intl.NumberFormat().format(value);
+    }
 
-        if (errors?.refreshCount) {
-            errors.refreshCount();
+    reduceErrors(error) {
+        if (Array.isArray(error?.body)) {
+            return error.body.map((entry) => entry.message).join(', ');
         }
+
+        return error?.body?.message || error?.message || 'Unable to load async counts.';
     }
 }

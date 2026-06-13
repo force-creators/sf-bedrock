@@ -1,5 +1,5 @@
 public with sharing class AsyncJobConfigurationsController {
-    @AuraEnabled(cacheable=true)
+    @AuraEnabled
     public static List<JobConfigurationRow> getJobConfigurations() {
         List<JobConfigurationRow> rows = new List<JobConfigurationRow>();
 
