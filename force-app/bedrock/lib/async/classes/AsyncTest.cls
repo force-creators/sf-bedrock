@@ -337,24 +337,48 @@ public with sharing class AsyncTest {
         Assert.areEqual(0, result.Retry_Count__c, 'Expected Retry_Count__c to stay 0 when auto-retry is disabled.');
     }
 
-    @istest static void testJobWatcher_continueAfterSuccess_dispatchesNextWorkerDirectly() {
+    @istest static void testJobWatcher_continueAfterSuccess_resetsFailureCount() {
         SpyJobService jobs = new SpyJobService();
         Async.jobs = jobs;
 
-        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>()).continueAfterSuccess();
+        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 3).continueAfterSuccess();
 
         Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected success-path dispatch to keep chaining directly to the next worker batch.');
+        Assert.areEqual(0, jobs.lastEnqueueNextJobFailureCount, 'Expected success-path dispatch to reset the failure streak before the next worker batch.');
         Assert.areEqual(0, jobs.startThreadCalls, 'Expected success-path dispatch not to restart the thread through AsyncThread.');
     }
 
-    @istest static void testJobWatcher_continueAfterFailure_restartsThroughAsyncThread() {
+    @istest static void testJobWatcher_continueAfterFailure_underThreshold_keepsDirectChain() {
         SpyJobService jobs = new SpyJobService();
         Async.jobs = jobs;
 
-        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>()).continueAfterFailure();
+        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 2).continueAfterFailure();
 
-        Assert.areEqual(0, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch not to chain another worker directly from the finalizer.');
+        Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch below the threshold to continue the current worker chain.');
+        Assert.areEqual(3, jobs.lastEnqueueNextJobFailureCount, 'Expected failure-path dispatch below the threshold to increment the failure streak for the next worker batch.');
+        Assert.areEqual(0, jobs.startThreadCalls, 'Expected failure-path dispatch below the threshold not to restart through AsyncThread yet.');
+    }
+
+    @istest static void testJobWatcher_continueAfterFailure_atThreshold_restartsThroughAsyncThread() {
+        SpyJobService jobs = new SpyJobService();
+        Async.jobs = jobs;
+
+        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 3).continueAfterFailure();
+
+        Assert.areEqual(0, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch at the threshold not to chain another worker directly from the finalizer.');
         Assert.areEqual(1, jobs.startThreadCalls, 'Expected failure-path dispatch to restart the backlog through AsyncThread.');
+        Assert.areEqual(0, jobs.lastStartThreadFailureCount, 'Expected failure-path dispatch at the threshold to reset the failure streak on the restarted thread.');
+    }
+
+    @istest static void testAsyncThread_execute_passesFailureCountToNextWorkerDispatch() {
+        SpyJobService jobs = new SpyJobService();
+        Async.jobs = jobs;
+
+        new AsyncThread('thread-123', 2).execute(null);
+
+        Assert.areEqual('thread-123', Async.jobs.threadId, 'Expected AsyncThread to adopt the provided thread id before dispatching the next worker batch.');
+        Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected AsyncThread to dispatch the next worker batch once.');
+        Assert.areEqual(2, jobs.lastEnqueueNextJobFailureCount, 'Expected AsyncThread to forward the carried failure streak into the next worker dispatch.');
     }
 
     @istest static void testManualRetry_pastCapDoesNotBumpRetryCount() {
@@ -405,13 +429,17 @@ public with sharing class AsyncTest {
     public with sharing class SpyJobService extends Async.JobService {
         public Integer enqueueNextJobCalls = 0;
         public Integer startThreadCalls = 0;
+        public Integer lastEnqueueNextJobFailureCount = -1;
+        public Integer lastStartThreadFailureCount = -1;
 
-        public override void enqueueNextJob() {
+        public override void enqueueNextJob(Integer failureCount) {
             this.enqueueNextJobCalls++;
+            this.lastEnqueueNextJobFailureCount = failureCount;
         }
 
-        public override void startThread() {
+        public override void startThread(Integer failureCount) {
             this.startThreadCalls++;
+            this.lastStartThreadFailureCount = failureCount;
         }
     }
 

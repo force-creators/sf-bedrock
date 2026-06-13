@@ -41,10 +41,10 @@ public with sharing class AsyncMock {
             return canEnqueue;
         }
 
-        public override void startThread() {
+        public override void startThread(Integer failureCount) {
             AsyncOptions options = new AsyncOptions();
             options.maximumQueueableStackDepth = 5;
-            System.enqueueJob(new AsyncThread(this.threadId), options);
+            System.enqueueJob(new AsyncThread(this.threadId, failureCount), options);
         }
 
     }
