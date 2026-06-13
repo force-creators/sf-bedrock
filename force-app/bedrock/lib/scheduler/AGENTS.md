@@ -49,9 +49,11 @@ scheduler job that is due.
 
 - Removed metadata rows are not deleted from `Scheduler__c` in this MVP. They
   are disabled so runtime history remains available.
-- Cadence is based on `Last_Executed_At__c`. `Minutes`, `Hours`, and `Days`
-  jobs run once they are overdue by `Frequency_Value__c`. Minute values are
-  clamped to a minimum of five minutes.
+- Cadence is based on `Last_Executed_At__c`, which is recorded by the heartbeat
+  before the Queueable is enqueued. Queueable start delay must not push the next
+  due window later. `Minutes`, `Hours`, and `Days` jobs run once they are
+  overdue by `Frequency_Value__c`. Minute values are clamped to a minimum of
+  five minutes.
 - Run or enqueue failures for one logical row are recorded on that row and do
   not stop the rest of the tick.
 - Unhandled Queueable failures are recorded by `Scheduler.JobFinalizer`.

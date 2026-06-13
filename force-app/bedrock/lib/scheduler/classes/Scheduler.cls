@@ -38,30 +38,39 @@ public virtual with sharing class Scheduler implements Queueable {
     }
 
     public void execute(QueueableContext context) {
-        DateTime attemptedAt = System.now();
         if (context != null && schedulerJobId != null) {
-            jobs.attachFinalizer(new JobFinalizer(schedulerJobId, attemptedAt));
+            jobs.attachFinalizer(new JobFinalizer(schedulerJobId));
         }
 
         try {
             execute();
-            recordExecution(attemptedAt, null);
+            recordResult(null);
         } catch (Exception error) {
-            recordExecution(attemptedAt, error.getMessage());
+            recordResult(error.getMessage());
         }
     }
 
-    void recordExecution(DateTime attemptedAt, String errorMessage) {
-        recordExecution(schedulerJobId, attemptedAt, errorMessage);
+    void recordResult(String errorMessage) {
+        recordResult(schedulerJobId, errorMessage);
     }
 
-    static void recordExecution(Id schedulerJobId, DateTime attemptedAt, String errorMessage) {
+    static void recordAttempt(Id schedulerJobId, DateTime attemptedAt) {
         if (schedulerJobId == null) return;
 
         DML.updateRecords(new List<SObject> {
             new Scheduler__c(
                 Id = schedulerJobId,
-                Last_Executed_At__c = attemptedAt,
+                Last_Executed_At__c = attemptedAt
+            )
+        });
+    }
+
+    static void recordResult(Id schedulerJobId, String errorMessage) {
+        if (schedulerJobId == null) return;
+
+        DML.updateRecords(new List<SObject> {
+            new Scheduler__c(
+                Id = schedulerJobId,
                 Last_Error__c = truncateError(errorMessage)
             )
         });
@@ -101,6 +110,7 @@ public virtual with sharing class Scheduler implements Queueable {
             for (Scheduler__c job : queries.getEnabledJobs()) {
                 if (!isDue(job, now)) continue;
                 try {
+                    recordAttempt(job.Id, now);
                     run(job);
                 } catch (Exception error) {
                     recordFailure(job, now, error);
@@ -155,7 +165,7 @@ public virtual with sharing class Scheduler implements Queueable {
         public virtual void recordFailure(Scheduler__c job, DateTime attemptedAt, Exception error) {
             if (job.Id == null) return;
 
-            Scheduler.recordExecution(job.Id, attemptedAt, error.getMessage());
+            Scheduler.recordResult(job.Id, error.getMessage());
         }
 
         public virtual Boolean isDue(Scheduler__c job, DateTime now) {
@@ -294,11 +304,9 @@ public virtual with sharing class Scheduler implements Queueable {
 
     public with sharing class JobFinalizer implements Finalizer {
         Id schedulerJobId;
-        DateTime attemptedAt;
 
-        public JobFinalizer(Id schedulerJobId, DateTime attemptedAt) {
+        public JobFinalizer(Id schedulerJobId) {
             this.schedulerJobId = schedulerJobId;
-            this.attemptedAt = attemptedAt;
         }
 
         public void execute(FinalizerContext context) {
@@ -308,9 +316,8 @@ public virtual with sharing class Scheduler implements Queueable {
         @testVisible void recordResult(ParentJobResult result, Exception error) {
             if (result == ParentJobResult.SUCCESS) return;
 
-            Scheduler.recordExecution(
+            Scheduler.recordResult(
                 schedulerJobId,
-                attemptedAt,
                 error == null ? String.valueOf(result) : error.getMessage()
             );
         }

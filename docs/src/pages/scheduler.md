@@ -163,8 +163,8 @@ to redeploy and no per-job scheduled Apex record to recreate. The change applies
 on the next five-minute heartbeat.
 
 To check production status, read the job's `Scheduler__c` runtime row. Scheduler
-writes `Last_Executed_At__c` after each attempt and clears or writes
-`Last_Error__c` depending on the result.
+writes `Last_Executed_At__c` when a heartbeat enqueues the job. The Queueable
+then clears or writes `Last_Error__c` depending on the result.
 
 ## Testing
 
@@ -214,13 +214,15 @@ not deleted, so their run history stays visible.
 
 **Three: each due logical job runs as its own Queueable.** A job is due when it
 has never run, or when enough time has passed since `Last_Executed_At__c`.
-Scheduler enqueues each due job separately. After the Queueable finishes, it
-records the attempt time and either clears `Last_Error__c` or stores the thrown
-message. A Queueable Finalizer also records unhandled queueable failures, such
-as governor limit exceptions that cannot be caught by normal Apex `try/catch`.
+Scheduler records the heartbeat attempt time before it enqueues each due job.
+After the Queueable finishes, it either clears `Last_Error__c` or stores the
+thrown message. A Queueable Finalizer also records unhandled queueable failures,
+such as governor limit exceptions that cannot be caught by normal Apex
+`try/catch`.
 
-> Cadence is measured from the last run, not from the wall clock. A daily job
-> runs roughly 24 hours after it last ran. It does not align itself to midnight.
+> Cadence is measured from the last scheduler attempt, not from Queueable start
+> time or from the wall clock. A daily job runs roughly 24 hours after its last
+> scheduler attempt. It does not align itself to midnight.
 
 ## Public API
 
@@ -285,7 +287,8 @@ heartbeat.
   successful heartbeat.
 
 - **Cadence is measured from the last attempt.** Hourly and daily jobs are not
-  aligned to the top of the hour or midnight.
+  aligned to the top of the hour or midnight. Queueable start delay does not
+  push the next due window later.
 
 - **A bad job row does not stop the whole tick.** If `Apex__c` names a missing
   class or something that cannot be enqueued as a `Scheduler`, Scheduler records
@@ -293,7 +296,7 @@ heartbeat.
 
 - **Unhandled queueable failures are recorded by a finalizer.** If a scheduler
   job fails in a way normal Apex cannot catch, Scheduler still updates
-  `Last_Executed_At__c` and `Last_Error__c` from the finalizer transaction.
+  `Last_Error__c` from the finalizer transaction.
 
 - **Each job runs in its own Queueable.** Keep `execute()` bulk-safe and within a
   single Queueable's governor limits. Query once. Do not put SOQL or DML inside
