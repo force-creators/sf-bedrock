@@ -30,10 +30,6 @@ public virtual with sharing class Scheduler implements Queueable {
         return jobs.schedule();
     }
 
-    public static String cron() {
-        return '0 0/5 * * * ? *';
-    }
-
     public Scheduler setSchedulerJob(Id schedulerJobId) {
         this.schedulerJobId = schedulerJobId;
         return this;
@@ -73,7 +69,7 @@ public virtual with sharing class Scheduler implements Queueable {
 
     public virtual with sharing class JobService {
         public virtual Id schedule() {
-            return System.schedule('Bedrock Scheduler', Scheduler.cron(), new ScheduleTick());
+            return System.schedule('Bedrock Scheduler', '0 0/5 * * * ? *', new ScheduleTick());
         }
 
         public virtual void tick() {

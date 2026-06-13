@@ -234,7 +234,6 @@ records the attempted timestamp and the last error, if any.
 | `DAYS` | `public static final String` | `String` | Picklist value for daily cadence. |
 | `tick` | `public static void tick()` | `void` | Runs one scheduler tick: sync metadata if needed, query enabled jobs, and enqueue due jobs. |
 | `schedule` | `public static Id schedule()` | `Id` | Creates the physical scheduled Apex job. |
-| `cron` | `public static String cron()` | `String` | Returns the five-minute cron expression. |
 | `setSchedulerJob` | `public Scheduler setSchedulerJob(Id schedulerJobId)` | `Scheduler` | Sets the runtime row Id used by the Queueable wrapper to record execution. |
 | `execute` | `public virtual void execute()` | `void` | Contract method. Subclasses override this with job behavior. |
 | `execute` | `public void execute(QueueableContext context)` | `void` | Queueable entrypoint used by the framework. |
