@@ -96,4 +96,4 @@ defaults to `0` when absent so mixed backlogs still drain deterministically.
 `TriggerHandler` via `AsyncTriggerHandler`. The planned multithreading layer
 that `Async` will consume (shared `ThreadService` / `Thread_Context__c`) lives
 in `../thread-service/ROADMAP.md`; the shared limits gate lives in
-`../limits-service/ROADMAP.md`.
+`../limiter/ROADMAP.md`.

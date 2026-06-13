@@ -27,7 +27,7 @@ enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`,
 ## Near-Term Integration
 
 - Add first-party scheduler jobs for Async job archiving.
-- Add first-party scheduler jobs for LimitsService resume monitoring.
+- Add first-party scheduler jobs for Limiter resume monitoring.
 - Add default metadata records for those jobs once their concrete classes exist.
 - Revisit Async archiving's shape if it needs a recordless system-task path
   instead of direct scheduler execution.
@@ -39,7 +39,7 @@ enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`,
   framework default. If replay is needed, add explicit per-job configuration so
   maintenance jobs do not accidentally create backlog surges.
 - **Concurrency protection:** cap how many logical scheduler Queueables can be
-  enqueued per tick, likely using the future ThreadService and LimitsService
+  enqueued per tick, likely using the future ThreadService and Limiter
   layer rather than local scheduler-only limits.
 - **Additional cadences:** consider time-of-day windows, weekday rules, and
   priority ordering only after real jobs prove the need.

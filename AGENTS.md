@@ -322,6 +322,7 @@ tool's detail up front.
 | `Scheduler` | [`lib/scheduler/AGENTS.md`](force-app/bedrock/lib/scheduler/AGENTS.md) |
 | `Pluck` | [`lib/pluck/AGENTS.md`](force-app/bedrock/lib/pluck/AGENTS.md) |
 | `FeatureFlag` | [`lib/feature-flag/AGENTS.md`](force-app/bedrock/lib/feature-flag/AGENTS.md) |
+| `Limiter` / `LimiterMock` | [`lib/limiter/AGENTS.md`](force-app/bedrock/lib/limiter/AGENTS.md) |
 
 ## Roadmap
 
@@ -329,7 +330,7 @@ Planned and future work is split the same way. `ROADMAP.md` at the repo root
 holds the cross-cutting sequencing and the shared "keep the pools separate"
 principle; each framework's detailed roadmap lives in
 `force-app/bedrock/lib/<component>/ROADMAP.md` (Async features + Console UI,
-ThreadService/Multithreading, LimitsService, Scheduler, Event, Selector). Treat
+ThreadService/Multithreading, Limiter, Scheduler, Event, Selector). Treat
 those files as intended direction, not finalized public APIs. Names, schemas,
 and behavior described there are not finalized; inspect current code and ask
 before locking them.

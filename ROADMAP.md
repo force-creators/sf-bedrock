@@ -17,7 +17,7 @@ a time over large speculative framework builds.
 Keep each framework's logical execution pool (Async, Event, Scheduler) separate
 — do not collapse their queues, job tracking, or policy without an explicit
 plan. The thread-slot concurrency layer (`ThreadService` / `Thread_Context__c`)
-and `LimitsService` are deliberately *shared* infrastructure beneath those
+and `Limiter` are deliberately *shared* infrastructure beneath those
 separate pools; sharing a mechanism is not collapsing pools. Extend `AsyncMock`
 and the service override surface only when a concrete test needs a new seam;
 keep the exposed levers intentionally light.
@@ -28,7 +28,7 @@ keep the exposed levers intentionally light.
 |---|---|---|
 | Async (features + Console UI) | [`lib/async/ROADMAP.md`](force-app/bedrock/lib/async/ROADMAP.md) | Active — Retry, Priority, Performance Tracking, SettingsService, MetadataService, Job Archiving, Completed/Archive tabs |
 | ThreadService / Multithreading | [`lib/thread-service/ROADMAP.md`](force-app/bedrock/lib/thread-service/ROADMAP.md) | Shared infra — concurrency cap + handoff |
-| LimitsService | [`lib/limits-service/ROADMAP.md`](force-app/bedrock/lib/limits-service/ROADMAP.md) | Shared infra — org-health gate |
+| Limiter | [`lib/limiter/ROADMAP.md`](force-app/bedrock/lib/limiter/ROADMAP.md) | Shared infra — org-health gate |
 | Scheduler | [`lib/scheduler/ROADMAP.md`](force-app/bedrock/lib/scheduler/ROADMAP.md) | Active MVP — cadence, metadata translation, runtime state |
 | Event | [`lib/event/ROADMAP.md`](force-app/bedrock/lib/event/ROADMAP.md) | Future framework |
 | Selector / Selector.Cached | [`lib/selector/ROADMAP.md`](force-app/bedrock/lib/selector/ROADMAP.md) | Future, builds on `Query` / `PlatformCache` |
@@ -42,7 +42,7 @@ orphaned `Running` reaper, bulk-enqueue chunking) live with the Async roadmap.
   MetadataService, Async UI Completed tab.
 - **After SettingsService Bucket 1:** Multithreading core (cap + handoff; needs
   `Max_Threads__c` and a new `Thread_Context__c` object).
-- **Scheduler follow-up:** Job Archiving, LimitsService resume monitor,
+- **Scheduler follow-up:** Job Archiving, Limiter resume monitor,
   Multithreading backlog-starvation recovery.
 - **Blocked by Job Archiving:** Async UI Archive tab.
 - The owner expects to build **Scheduler MVP1** before finishing Async.
