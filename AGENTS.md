@@ -319,6 +319,7 @@ tool's detail up front.
 | `RecordBuffer` | [`lib/record-buffer/AGENTS.md`](force-app/bedrock/lib/record-buffer/AGENTS.md) |
 | `TriggerHandler` | [`lib/trigger-handler/AGENTS.md`](force-app/bedrock/lib/trigger-handler/AGENTS.md) |
 | `Async` (framework) | [`lib/async/AGENTS.md`](force-app/bedrock/lib/async/AGENTS.md) |
+| `Scheduler` | [`lib/scheduler/AGENTS.md`](force-app/bedrock/lib/scheduler/AGENTS.md) |
 | `Pluck` | [`lib/pluck/AGENTS.md`](force-app/bedrock/lib/pluck/AGENTS.md) |
 | `FeatureFlag` | [`lib/feature-flag/AGENTS.md`](force-app/bedrock/lib/feature-flag/AGENTS.md) |
 

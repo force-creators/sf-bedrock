@@ -29,7 +29,7 @@ keep the exposed levers intentionally light.
 | Async (features + Console UI) | [`lib/async/ROADMAP.md`](force-app/bedrock/lib/async/ROADMAP.md) | Active — Retry, Priority, Performance Tracking, SettingsService, MetadataService, Job Archiving, Completed/Archive tabs |
 | ThreadService / Multithreading | [`lib/thread-service/ROADMAP.md`](force-app/bedrock/lib/thread-service/ROADMAP.md) | Shared infra — concurrency cap + handoff |
 | LimitsService | [`lib/limits-service/ROADMAP.md`](force-app/bedrock/lib/limits-service/ROADMAP.md) | Shared infra — org-health gate |
-| Scheduler | [`lib/scheduler/ROADMAP.md`](force-app/bedrock/lib/scheduler/ROADMAP.md) | Next framework (MVP1) |
+| Scheduler | [`lib/scheduler/ROADMAP.md`](force-app/bedrock/lib/scheduler/ROADMAP.md) | Active MVP — cadence, metadata translation, runtime state |
 | Event | [`lib/event/ROADMAP.md`](force-app/bedrock/lib/event/ROADMAP.md) | Future framework |
 | Selector / Selector.Cached | [`lib/selector/ROADMAP.md`](force-app/bedrock/lib/selector/ROADMAP.md) | Future, builds on `Query` / `PlatformCache` |
 
@@ -42,7 +42,7 @@ orphaned `Running` reaper, bulk-enqueue chunking) live with the Async roadmap.
   MetadataService, Async UI Completed tab.
 - **After SettingsService Bucket 1:** Multithreading core (cap + handoff; needs
   `Max_Threads__c` and a new `Thread_Context__c` object).
-- **Blocked by Scheduler MVP1:** Job Archiving, LimitsService resume monitor,
+- **Scheduler follow-up:** Job Archiving, LimitsService resume monitor,
   Multithreading backlog-starvation recovery.
 - **Blocked by Job Archiving:** Async UI Archive tab.
 - The owner expects to build **Scheduler MVP1** before finishing Async.
