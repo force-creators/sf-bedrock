@@ -216,7 +216,8 @@ not deleted, so their run history stays visible.
 has never run, or when enough time has passed since `Last_Executed_At__c`.
 Scheduler enqueues each due job separately. After the Queueable finishes, it
 records the attempt time and either clears `Last_Error__c` or stores the thrown
-message.
+message. A Queueable Finalizer also records unhandled queueable failures, such
+as governor limit exceptions that cannot be caught by normal Apex `try/catch`.
 
 > Cadence is measured from the last run, not from the wall clock. A daily job
 > runs roughly 24 hours after it last ran. It does not align itself to midnight.
@@ -289,6 +290,10 @@ heartbeat.
 - **A bad job row does not stop the whole tick.** If `Apex__c` names a missing
   class or something that cannot be enqueued as a `Scheduler`, Scheduler records
   the error on that row and continues to the next due job.
+
+- **Unhandled queueable failures are recorded by a finalizer.** If a scheduler
+  job fails in a way normal Apex cannot catch, Scheduler still updates
+  `Last_Executed_At__c` and `Last_Error__c` from the finalizer transaction.
 
 - **Each job runs in its own Queueable.** Keep `execute()` bulk-safe and within a
   single Queueable's governor limits. Query once. Do not put SOQL or DML inside

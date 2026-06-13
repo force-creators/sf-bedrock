@@ -18,7 +18,9 @@ scheduler job that is due.
 
 - `Scheduler` is a `virtual` base class that also implements `Queueable`.
   Subclasses override `execute()` with no parameters; the framework wrapper
-  handles queueable execution and runtime-state updates.
+  handles queueable execution and runtime-state updates. It attaches a Queueable
+  Finalizer so unhandled queueable failures, including governor limit
+  exceptions, are recorded on the runtime row.
 - `SchedulerTick` is the top-level physical `Schedulable` entrypoint. It calls
   `Scheduler.tick()` directly so one tick can enqueue many logical queueables.
 - `Scheduler.schedule()` replaces existing `Bedrock Scheduler %` jobs and then
@@ -52,6 +54,7 @@ scheduler job that is due.
   clamped to a minimum of five minutes.
 - Run or enqueue failures for one logical row are recorded on that row and do
   not stop the rest of the tick.
+- Unhandled Queueable failures are recorded by `Scheduler.JobFinalizer`.
 - Outage recovery is intentionally simple: overdue jobs run once on the next
   successful tick. The framework does not replay every missed occurrence.
 - There is no missed-tick replay, outage backfill, or slot protection yet.

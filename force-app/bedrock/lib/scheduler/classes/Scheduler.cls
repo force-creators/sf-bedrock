@@ -39,6 +39,9 @@ public virtual with sharing class Scheduler implements Queueable {
 
     public void execute(QueueableContext context) {
         DateTime attemptedAt = System.now();
+        if (context != null && schedulerJobId != null) {
+            jobs.attachFinalizer(new JobFinalizer(schedulerJobId, attemptedAt));
+        }
 
         try {
             execute();
@@ -49,6 +52,10 @@ public virtual with sharing class Scheduler implements Queueable {
     }
 
     void recordExecution(DateTime attemptedAt, String errorMessage) {
+        recordExecution(schedulerJobId, attemptedAt, errorMessage);
+    }
+
+    static void recordExecution(Id schedulerJobId, DateTime attemptedAt, String errorMessage) {
         if (schedulerJobId == null) return;
 
         DML.updateRecords(new List<SObject> {
@@ -148,13 +155,7 @@ public virtual with sharing class Scheduler implements Queueable {
         public virtual void recordFailure(Scheduler__c job, DateTime attemptedAt, Exception error) {
             if (job.Id == null) return;
 
-            DML.updateRecords(new List<SObject> {
-                new Scheduler__c(
-                    Id = job.Id,
-                    Last_Executed_At__c = attemptedAt,
-                    Last_Error__c = truncateError(error.getMessage())
-                )
-            });
+            Scheduler.recordExecution(job.Id, attemptedAt, error.getMessage());
         }
 
         public virtual Boolean isDue(Scheduler__c job, DateTime now) {
@@ -189,6 +190,10 @@ public virtual with sharing class Scheduler implements Queueable {
             Integer amount = interval(value);
             if (unit == MINUTES && amount < 5) return 5;
             return amount;
+        }
+
+        public virtual void attachFinalizer(Finalizer finalizer) {
+            System.attachFinalizer(finalizer);
         }
     }
 
@@ -284,6 +289,30 @@ public virtual with sharing class Scheduler implements Queueable {
     public with sharing class ScheduleTick implements Schedulable {
         public void execute(SchedulableContext context) {
             Scheduler.tick();
+        }
+    }
+
+    public with sharing class JobFinalizer implements Finalizer {
+        Id schedulerJobId;
+        DateTime attemptedAt;
+
+        public JobFinalizer(Id schedulerJobId, DateTime attemptedAt) {
+            this.schedulerJobId = schedulerJobId;
+            this.attemptedAt = attemptedAt;
+        }
+
+        public void execute(FinalizerContext context) {
+            recordResult(context.getResult(), context.getException());
+        }
+
+        @testVisible void recordResult(ParentJobResult result, Exception error) {
+            if (result == ParentJobResult.SUCCESS) return;
+
+            Scheduler.recordExecution(
+                schedulerJobId,
+                attemptedAt,
+                error == null ? String.valueOf(result) : error.getMessage()
+            );
         }
     }
 

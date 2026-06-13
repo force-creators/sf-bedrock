@@ -260,6 +260,31 @@ public with sharing class SchedulerTest {
         Assert.areEqual('Scheduler job failed.', updatedJob.Last_Error__c, 'Expected the scheduler to persist the thrown error message.');
     }
 
+    @istest static void testJobFinalizer_skipsSuccessfulQueueableResult() {
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+
+        new Scheduler.JobFinalizer(schedulerId(), System.now()).recordResult(ParentJobResult.SUCCESS, null);
+
+        Assert.areEqual(0, dmlMock.updates.size(), 'Expected successful queueable results to be recorded by the normal execution path only.');
+    }
+
+    @istest static void testJobFinalizer_recordsUnhandledQueueableFailure() {
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Id schedulerJobId = schedulerId();
+        DateTime attemptedAt = System.now();
+
+        new Scheduler.JobFinalizer(schedulerJobId, attemptedAt)
+            .recordResult(null, new Scheduler.SchedulerException('Too many SOQL queries: 101'));
+
+        Assert.areEqual(1, dmlMock.updates.size(), 'Expected finalizer failures to update the scheduler runtime row.');
+        Scheduler__c updatedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Assert.areEqual(schedulerJobId, updatedJob.Id, 'Expected the finalizer to update the scheduler row for the failed queueable.');
+        Assert.areEqual(attemptedAt, updatedJob.Last_Executed_At__c, 'Expected the finalizer to preserve the queueable attempt time.');
+        Assert.areEqual('Too many SOQL queries: 101', updatedJob.Last_Error__c, 'Expected finalizer failures to persist the unhandled queueable error message.');
+    }
+
     @istest static void testTick_recordsRunErrorAndContinuesToNextJob() {
         successfulExecutions = 0;
         Scheduler__c badJob = job('BadJob', 'MissingSchedulerJob', true, null);

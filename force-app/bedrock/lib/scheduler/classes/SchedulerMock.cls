@@ -32,12 +32,17 @@ public with sharing class SchedulerMock {
     }
 
     public with sharing class JobService extends Scheduler.JobService {
+        public Finalizer finalizer;
         public List<Scheduler__c> ranJobs = new List<Scheduler__c>();
 
         public override void run(Scheduler__c job) {
             ranJobs.add(job);
             Scheduler task = (Scheduler) Type.forName(job.Apex__c).newInstance();
             task.setSchedulerJob(job.Id).execute(null);
+        }
+
+        public override void attachFinalizer(Finalizer finalizer) {
+            this.finalizer = finalizer;
         }
     }
 
