@@ -34,7 +34,7 @@ and `Days` cadence values using `Last_Executed_At__c` as the reference point.
 
 ## Future Roadmap
 
-- **Missed tic and backfill policy:** decide whether any job needs replay of
+- **Missed tick and backfill policy:** decide whether any job needs replay of
   each missed occurrence, or whether "run once when overdue" remains the
   framework default. If replay is needed, add explicit per-job configuration so
   maintenance jobs do not accidentally create backlog surges.
@@ -52,7 +52,7 @@ and `Days` cadence values using `Last_Executed_At__c` as the reference point.
 
 ## Non-Goals For MVP
 
-- No replay of every missed tic.
+- No replay of every missed tick.
 - No per-job Salesforce cron schedules.
 - No multiple physical scheduler slots.
 - No queueable concurrency cap beyond platform limits.
