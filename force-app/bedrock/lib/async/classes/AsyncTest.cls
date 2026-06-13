@@ -124,9 +124,9 @@ public with sharing class AsyncTest {
     }
 
     @istest static void testMetadataService_fallsBackToDefaultWhenNoConfigRow() {
-        Async_Config__mdt config = new Async.MetadataService().getConfig('No_Such_Async_Config_Row');
+        Async_Job__mdt config = new Async.MetadataService().getConfig('No_Such_Async_Job_Row');
 
-        Assert.areEqual(5, config.Batch_Size__c, 'Expected the default batch size when no Async_Config__mdt row exists for the job type.');
+        Assert.areEqual(5, config.Batch_Size__c, 'Expected the default batch size when no Async_Job__mdt row exists for the job type.');
         Assert.areEqual(null, config.Max_Retries__c, 'Expected no Max_Retries__c on the default config so auto-retry stays off.');
         Assert.areEqual(0, config.Priority__c, 'Expected the default priority to seed work items at the lowest priority when no config row exists.');
     }
@@ -134,7 +134,7 @@ public with sharing class AsyncTest {
     @istest static void testCreate_seedsConfiguredPriorityOnWorkItems() {
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
-        Async.setMock(new AsyncMock().config(MyPriorityAsync.class, new Async_Config__mdt(Priority__c = 42)));
+        Async.setMock(new AsyncMock().config(MyPriorityAsync.class, new Async_Job__mdt(Priority__c = 42)));
 
         List<SObject> contacts = new TestData(Contact.sObjectType)
             .mockIds()
@@ -152,7 +152,7 @@ public with sharing class AsyncTest {
     @istest static void testCreate_defaultsPriorityToLowestWhenConfigMissingOrBlank() {
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
-        Async.setMock(new AsyncMock().config(MyBlankPriorityAsync.class, new Async_Config__mdt()));
+        Async.setMock(new AsyncMock().config(MyBlankPriorityAsync.class, new Async_Job__mdt()));
 
         List<SObject> contacts = new TestData(Contact.sObjectType)
             .mockIds()
@@ -181,8 +181,8 @@ public with sharing class AsyncTest {
         insert contacts;
 
         AsyncMock mock = new AsyncMock()
-            .config(MyPriorityAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Priority__c = 100))
-            .config(MyLowPriorityAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Priority__c = 1));
+            .config(MyPriorityAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Priority__c = 100))
+            .config(MyLowPriorityAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Priority__c = 1));
         Async.setMock(mock);
 
         Async.enqueue(MyLowPriorityAsync.class, new Set<Id> { contacts[1].Id });
@@ -233,7 +233,7 @@ public with sharing class AsyncTest {
 
     @istest static void testShouldAutoRetry_respectsConfiguredCap() {
         AsyncMock mock = new AsyncMock()
-            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 3));
+            .config(MyTestAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Max_Retries__c = 3));
         Async.setMock(mock);
 
         Async.JobService jobs = new Async.JobService();
@@ -251,7 +251,7 @@ public with sharing class AsyncTest {
 
     @istest static void testShouldAutoRetry_offWhenMaxAbsentOrZero() {
         AsyncMock mock = new AsyncMock()
-            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 0));
+            .config(MyTestAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Max_Retries__c = 0));
         Async.setMock(mock);
 
         Async.JobService jobs = new Async.JobService();
@@ -259,7 +259,7 @@ public with sharing class AsyncTest {
         Assert.isFalse(jobs.shouldAutoRetry(new Async__c(Apex__c = String.valueOf(MyTestAsync.class), Retry_Count__c = 0)),
             'Expected auto-retry off when Max_Retries__c is zero.');
         Assert.isFalse(jobs.shouldAutoRetry(new Async__c(Apex__c = 'Unconfigured_Async_Class', Retry_Count__c = 0)),
-            'Expected auto-retry off when no Async_Config__mdt row supplies Max_Retries__c.');
+            'Expected auto-retry off when no Async_Job__mdt row supplies Max_Retries__c.');
     }
 
     @istest static void testAutoRetry_incrementsRetryCountAndRepends() {
@@ -292,7 +292,7 @@ public with sharing class AsyncTest {
         insert contact;
 
         AsyncMock mock = new AsyncMock()
-            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 2));
+            .config(MyTestAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Max_Retries__c = 2));
         Async.setMock(mock);
 
         String apex = String.valueOf(MyTestAsync.class);
@@ -318,7 +318,7 @@ public with sharing class AsyncTest {
         insert contact;
 
         AsyncMock mock = new AsyncMock()
-            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 0));
+            .config(MyTestAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Max_Retries__c = 0));
         Async.setMock(mock);
 
         Async__c item = new Async__c(
@@ -376,7 +376,7 @@ public with sharing class AsyncTest {
 
         AsyncMock mock = new AsyncMock()
             .canEnqueue()
-            .config(MyTestAsync.class, new Async_Config__mdt(Batch_Size__c = 5, Max_Retries__c = 2));
+            .config(MyTestAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Max_Retries__c = 2));
         Async.setMock(mock);
 
         Async__c workItem = new Async__c(
@@ -400,9 +400,9 @@ public with sharing class AsyncTest {
     public with sharing class CountingMetadataService extends Async.MetadataService {
         public Integer loadCount = 0;
 
-        protected override Async_Config__mdt loadConfig(String apexClass) {
+        protected override Async_Job__mdt loadConfig(String apexClass) {
             this.loadCount++;
-            return new Async_Config__mdt(Batch_Size__c = 5);
+            return new Async_Job__mdt(Batch_Size__c = 5);
         }
     }
 

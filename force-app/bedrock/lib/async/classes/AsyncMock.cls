@@ -19,7 +19,7 @@ public with sharing class AsyncMock {
         return this;
     }
 
-    public AsyncMock config(Type jobType, Async_Config__mdt config) {
+    public AsyncMock config(Type jobType, Async_Job__mdt config) {
         this.metadata.configByApex.put(String.valueOf(jobType), config);
         return this;
     }
@@ -53,9 +53,9 @@ public with sharing class AsyncMock {
     }
 
     public with sharing class MetadataService extends Async.MetadataService {
-        public Map<String, Async_Config__mdt> configByApex = new Map<String, Async_Config__mdt>();
+        public Map<String, Async_Job__mdt> configByApex = new Map<String, Async_Job__mdt>();
 
-        public override Async_Config__mdt getConfig(String apexClass) {
+        public override Async_Job__mdt getConfig(String apexClass) {
             if (this.configByApex.containsKey(apexClass)) {
                 return this.configByApex.get(apexClass);
             }

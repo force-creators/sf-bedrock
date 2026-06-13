@@ -102,14 +102,14 @@ Split into two buckets:
 > `../limits-service/ROADMAP.md`. SettingsService Bucket 1 unblocks the
 > multithreading core.
 
-## MetadataService — cached `Async_Config__mdt` reads
+## MetadataService — cached `Async_Job__mdt` reads
 
 Status: **implemented.** `Async.MetadataService` is the fourth injectable
-singleton (`Async.metadata`); it owns all `Async_Config__mdt` reads behind a
+singleton (`Async.metadata`); it owns all `Async_Job__mdt` reads behind a
 transaction-scoped cache keyed by Apex name, `QueryService.getJobConfig`
 delegates to it, and `AsyncMock.config(...)` injects config without DML.
 
-Remaining roadmap tie-in: when no `Async_Config__mdt` row exists it currently
+Remaining roadmap tie-in: when no `Async_Job__mdt` row exists it currently
 returns a default `Batch_Size__c = 5`. Once `Default_Batch_Size__c` lands in
 Bucket 2, the no-row fallback should read that value from
 `Async.SettingsService` instead of the hard-coded default.
@@ -120,7 +120,7 @@ Status: unblocked.
 
 Dispatch already orders the backlog by `Priority__c DESC`, but nothing currently
 sets it, so every work item is equal priority. Add an optional `Priority__c`
-(Number) to `Async_Config__mdt`; at enqueue, `WorkService` seeds each work
+(Number) to `Async_Job__mdt`; at enqueue, `WorkService` seeds each work
 item's `Priority__c` from that job type's config (via `MetadataService`),
 defaulting to the lowest priority when no config row or value exists. Priority is
 configuration-driven only — there is no per-call priority argument on
@@ -151,7 +151,7 @@ count).
 # Async UI (Bedrock Console)
 
 The console already has **Dashboard**, **Backlog**, **Errors**, and **Jobs**
-tabs (Jobs lists the configured `Async_Config__mdt` records). The outstanding UI
+tabs (Jobs lists the configured `Async_Job__mdt` records). The outstanding UI
 work is two new tabs:
 
 ## Completed tab

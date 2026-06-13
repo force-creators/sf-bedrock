@@ -9,7 +9,7 @@ const COLUMNS = [
         typeAttributes: {
             label: 'Open',
             name: 'open',
-            title: 'Open job configuration',
+            title: 'Open async job metadata',
             variant: 'base'
         }
     },
@@ -73,6 +73,6 @@ export default class AsyncJobConfigurations extends LightningElement {
             return error.body.map((entry) => entry.message).join(', ');
         }
 
-        return error?.body?.message || error?.message || 'Unable to load async job configurations.';
+        return error?.body?.message || error?.message || 'Unable to load async jobs.';
     }
 }

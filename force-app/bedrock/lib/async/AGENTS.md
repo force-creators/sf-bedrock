@@ -39,26 +39,26 @@ today; inspect the code before depending on exact behavior.
 - `AsyncThread` is a Queueable that adopts a thread id and asks
   `jobs.enqueueNextJob()` to dispatch the next pending work for that thread.
 - `JobService.enqueueNextJob()` selects the next pending work item FIFO
-  (`ORDER BY Priority__c DESC, CreatedDate ASC`), reads `Async_Config__mdt` for
+  (`ORDER BY Priority__c DESC, CreatedDate ASC`), reads `Async_Job__mdt` for
   the batch size (default 5), pulls a matching batch of same-Apex work items,
   instantiates the Apex job by name, and enqueues it as `Running`.
 - `WorkService.create(...)` seeds each `Async__c.Priority__c` from the job
-  type's `Async_Config__mdt.Priority__c`. Missing config rows or blank priority
+  type's `Async_Job__mdt.Priority__c`. Missing config rows or blank priority
   values fall back to `0`, which is the framework's lowest priority.
 - `Async.JobWatcher` (a `Finalizer`) marks the batch `Done` and chains the next
   job on success. On failure it delegates to `JobService.handleFailure`, which
   reads each item's `Retry_Count__c`, compares it against the job type's
-  `Async_Config__mdt.Max_Retries__c` (via `JobService.shouldAutoRetry`), and
+  `Async_Job__mdt.Max_Retries__c` (via `JobService.shouldAutoRetry`), and
   partitions the batch: items under the cap are re-pended with
   `Retry_Count__c` incremented (`WorkService.autoRetry`) so the chain re-runs
   them, and items at/over the cap (or with no/zero `Max_Retries__c`) record a
   terminal `Error` with truncated message/stack trace. The finalizer then chains
   the next job. Manual `Error → Pending` flips are unbounded, always honored, and
   never increment `Retry_Count__c` (`AsyncFilters.shouldRetry` is unchanged).
-- `Async.MetadataService` owns all `Async_Config__mdt` reads behind a
+- `Async.MetadataService` owns all `Async_Job__mdt` reads behind a
   transaction-scoped cache keyed by Apex name, so repeated config reads for the
   same job type across a chained-job transaction issue one query.
-  `QueryService.getJobConfig` delegates to it; no inline `Async_Config__mdt` SOQL
+  `QueryService.getJobConfig` delegates to it; no inline `Async_Job__mdt` SOQL
   remains in `QueryService`. When no config row exists for a job type it returns
   a default with `Batch_Size__c = 5` and `Priority__c = 0` (the
   `SettingsService` `Default_Batch_Size__c` fallback is still roadmap).
@@ -69,11 +69,11 @@ today; inspect the code before depending on exact behavior.
   them.
 - `WorkService` owns the `Async__c` status transitions (`create`, `running`,
   `complete`, `fail`, `retry`, `autoRetry`) through `DML`. `QueryService` owns
-  the `Async__c` reads through `Query`; `Async_Config__mdt` reads live in
+  the `Async__c` reads through `Query`; `Async_Job__mdt` reads live in
   `MetadataService`.
 - `AsyncMock` provides test subclasses of the five services, including a
   `canEnqueue()` toggle, a bounded `maximumQueueableStackDepth` thread start, a
-  `config(Type, Async_Config__mdt)` seam that injects job-type config into the
+  `config(Type, Async_Job__mdt)` seam that injects job-type config into the
   `MetadataService` cache without DML, and `seedSettings(Async_Settings__c)` for
   the settings cache.
 - `Async.AsyncException` is the framework's error type.
@@ -82,9 +82,9 @@ today; inspect the code before depending on exact behavior.
 
 This framework relies on the `Async__c` object (fields `Apex__c`,
 `Record_Id__c`, `Status__c`, `Thread__c`, `Priority__c`, `Retry_Count__c`,
-`Error_Message__c`, `Error_Stack_Trace__c`) and the `Async_Config__mdt` type
-(`Apex__c`, `Batch_Size__c`, `Max_Retries__c`, `Priority__c`), both under
-plus the hierarchical custom setting `Async_Settings__c`, all under
+`Error_Message__c`, `Error_Stack_Trace__c`) and the `Async_Job__mdt` type
+(`Apex__c`, `Batch_Size__c`, `Max_Retries__c`, `Priority__c`), plus the
+hierarchical custom setting `Async_Settings__c`, all under
 `force-app/bedrock/lib/async/objects`. `Retry_Count__c` (default `0`) tracks how
 many times the framework has re-run an item; `Max_Retries__c` (absent/`0` ⇒
 auto-retry off) caps framework auto-retries per job type. `Priority__c`

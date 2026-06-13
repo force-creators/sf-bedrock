@@ -3,9 +3,9 @@ public with sharing class AsyncJobConfigurationsController {
     public static List<JobConfigurationRow> getJobConfigurations() {
         List<JobConfigurationRow> rows = new List<JobConfigurationRow>();
 
-        for (Async_Config__mdt config : [
+        for (Async_Job__mdt config : [
             SELECT Id, DeveloperName, MasterLabel, Apex__c, Batch_Size__c
-            FROM Async_Config__mdt
+            FROM Async_Job__mdt
             WITH USER_MODE
             ORDER BY DeveloperName ASC
             LIMIT 500
@@ -23,7 +23,7 @@ public with sharing class AsyncJobConfigurationsController {
         @AuraEnabled public String apexClass;
         @AuraEnabled public Decimal batchSize;
 
-        public JobConfigurationRow(Async_Config__mdt config) {
+        public JobConfigurationRow(Async_Job__mdt config) {
             this.id = config.Id;
             this.developerName = config.DeveloperName;
             this.label = config.MasterLabel;

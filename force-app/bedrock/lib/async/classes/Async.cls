@@ -113,7 +113,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             Async__c nextWorkItem = queries.getNextWorkItem(this.threadId);
             System.debug(nextWorkItem);
             if(nextWorkItem == null) return; //todo: this should never happen, throw an exception and alert.
-            Async_Config__mdt config = queries.getJobConfig(nextWorkItem.Apex__c);
+            Async_Job__mdt config = queries.getJobConfig(nextWorkItem.Apex__c);
             List<Async__c> workItems = Async.queries.getMatchingWorkItems(
                 this.threadId, nextWorkItem.Apex__c, Integer.valueOf(config.Batch_Size__c));
             Set<Id> workItemIds = Pluck.ids(workItems);
@@ -380,29 +380,29 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             return workItems;
         }
 
-        public virtual Async_Config__mdt getJobConfig(String apexClass) {
+        public virtual Async_Job__mdt getJobConfig(String apexClass) {
             return Async.metadata.getConfig(apexClass);
         }
     }
 
     public virtual with sharing class MetadataService {
-        @testVisible Map<String, Async_Config__mdt> configByApex = new Map<String, Async_Config__mdt>();
+        @testVisible Map<String, Async_Job__mdt> configByApex = new Map<String, Async_Job__mdt>();
 
-        public virtual Async_Config__mdt getConfig(String apexClass) {
+        public virtual Async_Job__mdt getConfig(String apexClass) {
             if (!this.configByApex.containsKey(apexClass)) {
                 this.configByApex.put(apexClass, this.loadConfig(apexClass));
             }
             return this.configByApex.get(apexClass);
         }
 
-        protected virtual Async_Config__mdt loadConfig(String apexClass) {
-            List<Async_Config__mdt> configs = (List<Async_Config__mdt>) Query.records([
+        protected virtual Async_Job__mdt loadConfig(String apexClass) {
+            List<Async_Job__mdt> configs = (List<Async_Job__mdt>) Query.records([
                 SELECT Apex__c, Batch_Size__c, Max_Retries__c, Priority__c
-                FROM Async_Config__mdt
+                FROM Async_Job__mdt
                 WHERE Apex__c = :apexClass
                 LIMIT 1
             ]);
-            return !configs.isEmpty() ? configs[0] : new Async_Config__mdt(Batch_Size__c = 5, Priority__c = 0);
+            return !configs.isEmpty() ? configs[0] : new Async_Job__mdt(Batch_Size__c = 5, Priority__c = 0);
         }
     }
 

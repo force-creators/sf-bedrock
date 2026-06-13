@@ -218,7 +218,7 @@ Queueable transaction.
 ## Configuration
 
 By default the framework processes **5 work items per batch**. You can change
-that per Apex class — without touching code — using the `Async_Config__mdt`
+that per Apex class — without touching code — using the `Async_Job__mdt`
 custom metadata type. Create a record with:
 
 | Field | Meaning |
@@ -244,14 +244,14 @@ instead of 5.
 Start at the default and raise the batch size only when you have measured that a
 batch comfortably fits inside one Queueable's limits.
 
-> If no `Async_Config__mdt` record exists for your class, the framework falls
+> If no `Async_Job__mdt` record exists for your class, the framework falls
 > back to a batch size of **5**. You only need a metadata record when you want
 > something other than the default.
 
 ### Bounded auto-retry
 
 When a batch fails, the framework can retry it for you instead of leaving every
-item in `Error`. Set `Max_Retries__c` on the job type's `Async_Config__mdt`
+item in `Error`. Set `Max_Retries__c` on the job type's `Async_Job__mdt`
 record to turn it on:
 
 - Each `Async__c` work item carries a `Retry_Count__c` (starts at `0`) that
@@ -391,7 +391,7 @@ thread that owns the work, and the current status.
 
 **Two: work drains in batches.** Bedrock pulls pending rows for one async class,
 marks that batch `Running`, and calls your `execute(Set<Id> ids)` method. The
-batch size comes from `Async_Config__mdt`, or from the default of 5 when no
+batch size comes from `Async_Job__mdt`, or from the default of 5 when no
 metadata record exists.
 
 **Three: every outcome is recorded.** Successful batches become `Done`. Failed
@@ -450,7 +450,7 @@ The framework relies on three schema artifacts in
 | `Error_Message__c` | Truncated exception message on failure (max 32,768 chars). |
 | `Error_Stack_Trace__c` | Truncated stack trace on failure (max 32,768 chars). |
 
-**`Async_Config__mdt`** (custom metadata type) — one record per subclass that
+**`Async_Job__mdt`** (custom metadata type) — one record per subclass that
 needs a non-default batch size or auto-retry:
 
 | Field | Purpose |
@@ -484,12 +484,12 @@ needs a non-default batch size or auto-retry:
 - **Tune batch size to the work.** Heavy jobs (callouts, large DML, CPU-intensive
   processing) need smaller batches to stay inside one Queueable's governor limits;
   light jobs can use larger batches to finish faster. Configure per class in
-  `Async_Config__mdt`; the default is 5.
+  `Async_Job__mdt`; the default is 5.
 - **Errors are recorded, not hidden.** A failing batch marks its work items
   `Error` with the message and stack trace saved on the `Async__c` record. Check
   there when a background job does not produce the expected results.
 - **Failed items can be retried two ways.** The framework auto-retries failures
-  up to `Async_Config__mdt.Max_Retries__c` (off by default), incrementing
+  up to `Async_Job__mdt.Max_Retries__c` (off by default), incrementing
   `Retry_Count__c` each time. Separately, flipping a failed `Async__c` row back to
   `Pending` (with the correct `Thread__c`) triggers `AsyncTriggerHandler` to start
   a new thread via `AsyncFilters.shouldRetry`. Manual flips are unbounded — they

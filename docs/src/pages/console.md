@@ -36,7 +36,7 @@ the frameworks already use.
 
 ## Async Views
 
-The Async console reads from `Async__c` and `Async_Config__mdt`.
+The Async console reads from `Async__c` and `Async_Job__mdt`.
 
 | View | What it helps with |
 | --- | --- |
@@ -44,7 +44,7 @@ The Async console reads from `Async__c` and `Async_Config__mdt`.
 | Backlog | Pending and running work grouped by thread, class, priority, record Id, and age. |
 | Errors | Failed work items with message and stack trace details. Operators can retry or delete selected errors when permissions allow it. |
 | Completed | Done work items, with search and sorting for recent history. |
-| Jobs | `Async_Config__mdt` rows so teams can see configured batch sizes and job labels. |
+| Jobs | `Async_Job__mdt` rows so teams can see configured batch sizes and job labels. |
 
 For day-to-day debugging, start with Errors. The stored stack trace usually tells
 you whether the fix belongs in the subscriber code, the data, or the job
