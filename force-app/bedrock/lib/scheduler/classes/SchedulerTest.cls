@@ -211,19 +211,36 @@ public with sharing class SchedulerTest {
         Assert.areEqual('Scheduler job failed.', updatedJob.Last_Error__c, 'Expected the scheduler to persist the thrown error message.');
     }
 
-    @istest static void testSchedule_usesFiveMinuteCron() {
+    @istest static void testSchedule_usesThreeOffsetCronJobs() {
         Test.startTest();
         Id jobId = Scheduler.schedule();
         Test.stopTest();
 
-        CronTrigger cronTrigger = [
-            SELECT CronExpression
+        List<CronTrigger> cronTriggers = [
+            SELECT CronExpression, CronJobDetail.Name
             FROM CronTrigger
-            WHERE Id = :jobId
-            LIMIT 1
+            WHERE CronJobDetail.Name LIKE 'Bedrock Scheduler %'
         ];
 
-        Assert.areEqual('0 0/5 * * * ? *', cronTrigger.CronExpression, 'Expected scheduler setup to use a five-minute cron expression.');
+        Set<String> cronExpressions = new Set<String>();
+        for (CronTrigger cronTrigger : cronTriggers) {
+            cronExpressions.add(cronTrigger.CronExpression);
+        }
+
+        Assert.isNotNull(jobId, 'Expected scheduler setup to return the first scheduled job id.');
+        Assert.areEqual(3, cronTriggers.size(), 'Expected scheduler setup to create three staggered scheduler jobs.');
+        Assert.isTrue(
+            cronExpressions.contains('0 0,15,30,45 * * * ? *'),
+            'Expected scheduler setup to create the top-of-window scheduler job.'
+        );
+        Assert.isTrue(
+            cronExpressions.contains('0 5,20,35,50 * * * ? *'),
+            'Expected scheduler setup to create the five-minute offset scheduler job.'
+        );
+        Assert.isTrue(
+            cronExpressions.contains('0 10,25,40,55 * * * ? *'),
+            'Expected scheduler setup to create the ten-minute offset scheduler job.'
+        );
     }
 
     static Id schedulerId() {
