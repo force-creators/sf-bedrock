@@ -1,0 +1,121 @@
+<template>
+    <section class="console-shell">
+        <div class="hero">
+            <div>
+                <p class="eyebrow">Bedrock Scheduler</p>
+                <h1>Upcoming Jobs</h1>
+                <p class="hero-copy">
+                    Live chronological view of scheduler runtime rows, last executions, and next planned runs.
+                </p>
+            </div>
+
+            <div class="hero-actions">
+                <lightning-badge label="Refreshes every 15 seconds"></lightning-badge>
+                <lightning-button
+                    label="Refresh Now"
+                    icon-name="utility:refresh"
+                    onclick={handleRefresh}
+                    disabled={isLoading}
+                ></lightning-button>
+            </div>
+        </div>
+
+        <template lwc:if={hasMetadataChanges}>
+            <div class="slds-notify slds-notify_alert warning-alert" role="alert">
+                <span class="slds-assistive-text">Warning</span>
+                <lightning-icon
+                    icon-name="utility:warning"
+                    size="x-small"
+                    variant="warning"
+                    class="alert-icon"
+                ></lightning-icon>
+                <span>
+                    Scheduler metadata changed. Runtime rows will be recalculated at
+                    <strong>{metadataRecalculationLabel}</strong>.
+                </span>
+            </div>
+        </template>
+
+        <template lwc:if={hasError}>
+            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+                <span class="slds-assistive-text">Error</span>
+                {errorMessage}
+            </div>
+        </template>
+
+        <div class="metrics">
+            <template for:each={metrics} for:item="metric">
+                <article key={metric.id} class={metric.className}>
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                </article>
+            </template>
+        </div>
+
+        <section class="timeline-card">
+            <div class="section-heading">
+                <div>
+                    <h2>Chronological Schedule</h2>
+                    <p>{lastRefreshedLabel}</p>
+                </div>
+                <template lwc:if={isLoading}>
+                    <lightning-spinner alternative-text="Loading scheduler jobs" size="small"></lightning-spinner>
+                </template>
+            </div>
+
+            <template lwc:if={hasJobs}>
+                <ol class="timeline">
+                    <template for:each={jobs} for:item="job">
+                        <li key={job.key} class={job.timelineClass}>
+                            <div class="timeline-marker" aria-hidden="true"></div>
+                            <article class="job-card">
+                                <div class="job-main">
+                                    <div>
+                                        <p class="job-key">{job.configKey}</p>
+                                        <h3>{job.apexClass}</h3>
+                                    </div>
+                                    <div class="badge-row">
+                                        <span class={job.statusClass}>{job.status}</span>
+                                        <template lwc:if={job.hasError}>
+                                            <span class="error-badge">Last run error</span>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <dl class="job-times">
+                                    <div>
+                                        <dt>Last ran</dt>
+                                        <dd>{job.lastExecutedLabel}</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Next run</dt>
+                                        <dd>{job.nextScheduledLabel}</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Cadence</dt>
+                                        <dd>{job.cadence}</dd>
+                                    </div>
+                                </dl>
+
+                                <template lwc:if={job.hasError}>
+                                    <div class="last-error">
+                                        <span>Last error</span>
+                                        <p>{job.lastError}</p>
+                                    </div>
+                                </template>
+                            </article>
+                        </li>
+                    </template>
+                </ol>
+            </template>
+
+            <template lwc:else>
+                <div class="empty-state">
+                    <lightning-icon icon-name="utility:clock" size="medium"></lightning-icon>
+                    <h3>No scheduler runtime rows yet</h3>
+                    <p>Run the Scheduler heartbeat once to translate metadata into runtime records.</p>
+                </div>
+            </template>
+        </section>
+    </section>
+</template>
