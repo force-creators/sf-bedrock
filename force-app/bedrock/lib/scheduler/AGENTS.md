@@ -49,4 +49,8 @@ that is due.
   are disabled so runtime history remains available.
 - Cadence is based on `Last_Executed_At__c`. `Every 5 Minutes` jobs run on every
   tick; `Hours` and `Days` jobs run once they are overdue by `Interval__c`.
+- Outage recovery is intentionally simple: overdue jobs run once on the next
+  successful tick. The framework does not replay every missed occurrence.
 - There is no missed-tic replay, outage backfill, or slot protection yet.
+- Future discussion for missed-tic replay, concurrency caps, and additional
+  cadence types belongs in `ROADMAP.md`, not in the implemented contract.
