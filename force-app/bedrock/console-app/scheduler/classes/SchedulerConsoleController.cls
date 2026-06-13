@@ -38,6 +38,10 @@ public with sharing class SchedulerConsoleController {
             }
         }
 
+        for (Scheduler_Config__mdt config : queries.getJobConfigurations()) {
+            state.jobConfigurations.add(new JobConfigurationRow(config));
+        }
+
         return state;
     }
 
@@ -113,6 +117,7 @@ public with sharing class SchedulerConsoleController {
         @AuraEnabled public Integer dueJobCount = 0;
         @AuraEnabled public Integer errorJobCount = 0;
         @AuraEnabled public List<JobRow> jobs = new List<JobRow>();
+        @AuraEnabled public List<JobConfigurationRow> jobConfigurations = new List<JobConfigurationRow>();
     }
 
     public virtual with sharing class QueryService {
@@ -123,6 +128,39 @@ public with sharing class SchedulerConsoleController {
                 FROM Scheduler__c
                 ORDER BY Next_Run_At__c ASC NULLS LAST, Config_Key__c ASC
             ]);
+        }
+
+        public virtual List<Scheduler_Config__mdt> getJobConfigurations() {
+            return [
+                SELECT Id, DeveloperName, MasterLabel, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c
+                FROM Scheduler_Config__mdt
+                WITH USER_MODE
+                ORDER BY DeveloperName ASC
+                LIMIT 500
+            ];
+        }
+    }
+
+    public class JobConfigurationRow {
+        @AuraEnabled public Id id;
+        @AuraEnabled public String developerName;
+        @AuraEnabled public String label;
+        @AuraEnabled public String apexClass;
+        @AuraEnabled public Boolean isEnabled;
+        @AuraEnabled public String frequency;
+        @AuraEnabled public String frequencyValue;
+        @AuraEnabled public String cadence;
+
+        JobConfigurationRow(Scheduler_Config__mdt config) {
+            this.id = config.Id;
+            this.developerName = config.DeveloperName;
+            this.label = config.MasterLabel;
+            this.apexClass = config.Apex__c;
+            this.isEnabled = config.Is_Enabled__c;
+            this.frequency = frequency(config.Frequency__c);
+            Integer amount = interval(config.Frequency_Value__c, this.frequency);
+            this.frequencyValue = String.valueOf(amount);
+            this.cadence = cadenceLabel(this.frequency, amount);
         }
     }
 

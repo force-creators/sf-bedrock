@@ -144,6 +144,10 @@ h1 {
     padding: var(--lwc-spacingLarge, 1.5rem);
 }
 
+.tab-panel {
+    padding-top: var(--lwc-spacingMedium, 1rem);
+}
+
 .section-heading {
     align-items: center;
     border-bottom: 1px solid var(--lwc-colorBorder, #dddbda);

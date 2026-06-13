@@ -6,6 +6,7 @@ public with sharing class SchedulerConsoleControllerTest {
         SchedulerMock mock = new SchedulerMock()
             .config(new Scheduler_Config__mdt(
                 DeveloperName = 'HourlyJob',
+                MasterLabel = 'Hourly Job',
                 Apex__c = 'HourlyJob',
                 Is_Enabled__c = true,
                 Frequency__c = Scheduler.HOURS,
@@ -30,7 +31,7 @@ public with sharing class SchedulerConsoleControllerTest {
                 Last_Error__c = 'Previous failure'
             ));
         Scheduler.setMock(mock);
-        SchedulerConsoleController.setQueryService(new QueryServiceMock(mock.queries.jobs));
+        SchedulerConsoleController.setQueryService(new QueryServiceMock(mock.queries.jobs, mock.metadata.configs));
 
         Test.startTest();
         SchedulerConsoleController.ConsoleState state = SchedulerConsoleController.getSchedule();
@@ -59,6 +60,11 @@ public with sharing class SchedulerConsoleControllerTest {
             state.errorJobCount,
             'The console should count scheduler jobs with a stored last error.'
         );
+        Assert.areEqual(
+            1,
+            state.jobConfigurations.size(),
+            'The console should return Scheduler custom metadata configuration rows.'
+        );
 
         SchedulerConsoleController.JobRow hourlyRow = findRow(state.jobs, 'HourlyJob');
         Assert.areEqual(
@@ -75,6 +81,16 @@ public with sharing class SchedulerConsoleControllerTest {
             'Scheduled',
             hourlyRow.status,
             'A future enabled job should be shown as scheduled.'
+        );
+        Assert.areEqual(
+            'Hourly Job',
+            state.jobConfigurations[0].label,
+            'The console should include the metadata label for the Jobs tab.'
+        );
+        Assert.areEqual(
+            'Every 3 hours',
+            state.jobConfigurations[0].cadence,
+            'The console should render readable cadence labels for configuration rows.'
         );
 
         SchedulerConsoleController.JobRow disabledRow = findRow(state.jobs, 'DisabledJob');
@@ -99,6 +115,7 @@ public with sharing class SchedulerConsoleControllerTest {
         SchedulerMock mock = new SchedulerMock()
             .config(new Scheduler_Config__mdt(
                 DeveloperName = 'ChangedJob',
+                MasterLabel = 'Changed Job',
                 Apex__c = 'ChangedJob',
                 Is_Enabled__c = true,
                 Frequency__c = Scheduler.MINUTES,
@@ -113,7 +130,7 @@ public with sharing class SchedulerConsoleControllerTest {
                 Metadata_Hash__c = 'stale'
             ));
         Scheduler.setMock(mock);
-        SchedulerConsoleController.setQueryService(new QueryServiceMock(mock.queries.jobs));
+        SchedulerConsoleController.setQueryService(new QueryServiceMock(mock.queries.jobs, mock.metadata.configs));
 
         Test.startTest();
         SchedulerConsoleController.ConsoleState state = SchedulerConsoleController.getSchedule();
@@ -206,13 +223,23 @@ public with sharing class SchedulerConsoleControllerTest {
 
     class QueryServiceMock extends SchedulerConsoleController.QueryService {
         List<Scheduler__c> jobs;
+        List<Scheduler_Config__mdt> configs;
 
         QueryServiceMock(List<Scheduler__c> jobs) {
+            this(jobs, new List<Scheduler_Config__mdt>());
+        }
+
+        QueryServiceMock(List<Scheduler__c> jobs, List<Scheduler_Config__mdt> configs) {
             this.jobs = jobs;
+            this.configs = configs;
         }
 
         public override List<Scheduler__c> getJobs() {
             return jobs;
+        }
+
+        public override List<Scheduler_Config__mdt> getJobConfigurations() {
+            return configs;
         }
     }
 }

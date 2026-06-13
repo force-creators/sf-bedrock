@@ -1,4 +1,5 @@
 import { LightningElement } from 'lwc';
+import { NavigationMixin } from 'lightning/navigation';
 import getSchedule from '@salesforce/apex/SchedulerConsoleController.getSchedule';
 
 const REFRESH_INTERVAL_MS = 15000;
@@ -11,9 +12,32 @@ const METRIC_DEFINITIONS = [
     { id: 'disabledJobCount', label: 'Disabled', className: 'metric metric-muted' }
 ];
 
-export default class SchedulerLayout extends LightningElement {
+const JOB_CONFIGURATION_COLUMNS = [
+    {
+        label: 'Open',
+        type: 'button',
+        initialWidth: 90,
+        typeAttributes: {
+            label: 'Open',
+            name: 'open',
+            title: 'Open scheduler job configuration',
+            variant: 'base'
+        }
+    },
+    { label: 'Developer Name', fieldName: 'developerName' },
+    { label: 'Label', fieldName: 'label' },
+    { label: 'Apex Class', fieldName: 'apexClass' },
+    { label: 'Enabled', fieldName: 'isEnabled', type: 'boolean', initialWidth: 110 },
+    { label: 'Frequency', fieldName: 'frequency', initialWidth: 130 },
+    { label: 'Value', fieldName: 'frequencyValue', initialWidth: 100 },
+    { label: 'Cadence', fieldName: 'cadence', initialWidth: 150 }
+];
+
+export default class SchedulerLayout extends NavigationMixin(LightningElement) {
     jobs = [];
     scheduleSections = [];
+    jobConfigurationColumns = JOB_CONFIGURATION_COLUMNS;
+    jobConfigurations = [];
     metrics = this.emptyMetrics();
     isLoading = false;
     errorMessage;
@@ -34,6 +58,15 @@ export default class SchedulerLayout extends LightningElement {
 
     get hasJobs() {
         return this.scheduleSections.length > 0;
+    }
+
+    get hasJobConfigurations() {
+        return this.jobConfigurations.length > 0;
+    }
+
+    get jobConfigurationCountLabel() {
+        const count = this.jobConfigurations.length;
+        return `${count} ${count === 1 ? 'configuration' : 'configurations'}`;
     }
 
     get hasError() {
@@ -92,9 +125,11 @@ export default class SchedulerLayout extends LightningElement {
             this.metrics = this.buildMetrics(state);
             this.jobs = this.buildJobs(state?.jobs || []);
             this.scheduleSections = this.groupJobs(this.jobs);
+            this.jobConfigurations = state?.jobConfigurations || [];
         } catch (error) {
             this.jobs = [];
             this.scheduleSections = [];
+            this.jobConfigurations = [];
             this.metrics = this.emptyMetrics();
             this.hasMetadataChanges = false;
             this.metadataRecalculationAt = undefined;
@@ -103,6 +138,23 @@ export default class SchedulerLayout extends LightningElement {
         } finally {
             this.lastRefreshedAt = new Date();
             this.isLoading = false;
+        }
+    }
+
+    handleJobConfigurationAction(event) {
+        const { action, row } = event.detail;
+
+        if (action.name === 'open' && row.id) {
+            this[NavigationMixin.GenerateUrl]({
+                type: 'standard__recordPage',
+                attributes: {
+                    recordId: row.id,
+                    objectApiName: 'Scheduler_Config__mdt',
+                    actionName: 'view'
+                }
+            }).then((url) => {
+                window.open(url, '_blank', 'noopener');
+            });
         }
     }
 
