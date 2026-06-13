@@ -8,8 +8,9 @@ sequencing and the "keep the pools separate" principle live in the repo root
 The current implementation provides twelve physical scheduled Apex jobs that
 together fire one heartbeat every five minutes. Each heartbeat translates
 `Scheduler_Config__mdt` into `Scheduler__c` when configuration changes, then
-enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`, and
-`Days` cadence units using `Frequency_Value__c` and `Next_Run_At__c`.
+enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`,
+`Days`, `Weeks`, and `Months` cadence units using `Frequency_Value__c` and
+`Next_Run_At__c`.
 
 ## Current MVP Scope
 
@@ -40,8 +41,8 @@ enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`, and
 - **Concurrency protection:** cap how many logical scheduler Queueables can be
   enqueued per tick, likely using the future ThreadService and LimitsService
   layer rather than local scheduler-only limits.
-- **Additional cadences:** consider time-of-day windows, weekday/monthly
-  schedules, and priority ordering only after real jobs prove the need.
+- **Additional cadences:** consider time-of-day windows, weekday rules, and
+  priority ordering only after real jobs prove the need.
 - **Operational state:** consider next planned run, last attempted run,
   consecutive failure count, and paused-until fields on `Scheduler__c` when
   correction logic needs them.

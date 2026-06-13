@@ -1,5 +1,14 @@
 public with sharing class SchedulerConsoleController {
     static final Integer REFRESH_INTERVAL_SECONDS = 15;
+    @testVisible static QueryService queries = new QueryService();
+
+    @testVisible static void setQueryService(QueryService queryService) {
+        queries = queryService;
+    }
+
+    @testVisible static void reset() {
+        queries = new QueryService();
+    }
 
     @AuraEnabled
     public static ConsoleState getSchedule() {
@@ -10,7 +19,7 @@ public with sharing class SchedulerConsoleController {
         state.hasMetadataChanges = Scheduler.metadata.hasChanged();
         state.metadataRecalculationAt = state.hasMetadataChanges ? nextHeartbeatAt(now) : null;
 
-        for (Scheduler__c job : Scheduler.queries.getJobsNotInKeys(new Set<String>())) {
+        for (Scheduler__c job : queries.getJobs()) {
             JobRow row = new JobRow(job, now);
             state.jobs.add(row);
 
@@ -46,6 +55,7 @@ public with sharing class SchedulerConsoleController {
 
     static Datetime nextScheduledAt(Scheduler__c job, Datetime now) {
         if (job.Is_Enabled__c != true) return null;
+        if (job.Next_Run_At__c != null) return job.Next_Run_At__c;
         if (job.Last_Executed_At__c == null) return now;
 
         String unit = frequency(job.Frequency__c);
@@ -53,6 +63,8 @@ public with sharing class SchedulerConsoleController {
 
         if (unit == Scheduler.HOURS) return job.Last_Executed_At__c.addHours(amount);
         if (unit == Scheduler.DAYS) return job.Last_Executed_At__c.addDays(amount);
+        if (unit == Scheduler.WEEKS) return job.Last_Executed_At__c.addDays(amount * 7);
+        if (unit == Scheduler.MONTHS) return job.Last_Executed_At__c.addMonths(amount);
         return job.Last_Executed_At__c.addMinutes(amount);
     }
 
@@ -73,7 +85,10 @@ public with sharing class SchedulerConsoleController {
         }
 
         if (amount < 1) amount = 1;
-        if (unit == Scheduler.MINUTES && amount < 5) return 5;
+        if (unit == Scheduler.MINUTES) return Math.min(55, amount < 5 ? 5 : amount);
+        if (unit == Scheduler.DAYS) return Math.min(31, amount);
+        if (unit == Scheduler.WEEKS) return Math.min(52, amount);
+        if (unit == Scheduler.MONTHS) return Math.min(12, amount);
         return amount;
     }
 
@@ -98,6 +113,17 @@ public with sharing class SchedulerConsoleController {
         @AuraEnabled public Integer dueJobCount = 0;
         @AuraEnabled public Integer errorJobCount = 0;
         @AuraEnabled public List<JobRow> jobs = new List<JobRow>();
+    }
+
+    public virtual with sharing class QueryService {
+        public virtual List<Scheduler__c> getJobs() {
+            return (List<Scheduler__c>) Query.records([
+                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c,
+                    Next_Run_At__c, Last_Executed_At__c, Last_Error__c
+                FROM Scheduler__c
+                ORDER BY Next_Run_At__c ASC NULLS LAST, Config_Key__c ASC
+            ]);
+        }
     }
 
     public class JobRow {

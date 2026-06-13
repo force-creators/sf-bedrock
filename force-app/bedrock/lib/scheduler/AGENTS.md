@@ -52,8 +52,10 @@ scheduler job that is due.
 - Cadence is based on `Next_Run_At__c`. New or newly enabled jobs wait one full
   configured interval before their first run, so the UI does not report a run
   before one actually happened. Queueable start delay must not push the next due
-  window later. `Minutes`, `Hours`, and `Days` jobs run once they reach
-  `Next_Run_At__c`. Minute values are clamped to a minimum of five minutes.
+  window later. `Minutes`, `Hours`, `Days`, `Weeks`, and `Months` jobs run once
+  they reach `Next_Run_At__c`. Minute values are clamped to `5` through `55`,
+  day values to `1` through `31`, week values to `1` through `52`, and month
+  values to `1` through `12`.
 - Run or enqueue failures for one logical row are recorded on that row and do
   not stop the rest of the tick.
 - Unhandled Queueable failures are recorded by `Scheduler.JobFinalizer`.

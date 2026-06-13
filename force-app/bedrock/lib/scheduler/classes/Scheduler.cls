@@ -3,6 +3,8 @@ public virtual with sharing class Scheduler implements Queueable {
     public static final String MINUTES = 'Minutes';
     public static final String HOURS = 'Hours';
     public static final String DAYS = 'Days';
+    public static final String WEEKS = 'Weeks';
+    public static final String MONTHS = 'Months';
     public static JobService jobs = new JobService();
     public static MetadataService metadata = new MetadataService();
     public static QueryService queries = new QueryService();
@@ -119,10 +121,11 @@ public virtual with sharing class Scheduler implements Queueable {
             }
 
             DateTime now = System.now();
+            DateTime heartbeatAt = getHeartbeatAt(now);
             for (Scheduler__c job : queries.getEnabledJobs()) {
-                if (!isDue(job, now)) continue;
+                if (!isDue(job, heartbeatAt)) continue;
                 try {
-                    recordNextRun(job.Id, getNextRunAt(job, now));
+                    recordNextRun(job.Id, getNextRunAt(job, heartbeatAt));
                     run(job);
                 } catch (Exception error) {
                     recordFailure(job, now, error);
@@ -133,7 +136,7 @@ public virtual with sharing class Scheduler implements Queueable {
         public virtual void translateMetadata() {
             List<Scheduler_Config__mdt> configs = metadata.getConfigs();
             String metadataHash = metadata.getHash(configs);
-            DateTime now = System.now();
+            DateTime heartbeatAt = getHeartbeatAt(System.now());
             Map<String, Scheduler__c> jobsByKey = new Map<String, Scheduler__c>();
 
             for (Scheduler__c job : queries.getJobsByKeys(metadata.getConfigKeys(configs))) {
@@ -165,7 +168,7 @@ public virtual with sharing class Scheduler implements Queueable {
                     job.Next_Run_At__c = null;
                 } else if (shouldResetNextRun(isNew, wasEnabled, job, previousFrequency, previousValue)) {
                     Boolean waitFromNow = isNew || (!wasEnabled && job.Is_Enabled__c == true) || job.Last_Executed_At__c == null;
-                    job.Next_Run_At__c = getInitialNextRunAt(job, now, unit, Integer.valueOf(value), waitFromNow);
+                    job.Next_Run_At__c = getInitialNextRunAt(job, heartbeatAt, unit, Integer.valueOf(value), waitFromNow);
                 }
                 jobs.add(job);
             }
@@ -214,9 +217,23 @@ public virtual with sharing class Scheduler implements Queueable {
             return addInterval(now, unit, amount);
         }
 
+        @testVisible DateTime getHeartbeatAt(DateTime now) {
+            DateTime minuteAt = DateTime.newInstanceGMT(
+                now.yearGmt(),
+                now.monthGmt(),
+                now.dayGmt(),
+                now.hourGmt(),
+                now.minuteGmt(),
+                0
+            );
+            return minuteAt.addMinutes(-Math.mod(now.minuteGmt(), 5));
+        }
+
         DateTime addInterval(DateTime anchor, String unit, Integer amount) {
             if (unit == HOURS) return anchor.addHours(amount);
             if (unit == DAYS) return anchor.addDays(amount);
+            if (unit == WEEKS) return anchor.addDays(amount * 7);
+            if (unit == MONTHS) return anchor.addMonths(amount);
             return anchor.addMinutes(amount);
         }
 
@@ -236,9 +253,12 @@ public virtual with sharing class Scheduler implements Queueable {
             }
         }
 
-        Integer interval(String value, String unit) {
+        @testVisible Integer interval(String value, String unit) {
             Integer amount = interval(value);
-            if (unit == MINUTES && amount < 5) return 5;
+            if (unit == MINUTES) return Math.min(55, amount < 5 ? 5 : amount);
+            if (unit == DAYS) return Math.min(31, amount);
+            if (unit == WEEKS) return Math.min(52, amount);
+            if (unit == MONTHS) return Math.min(12, amount);
             return amount;
         }
 

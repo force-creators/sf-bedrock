@@ -19,6 +19,8 @@ public with sharing class SchedulerTest {
         Scheduler.reset();
     }
 
+    static Scheduler.JobService jobService = new Scheduler.JobService();
+
     @istest static void testBaseExecute_requiresOverride() {
         try {
             new Scheduler().execute();
@@ -63,8 +65,9 @@ public with sharing class SchedulerTest {
         Assert.areEqual(expectedHash, archiveJob.Metadata_Hash__c, 'Expected translated jobs to store the metadata hash on the runtime row.');
         Assert.areEqual(expectedHash, staleJob.Metadata_Hash__c, 'Expected disabled stale jobs to store the metadata hash after translation.');
         Assert.areEqual(false, staleJob.Is_Enabled__c, 'Expected scheduler rows with no matching metadata config to be disabled.');
+        DateTime expectedHeartbeatAt = heartbeatAt(System.now());
         Assert.isNotNull(archiveJob.Next_Run_At__c, 'Expected translated jobs to receive an initial next run time.');
-        Assert.isTrue(archiveJob.Next_Run_At__c > System.now(), 'Expected translated jobs to wait for their first configured interval before running.');
+        Assert.areEqual(expectedHeartbeatAt.addHours(2), archiveJob.Next_Run_At__c, 'Expected translated jobs to schedule their first run from the normalized heartbeat time.');
         Assert.areEqual(null, archiveJob.Last_Executed_At__c, 'Expected metadata translation not to report a job execution.');
         Assert.areEqual(null, staleJob.Next_Run_At__c, 'Expected disabled stale jobs not to report a next run time.');
         Assert.areEqual(0, successfulExecutions, 'Expected translated enabled jobs not to run on their first scheduler tick.');
@@ -114,7 +117,7 @@ public with sharing class SchedulerTest {
         Assert.areEqual(2, dmlMock.updates.size(), 'Expected due jobs to record the heartbeat attempt and the queueable result separately.');
         Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
         Scheduler__c completedJob = (Scheduler__c) dmlMock.updates[1][0];
-        Assert.isNotNull(attemptedJob.Next_Run_At__c, 'Expected the heartbeat to advance the next run time before enqueueing.');
+        Assert.areEqual(heartbeatAt(System.now()).addMinutes(5), attemptedJob.Next_Run_At__c, 'Expected the heartbeat to advance the next run time from the normalized five-minute slot.');
         Assert.areEqual(null, attemptedJob.Last_Executed_At__c, 'Expected heartbeat scheduling not to report a job execution.');
         Assert.isNotNull(completedJob.Last_Executed_At__c, 'Expected queueable completion to record the actual execution time.');
         Assert.areEqual(null, completedJob.Last_Error__c, 'Expected a successful run to clear the previous error message.');
@@ -144,6 +147,8 @@ public with sharing class SchedulerTest {
 
         Assert.areEqual(1, successfulExecutions, 'Expected minute-based jobs to run once their interval has elapsed.');
         Assert.areEqual(2, dmlMock.updates.size(), 'Expected due minute-based jobs to record the heartbeat attempt and queueable result.');
+        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Assert.areEqual(heartbeatAt(System.now()).addMinutes(5), attemptedJob.Next_Run_At__c, 'Expected minute jobs to advance to the next normalized five-minute slot.');
     }
 
     @istest static void testTick_skipsMinuteJobBeforeInterval() {
@@ -224,6 +229,8 @@ public with sharing class SchedulerTest {
 
         Assert.areEqual(1, successfulExecutions, 'Expected overdue hourly jobs to run on the next scheduler tick.');
         Assert.areEqual(2, dmlMock.updates.size(), 'Expected overdue hourly jobs to record the heartbeat attempt and queueable result.');
+        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Assert.areEqual(heartbeatAt(System.now()).addHours(2), attemptedJob.Next_Run_At__c, 'Expected hourly jobs to advance from the normalized heartbeat time.');
     }
 
     @istest static void testTick_runsDailyJobAfterInterval() {
@@ -250,6 +257,64 @@ public with sharing class SchedulerTest {
 
         Assert.areEqual(1, successfulExecutions, 'Expected overdue daily jobs to run on the next scheduler tick.');
         Assert.areEqual(2, dmlMock.updates.size(), 'Expected overdue daily jobs to record the heartbeat attempt and queueable result.');
+        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Assert.areEqual(heartbeatAt(System.now()).addDays(2), attemptedJob.Next_Run_At__c, 'Expected daily jobs to advance from the normalized heartbeat time.');
+    }
+
+    @istest static void testTick_runsWeeklyJobAfterInterval() {
+        successfulExecutions = 0;
+        SchedulerMock mock = new SchedulerMock()
+            .seedCurrentHash()
+            .job(job(
+                'ArchiveJobs',
+                'SchedulerTest.SchedulerSuccessfulJob',
+                true,
+                null,
+                Scheduler.WEEKS,
+                '2',
+                System.now().addDays(-14)
+            ));
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
+        Test.startTest();
+        Scheduler.tick();
+        Test.stopTest();
+
+        Assert.areEqual(1, successfulExecutions, 'Expected overdue weekly jobs to run on the next scheduler tick.');
+        Assert.areEqual(2, dmlMock.updates.size(), 'Expected overdue weekly jobs to record the heartbeat attempt and queueable result.');
+        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Assert.areEqual(heartbeatAt(System.now()).addDays(14), attemptedJob.Next_Run_At__c, 'Expected weekly jobs to advance from the normalized heartbeat time.');
+    }
+
+    @istest static void testTick_runsMonthlyJobAfterInterval() {
+        successfulExecutions = 0;
+        SchedulerMock mock = new SchedulerMock()
+            .seedCurrentHash()
+            .job(job(
+                'ArchiveJobs',
+                'SchedulerTest.SchedulerSuccessfulJob',
+                true,
+                null,
+                Scheduler.MONTHS,
+                '2',
+                System.now().addMonths(-2)
+            ));
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
+        Test.startTest();
+        Scheduler.tick();
+        Test.stopTest();
+
+        Assert.areEqual(1, successfulExecutions, 'Expected overdue monthly jobs to run on the next scheduler tick.');
+        Assert.areEqual(2, dmlMock.updates.size(), 'Expected overdue monthly jobs to record the heartbeat attempt and queueable result.');
+        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Assert.areEqual(heartbeatAt(System.now()).addMonths(2), attemptedJob.Next_Run_At__c, 'Expected monthly jobs to advance from the normalized heartbeat time.');
     }
 
     @istest static void testTick_recordsErrorMessageWhenJobFails() {
@@ -268,7 +333,7 @@ public with sharing class SchedulerTest {
         Assert.areEqual(2, dmlMock.updates.size(), 'Expected failed jobs to record the heartbeat attempt and the queueable error separately.');
         Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
         Scheduler__c failedJob = (Scheduler__c) dmlMock.updates[1][0];
-        Assert.isNotNull(attemptedJob.Next_Run_At__c, 'Expected failed jobs to still advance the next run time before enqueueing.');
+        Assert.areEqual(heartbeatAt(System.now()).addMinutes(5), attemptedJob.Next_Run_At__c, 'Expected failed jobs to still advance the next run time from the normalized heartbeat slot.');
         Assert.areEqual(null, attemptedJob.Last_Executed_At__c, 'Expected heartbeat scheduling not to report a failed job execution.');
         Assert.isNotNull(failedJob.Last_Executed_At__c, 'Expected queueable failure recording to report the actual execution attempt.');
         Assert.areEqual('Scheduler job failed.', failedJob.Last_Error__c, 'Expected the scheduler to persist the thrown error message.');
@@ -323,14 +388,32 @@ public with sharing class SchedulerTest {
         Assert.areEqual(1, successfulExecutions, 'Expected a later due job to run after a previous scheduler row fails to enqueue.');
         Assert.areEqual(badJob.Id, failedAttempt.Id, 'Expected the failed scheduler row attempt to be recorded first.');
         Assert.areEqual(badJob.Id, failedResult.Id, 'Expected the failed scheduler row result to be recorded after its attempt.');
-        Assert.isNotNull(failedAttempt.Next_Run_At__c, 'Expected failed scheduler rows to advance their next run time before enqueueing.');
+        Assert.areEqual(heartbeatAt(System.now()).addMinutes(5), failedAttempt.Next_Run_At__c, 'Expected failed scheduler rows to advance from the normalized heartbeat slot.');
         Assert.areEqual(null, failedResult.Last_Executed_At__c, 'Expected enqueue failures not to report a job execution.');
         Assert.isNotNull(failedResult.Last_Error__c, 'Expected scheduler run errors to be recorded on the failed row.');
         Assert.areEqual(goodJob.Id, successfulAttempt.Id, 'Expected the later successful scheduler row attempt to be recorded normally.');
         Assert.areEqual(goodJob.Id, successfulResult.Id, 'Expected the later successful scheduler row result to be recorded normally.');
-        Assert.isNotNull(successfulAttempt.Next_Run_At__c, 'Expected successful scheduler rows to advance their next run time before enqueueing.');
+        Assert.areEqual(heartbeatAt(System.now()).addMinutes(5), successfulAttempt.Next_Run_At__c, 'Expected successful scheduler rows to advance from the normalized heartbeat slot.');
         Assert.isNotNull(successfulResult.Last_Executed_At__c, 'Expected successful scheduler rows to report actual execution.');
         Assert.areEqual(null, successfulResult.Last_Error__c, 'Expected the later successful scheduler row to clear any previous error.');
+    }
+
+    @istest static void testJobService_getHeartbeatAt_snapsToFiveMinuteBoundary() {
+        DateTime raw = DateTime.newInstanceGMT(2026, 6, 13, 7, 38, 42);
+        DateTime snapped = jobService.getHeartbeatAt(raw);
+
+        Assert.areEqual(
+            DateTime.newInstanceGMT(2026, 6, 13, 7, 35, 0),
+            snapped,
+            'Expected heartbeat times to snap down to the nearest five-minute scheduler boundary.'
+        );
+    }
+
+    @istest static void testJobService_interval_clampsConfiguredRanges() {
+        Assert.areEqual(5, jobService.interval('2', Scheduler.MINUTES), 'Expected minute jobs to clamp to the five-minute platform heartbeat minimum.');
+        Assert.areEqual(31, jobService.interval('60', Scheduler.DAYS), 'Expected day jobs to clamp to the supported maximum.');
+        Assert.areEqual(52, jobService.interval('60', Scheduler.WEEKS), 'Expected week jobs to clamp to the supported maximum.');
+        Assert.areEqual(12, jobService.interval('60', Scheduler.MONTHS), 'Expected month jobs to clamp to the supported maximum.');
     }
 
     @istest static void testSchedule_usesFiveMinuteCronJobs() {
@@ -398,7 +481,7 @@ public with sharing class SchedulerTest {
         String interval,
         DateTime lastExecutedAt
     ) {
-        return job(key, apex, isEnabled, lastError, frequency, interval, lastExecutedAt, System.now().addMinutes(-1));
+        return job(key, apex, isEnabled, lastError, frequency, interval, lastExecutedAt, System.now().addMinutes(-10));
     }
 
     static Scheduler__c job(
@@ -432,5 +515,9 @@ public with sharing class SchedulerTest {
 
         Assert.fail('Expected to find scheduler job ' + key + '.');
         return null;
+    }
+
+    static DateTime heartbeatAt(DateTime now) {
+        return jobService.getHeartbeatAt(now);
     }
 }

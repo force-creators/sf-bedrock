@@ -146,6 +146,17 @@ With `Frequency__c = Days` and `Frequency_Value__c = 1`, the job runs when it
 reaches its next scheduled run time. After each run is queued, Scheduler moves
 the next run time one day forward.
 
+### Run every week or month
+
+Use `Weeks` and `Months` for work that is truly low-frequency, like cleanup,
+retention, or recurring administrative checks.
+
+With `Frequency__c = Weeks` and `Frequency_Value__c = 2`, the job runs about
+every two weeks. With `Frequency__c = Months` and `Frequency_Value__c = 1`, it
+runs about every month from its last scheduled anchor. Scheduler does not align
+monthly jobs to the first day of the month. It simply adds months to the prior
+scheduled time.
+
 ## Configuration
 
 Each logical job has one `Scheduler_Config__mdt` record.
@@ -154,8 +165,8 @@ Each logical job has one `Scheduler_Config__mdt` record.
 | --- | --- |
 | `Apex__c` | API name of the class to run. The class must extend `Scheduler`. Required. |
 | `Is_Enabled__c` | Whether the job can run. Defaults to `true`. Set it to `false` to pause a job. |
-| `Frequency__c` | Cadence unit. Supported values are `Minutes`, `Hours`, and `Days`. Blank values are treated as `Minutes`. |
-| `Frequency_Value__c` | Cadence amount. For `Minutes`, choose `5`, `10`, `15`, through `55`. For `Hours` and `Days`, choose `1` through `55`. |
+| `Frequency__c` | Cadence unit. Supported values are `Minutes`, `Hours`, `Days`, `Weeks`, and `Months`. Blank values are treated as `Minutes`. |
+| `Frequency_Value__c` | Cadence amount. For `Minutes`, choose `5`, `10`, `15`, through `55`. For `Hours`, choose `1` through `55`. For `Days`, choose `1` through `31`. For `Weeks`, choose `1` through `52`. For `Months`, choose `1` through `12`. |
 
 `Interval__c` is legacy metadata. Current Scheduler code reads
 `Frequency_Value__c` instead.
@@ -165,7 +176,9 @@ to redeploy and no per-job scheduled Apex record to recreate. The change applies
 on the next five-minute heartbeat.
 
 To check production status, read the job's `Scheduler__c` runtime row.
-`Next_Run_At__c` shows when the job is next eligible to run. The Queueable writes
+`Next_Run_At__c` shows when the job is next eligible to run. Scheduler snaps it
+to the current five-minute heartbeat boundary before adding the configured
+cadence, so Queueable start delay does not create drift. The Queueable writes
 `Last_Executed_At__c` and clears or writes `Last_Error__c` depending on the
 result.
 
@@ -225,7 +238,9 @@ caught by normal Apex `try/catch`.
 
 > A newly translated job does not run on the first heartbeat. Scheduler sets
 > `Next_Run_At__c` from the configured cadence first, so a daily job starts with
-> a next run about one day later. It does not align itself to midnight.
+> a next run about one day later. Weekly and monthly jobs behave the same way.
+> They do not align themselves to week boundaries, month boundaries, or
+> midnight.
 
 ## Public API
 
@@ -294,6 +309,10 @@ heartbeat.
 - **Cadence is measured from `Next_Run_At__c`.** Hourly and daily jobs are not
   aligned to the top of the hour or midnight. Queueable start delay does not
   push the next due window later.
+
+- **`Next_Run_At__c` snaps to scheduler slots.** A heartbeat that starts at
+  `07:35:12` still treats itself as the `07:35:00` slot before advancing the
+  next run time.
 
 - **A bad job row does not stop the whole tick.** If `Apex__c` names a missing
   class or something that cannot be enqueued as a `Scheduler`, Scheduler records

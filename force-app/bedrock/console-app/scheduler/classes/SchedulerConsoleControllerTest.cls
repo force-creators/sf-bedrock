@@ -2,6 +2,7 @@
 public with sharing class SchedulerConsoleControllerTest {
     @istest static void testGetSchedule_calculatesLiveTimeline() {
         Datetime lastRan = System.now().addHours(-2);
+        Datetime nextRun = System.now().addHours(1);
         SchedulerMock mock = new SchedulerMock()
             .config(new Scheduler_Config__mdt(
                 DeveloperName = 'HourlyJob',
@@ -17,6 +18,7 @@ public with sharing class SchedulerConsoleControllerTest {
                 Is_Enabled__c = true,
                 Frequency__c = Scheduler.HOURS,
                 Frequency_Value__c = '3',
+                Next_Run_At__c = nextRun,
                 Last_Executed_At__c = lastRan
             ))
             .job(new Scheduler__c(
@@ -28,12 +30,14 @@ public with sharing class SchedulerConsoleControllerTest {
                 Last_Error__c = 'Previous failure'
             ));
         Scheduler.setMock(mock);
+        SchedulerConsoleController.setQueryService(new QueryServiceMock(mock.queries.jobs));
 
         Test.startTest();
         SchedulerConsoleController.ConsoleState state = SchedulerConsoleController.getSchedule();
         Test.stopTest();
 
         Scheduler.reset();
+        SchedulerConsoleController.reset();
 
         Assert.areEqual(
             2,
@@ -58,9 +62,9 @@ public with sharing class SchedulerConsoleControllerTest {
 
         SchedulerConsoleController.JobRow hourlyRow = findRow(state.jobs, 'HourlyJob');
         Assert.areEqual(
-            lastRan.addHours(3),
+            nextRun,
             hourlyRow.nextScheduledAt,
-            'The console should calculate the next run time from the last execution and cadence.'
+            'The console should use the persisted next run time when Scheduler has calculated one.'
         );
         Assert.areEqual(
             'Every 3 hours',
@@ -109,12 +113,14 @@ public with sharing class SchedulerConsoleControllerTest {
                 Metadata_Hash__c = 'stale'
             ));
         Scheduler.setMock(mock);
+        SchedulerConsoleController.setQueryService(new QueryServiceMock(mock.queries.jobs));
 
         Test.startTest();
         SchedulerConsoleController.ConsoleState state = SchedulerConsoleController.getSchedule();
         Test.stopTest();
 
         Scheduler.reset();
+        SchedulerConsoleController.reset();
 
         Assert.isTrue(
             state.hasMetadataChanges,
@@ -130,6 +136,62 @@ public with sharing class SchedulerConsoleControllerTest {
         );
     }
 
+    @istest static void testGetSchedule_calculatesWeeklyAndMonthlyFallbackCadence() {
+        Datetime lastWeekRun = System.now().addDays(-7);
+        Datetime lastMonthRun = System.now().addMonths(-1);
+        SchedulerMock mock = new SchedulerMock()
+            .seedCurrentHash()
+            .job(new Scheduler__c(
+                Config_Key__c = 'WeeklyJob',
+                Apex__c = 'WeeklyJob',
+                Is_Enabled__c = true,
+                Frequency__c = Scheduler.WEEKS,
+                Frequency_Value__c = '2',
+                Last_Executed_At__c = lastWeekRun
+            ))
+            .job(new Scheduler__c(
+                Config_Key__c = 'MonthlyJob',
+                Apex__c = 'MonthlyJob',
+                Is_Enabled__c = true,
+                Frequency__c = Scheduler.MONTHS,
+                Frequency_Value__c = '2',
+                Last_Executed_At__c = lastMonthRun
+            ));
+        Scheduler.setMock(mock);
+        SchedulerConsoleController.setQueryService(new QueryServiceMock(mock.queries.jobs));
+
+        Test.startTest();
+        SchedulerConsoleController.ConsoleState state = SchedulerConsoleController.getSchedule();
+        Test.stopTest();
+
+        Scheduler.reset();
+        SchedulerConsoleController.reset();
+
+        SchedulerConsoleController.JobRow weeklyRow = findRow(state.jobs, 'WeeklyJob');
+        Assert.areEqual(
+            lastWeekRun.addDays(14),
+            weeklyRow.nextScheduledAt,
+            'The console should project weekly jobs from the last executed time when no next run is stored yet.'
+        );
+        Assert.areEqual(
+            'Every 2 weeks',
+            weeklyRow.cadence,
+            'The console should render a readable cadence label for weekly jobs.'
+        );
+
+        SchedulerConsoleController.JobRow monthlyRow = findRow(state.jobs, 'MonthlyJob');
+        Assert.areEqual(
+            lastMonthRun.addMonths(2),
+            monthlyRow.nextScheduledAt,
+            'The console should project monthly jobs from the last executed time when no next run is stored yet.'
+        );
+        Assert.areEqual(
+            'Every 2 months',
+            monthlyRow.cadence,
+            'The console should render a readable cadence label for monthly jobs.'
+        );
+    }
+
     static SchedulerConsoleController.JobRow findRow(
         List<SchedulerConsoleController.JobRow> rows,
         String configKey
@@ -140,5 +202,17 @@ public with sharing class SchedulerConsoleControllerTest {
 
         Assert.fail('Expected to find scheduler row for ' + configKey + '.');
         return null;
+    }
+
+    class QueryServiceMock extends SchedulerConsoleController.QueryService {
+        List<Scheduler__c> jobs;
+
+        QueryServiceMock(List<Scheduler__c> jobs) {
+            this.jobs = jobs;
+        }
+
+        public override List<Scheduler__c> getJobs() {
+            return jobs;
+        }
     }
 }
