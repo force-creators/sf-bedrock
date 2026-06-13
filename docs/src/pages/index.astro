@@ -14,19 +14,18 @@ const sections = [
 
 <DocsLayout
   title="sf-bedrock — enterprise Apex that stays readable"
-  description="sf-bedrock is a Salesforce architecture toolkit: background jobs that scale, untyped-JSON handling, database-free tests, and dependency injection — forged in a Fortune 100 org with millions of records."
+      description="sf-bedrock is a Salesforce architecture toolkit: background jobs that scale, untyped-JSON handling, database-free tests, and dependency injection for enterprise Apex."
   eyebrow="Salesforce Architecture Toolkit"
   sections={sections}
 >
   <Fragment slot="header">
     <h1>Apex that scales without the ceremony.</h1>
     <p class="lede">
-      sf-bedrock is a foundation for enterprise Apex: background work that drains
-      thousands of records safely, setup-object-safe async chaining, unit tests
-      that never touch the database, and dependency-injection seams that keep
-      production code direct. It protects high-volume orgs without making
-      everyday code heavy. And it reads the way the engineer who owns it would
-      write it.
+      sf-bedrock is a foundation for enterprise Apex: tracked background work,
+      setup-object-safe async chaining, database-free unit tests, and dependency
+      injection that keeps production code direct. It protects high-volume orgs
+      without making everyday work heavy. And it reads the way the engineer who
+      owns it would write it.
     </p>
     <div class="pill-row" style="margin-top: 1.25rem;">
       <span class="pill">Scalable Async</span>
@@ -87,12 +86,11 @@ const sections = [
   <section class="doc-section" id="proven-at-scale">
     <h2>Proven at Scale</h2>
     <p>
-      These patterns were forged in one of the largest Salesforce orgs on the
-      planet: a Fortune 100 environment with millions of records and thousands of
-      daily users. There is no tolerance for flaky deploys or runaway governor
-      limits. Recursive triggers, exhausted queueable slots, and tests that depend
-      on org data are daily realities there, not edge cases. Bedrock is what held
-      up under that pressure, distilled and packaged so any team can adopt it.
+      These patterns come from real enterprise Salesforce pressure: large data
+      volume, busy automation, strict deploy windows, and teams that need tests
+      they can trust. Recursive triggers, exhausted Queueable slots, and tests
+      that depend on org data are not rare problems in that world. Bedrock
+      packages the parts that proved useful under that pressure.
     </p>
     <div class="callout">
       <strong>Developer-first, by design</strong>
@@ -105,7 +103,7 @@ const sections = [
     <ul class="token-list">
       <li>
         <strong>Built for scale</strong>
-        <span>Shaped by orgs with millions of records and unforgiving daily volume.</span>
+        <span>Shaped for orgs with large data volume and unforgiving daily automation.</span>
       </li>
       <li>
         <strong>Tests that mean something</strong>
@@ -229,9 +227,8 @@ const sections = [
     <h2>Built to Grow</h2>
     <p>
       The foundation ships today. The roadmap extends the same approach into
-      query encapsulation and shared async services - delivered one
-      deliberate, inspectable piece at a time, never as a speculative
-      megaframework.
+      query encapsulation, events, and shared async services - delivered one
+      deliberate, inspectable piece at a time.
     </p>
     <div class="pill-row">
       <span class="pill">Selector</span>
@@ -240,10 +237,9 @@ const sections = [
       <span class="pill">LimitsService</span>
     </div>
     <p style="margin-top: 1rem;">
-      Async, Event, and Scheduler keep
-      separate execution pools. Each consults a limit-aware service before
-      running work, so framework automation protects org health instead of
-      threatening it.
+      The direction is simple: keep execution pools separate, make limits
+      visible, and add shared services only when they make daily development
+      safer.
     </p>
   </section>
 

@@ -1,10 +1,10 @@
 ---
 layout: ../layouts/DocsLayout.astro
 title: Async | sf-bedrock docs
-description: A base class for running setup-object-safe Apex work in the background that scales to thousands of records without tripping over Salesforce's Queueable limits.
+description: A contract for running record-driven Apex work in tracked background batches without tripping Salesforce's Queueable limits.
 eyebrow: Async Services
 heading: Async
-lede: A base class for running setup-object-safe Apex work in the background that scales to thousands of records without tripping over Salesforce's Queueable limits. You write one method; the framework persists the work, drains it in safe batches, and tracks every job to success or error.
+lede: Async runs record-driven Apex work in tracked background batches. You override one method, enqueue record Ids, and the framework drains them safely while recording success or error.
 sections:
   - label: Overview
     href: "#overview"
@@ -73,7 +73,7 @@ lookup relationship.
 public with sharing class RollupContactCountAsync extends Async {
 
     public override void execute(Set<Id> ids) {
-        List<Account> accounts = Query.records([
+        List<Account> accounts = (List<Account>) Query.records([
             SELECT Id, (SELECT Id FROM Contacts)
             FROM Account
             WHERE Id IN :ids
@@ -108,7 +108,7 @@ background thread, and drains the queue in batches — each calling your
 ```apex
 public with sharing class FlagStaleContactsAsync extends Async {
     public override void execute(Set<Id> ids) {
-        List<Contact> contacts = Query.records([
+        List<Contact> contacts = (List<Contact>) Query.records([
             SELECT Id, Description FROM Contact WHERE Id IN :ids
         ]);
         for (Contact contact : contacts) {
@@ -181,14 +181,10 @@ stale. Because all you carry into the job is an identifier, the only way to act
 on the record is to re-query it inside `execute`. That means you are always
 working with the *current* state of the data at the moment the work runs.
 
-> **What if I genuinely need to carry data, not just Ids?** Sometimes the work
-> *is* the payload — a blob of values with no saved record to re-query, or data
-> you specifically want to act on as it was at publish time. That is a different
-> shape of problem with a different tool: the **Event** framework, which is built
-> for stateless, self-contained payloads passed into async processing. Reach for
-> `Async` when you are processing **records** (pass Ids); reach for `Event` when
-> you are processing **data** (pass the payload). Don't try to smuggle stateful
-> records through `Async`.
+> **What if I genuinely need to carry data, not just Ids?** That is not
+> `Async`'s job. Use `Async` for saved records you can re-query. If the payload
+> itself is the work, use a purpose-built integration or event pattern instead
+> of smuggling stateful records through this API.
 
 ## Staging Work
 
@@ -230,6 +226,7 @@ custom metadata type. Create a record with:
 | `Apex__c` | The exact name of your `Async` subclass, e.g. `FlagStaleContactsAsync`. |
 | `Batch_Size__c` | How many work items one batch (one `execute` call) processes. |
 | `Max_Retries__c` | How many times the framework auto-retries a failed item before it rests in `Error`. Absent or `0` ⇒ auto-retry off. |
+| `Priority__c` | Higher values run first within the same thread. Blank values default to `0`. |
 
 For example, a record with `Apex__c = FlagStaleContactsAsync` and
 `Batch_Size__c = 50` makes each `execute` call receive up to 50 record Ids
@@ -292,17 +289,23 @@ public with sharing class FlagStaleContactsAsyncTest {
         .mockIds()
         .count(3)
         .build();
-    DML.insertRecords(contacts);
-
     Set<Id> ids = Pluck.ids(contacts);
+
+    Query.setMock(new QueryMock(contacts));
+    DMLMock dmlMock = new DMLMock();
+    DML.setMock(dmlMock);
 
     new FlagStaleContactsAsync().execute(ids);
 
-    for (Contact contact : (List<Contact>) Query.records([
-        SELECT Description FROM Contact WHERE Id IN :ids
-    ])) {
-      Assert.areEqual('Reviewed by background job', contact.Description,
-        'Expected direct execute() to update each contact description.');
+    Assert.areEqual(1, dmlMock.updates.size(), 'Expected execute() to update one batch of contacts.');
+    Assert.areEqual(3, dmlMock.updates[0].size(), 'Expected execute() to update every queried contact.');
+
+    for (Contact contact : (List<Contact>) dmlMock.updates[0]) {
+        Assert.areEqual(
+            'Reviewed by background job',
+            contact.Description,
+            'Expected execute() to stamp each contact before update.'
+        );
     }
   }
 }
@@ -380,48 +383,22 @@ class.
 
 ## How It Works
 
-Three ideas explain everything `Async` does.
+Three ideas explain the parts you need as a user.
 
-**One: work items replace Queueables as the unit of scale.** When you call
-`enqueue`, the framework does not enqueue one Queueable per record. It inserts one
-`Async__c` row per record Id (`Status__c = 'Pending'`), tagged with the target
-Apex class name and a **thread Id** (the current request Id) that groups
-everything enqueued in the same transaction. A trigger on `Async__c` then starts
-exactly one background Queueable — the thread — for that group. The calling
-transaction touches a bounded number of limits regardless of how many records you
-enqueue.
+**One: records become work items.** `enqueue` stores one `Async__c` row per
+record Id. The row names the Apex class to run, the record Id to process, the
+thread that owns the work, and the current status.
 
-**Two: a thread drains the queue one batch at a time.** `AsyncThread` is a
-Queueable that holds a thread Id. When it runs, it hands off to
-`JobService.enqueueNextJob()`, which selects the next `Pending` work item for
-that thread (FIFO, with `Priority__c DESC` applied first) and reads `Async_Config__mdt`
-for the batch size (defaulting to 5). It gathers up to that many matching
-same-Apex work items, marks them `Running`, dynamically instantiates your
-class by name, calls `setWork(threadId, workItemIds)` on it, and enqueues it as a
-Queueable.
+**Two: work drains in batches.** Bedrock pulls pending rows for one async class,
+marks that batch `Running`, and calls your `execute(Set<Id> ids)` method. The
+batch size comes from `Async_Config__mdt`, or from the default of 5 when no
+metadata record exists.
 
-**Three: a `Finalizer` closes the loop.** `Async.JobWatcher` is attached before
-your `execute` runs. On success it marks the batch `Done`, creates any child work
-that was enqueued or flushed from inside the job, and chains the next batch by
-calling `enqueueNextJob()` again. On failure it hands the batch to
-`JobService.handleFailure`, which checks each item against its job type's
-`Max_Retries__c`: items still under the cap are re-queued to `Pending` with
-`Retry_Count__c` incremented (so the chain re-runs them), and items at the cap —
-or any item when auto-retry is off — are marked `Error` with the truncated
-message and stack trace saved on the `Async__c` rows. Either way it then chains
-the remaining work. Failures are recorded, not silent, and they do not stop the
-rest of the queue.
-
-That finalizer handoff is what makes framework-managed child work safe after
-setup-object DML. Your subscriber can touch setup objects in `execute`, then call
-`Async.enqueue` or `Async.flush`; Bedrock writes the new `Async__c` work items
-from the finalizer transaction.
-
-The retry path closes the loop from the other direction: `AsyncTriggerHandler`
-watches for `Async__c` updates where `Status__c` flips from `Error` back to
-`Pending` (via `AsyncFilters.shouldRetry`). When that happens, a new thread
-starts for those items. This is how external tooling or manual intervention can
-re-drive failed work.
+**Three: every outcome is recorded.** Successful batches become `Done`. Failed
+batches become `Error`, unless bounded auto-retry is configured and the item is
+still under its retry cap. Follow-up work created inside an `Async` job is saved
+after the job finishes, which keeps setup-object-sensitive transactions out of
+your way.
 
 ## Public API
 
@@ -430,45 +407,30 @@ re-drive failed work.
 > not accessible from outside it. `@testVisible` members are private in
 > production but accessible in test classes.
 
-### Static members (`Async`)
+### Job contract
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `jobs` | `public static JobService` | Service singleton for thread start and job dispatch. Swap via `setMock`. |
-| `work` | `public static WorkService` | Service singleton for `Async__c` status transitions. Swap via `setMock`. |
-| `queries` | `public static QueryService` | Service singleton for `Async__c` reads. Swap via `setMock`. |
-| `metadata` | `public static MetadataService` | Service singleton for cached `Async_Config__mdt` reads, keyed by Apex name. Swap via `setMock`. |
-| `settings` | `public static SettingsService` | Service singleton for the transaction-cached `Async_Settings__c` hierarchical custom setting. Swap via `setMock`. |
-| `setMock` | `@testVisible static void setMock(AsyncMock mock)` | Replaces all five service singletons with the mock's equivalents. Test-visible only. |
+| `execute` | `public virtual void execute(Set<Id> ids)` | Override this in every subscriber. Receives the current batch of record Ids. The base implementation throws `AsyncException`. |
+
+### Static entry points
+
+| Member | Signature | Description |
+| --- | --- | --- |
 | `enqueue` | `public static void enqueue(Type jobType, List<SObject> records)` | Creates one `Async__c` work item per record Id (Ids are plucked from the list). |
 | `enqueue` | `public static void enqueue(Type jobType, Set<Id> recordIds)` | Creates one `Async__c` work item per Id in `recordIds`. |
 | `stage` | `public static void stage(Type jobType, List<SObject> records)` | Adds record Ids to the current transaction's async work buffer. Ids are plucked from the list. |
 | `stage` | `public static void stage(Type jobType, Set<Id> recordIds)` | Adds record Ids to the current transaction's async work buffer. Duplicate Ids are merged by job type. |
 | `flush` | `public static void flush()` | Creates all buffered work items in one DML call, or defers them to the finalizer when called from inside an `Async` job. |
 
-### Instance members (`Async`)
-
-| Member | Signature | Description |
-| --- | --- | --- |
-| `execute` | `public virtual void execute(Set<Id> ids)` | The subscriber override hook. The base implementation throws `AsyncException`; every subclass must override this. Receives the current batch's record Ids, freshly re-queried from `Async__c`. |
-
 ### `Async.AsyncException`
 
 `public class AsyncException extends Exception` — thrown when `execute(Set<Id>)`
 is called on the base class without being overridden.
 
-### `AsyncMock`
-
-| Member | Signature | Description |
-| --- | --- | --- |
-| `canEnqueue` | `public AsyncMock canEnqueue()` | Enables thread enqueuing inside a test. Returns `this` for fluent chaining. By default `AsyncMock.JobService.canEnqueue()` returns `false` and no thread starts. |
-| `config` | `public AsyncMock config(Type jobType, Async_Config__mdt config)` | Injects config for a job type into the `MetadataService` cache without DML. Returns `this` for fluent chaining. |
-| `seedSettings` | `public AsyncMock seedSettings(Async_Settings__c settings)` | Seeds the backing `Async_Settings__c` value on the mock `SettingsService`. Returns `this` for fluent chaining. |
-| `work` | `public WorkService work` | Mock `WorkService` (extends `Async.WorkService`). |
-| `jobs` | `public JobService jobs` | Mock `JobService` (extends `Async.JobService`). Caps `maximumQueueableStackDepth` at 5. |
-| `queries` | `public QueryService queries` | Mock `QueryService` (extends `Async.QueryService`). |
-| `metadata` | `public MetadataService metadata` | Mock `MetadataService` (extends `Async.MetadataService`). Serves injected config before falling back to a real read. |
-| `settings` | `public SettingsService settings` | Mock `SettingsService` (extends `Async.SettingsService`). Serves a seeded `Async_Settings__c` value from memory. |
+`AsyncMock` exists for framework-level tests, especially when you intentionally
+want an enqueued chain to run inside `Test.stopTest()`. Most subscriber tests
+should call `execute(Set<Id>)` directly and mock `Query` / `DML` instead.
 
 ### Schema
 
@@ -496,13 +458,7 @@ needs a non-default batch size or auto-retry:
 | `Apex__c` | API name of the `Async` subclass. |
 | `Batch_Size__c` | Number of work items per `execute` call. Defaults to 5 when no record exists. |
 | `Max_Retries__c` | Cap on framework auto-retries for failed items. Absent or `0` ⇒ auto-retry off. |
-
-**`Async_Settings__c`** (hierarchical custom setting) — transaction-cached
-framework settings storage:
-
-- Bucket 1 infrastructure is implemented here.
-- Consumer fields and typed production accessors land with the features that
-  read them.
+| `Priority__c` | Higher values run first within the same thread. Blank values default to `0`. |
 
 ## Notes & Edge Cases
 

@@ -19,7 +19,8 @@ export const navGroups: NavGroup[] = [
     label: 'Start',
     items: [
       { label: 'Overview', href: '/' },
-      { label: 'Getting Started', href: '/getting-started' }
+      { label: 'Getting Started', href: '/getting-started' },
+      { label: 'Bedrock Console', href: '/console' }
     ]
   },
   {

@@ -2,110 +2,143 @@
 import DocsLayout from '../layouts/DocsLayout.astro';
 import { Code } from 'astro:components';
 
-const codeRunLocally = `cd docs
-npm install
-npm run dev`;
+const installSource = `force-app/bedrock/lib`;
 
-const codeValidation = `npm run build`;
+const installConsole = `force-app/bedrock/console-app`;
 
 const sections = [
-  { label: 'Run Locally', href: '#run-locally' },
-  { label: 'Authoring Shape', href: '#authoring-shape' },
-  { label: 'First Content Pass', href: '#first-content-pass' },
+  { label: 'Start Small', href: '#start-small' },
+  { label: 'First Three Tools', href: '#first-three-tools' },
+  { label: 'Move Work Safely', href: '#move-work-safely' },
+  { label: 'Operational Visibility', href: '#operational-visibility' },
   { label: 'Validation', href: '#validation' }
 ];
 ---
 
 <DocsLayout
   title="Getting Started | sf-bedrock docs"
-  description="Getting started with the sf-bedrock Astro documentation site."
-  eyebrow="Getting Started"
+  description="Start building with sf-bedrock by adopting the testing foundation first, then adding async and scheduler patterns where they solve real platform problems."
+  eyebrow="Start"
   sections={sections}
 >
   <Fragment slot="header">
-    <h1>Open the docs workspace.</h1>
+    <h1>Start with the seams your tests need.</h1>
     <p class="lede">
-      The docs app is intentionally small: an Astro shell, a documentation layout,
-      and starter pages that can grow one reliable Bedrock API at a time.
+      Bedrock works best when it disappears into ordinary Apex. Add the small
+      pieces first, prove the pattern in tests, then bring in the heavier tools
+      when volume or operations demand them.
     </p>
   </Fragment>
 
-  <section class="doc-section" id="run-locally">
-    <h2>Run Locally</h2>
+  <section class="doc-section" id="start-small">
+    <h2>Start Small</h2>
     <p>
-      The documentation site lives in <code>docs/</code>. Install dependencies in
-      that folder, then start the Astro preview server.
+      The framework source lives here:
     </p>
-    <Code code={codeRunLocally} lang="bash" />
+    <Code code={installSource} lang="text" />
+    <p>
+      You do not need to adopt every library at once. Most teams start by routing
+      service-layer reads and writes through <code>Query</code> and
+      <code>DML</code>, then use <code>TestData</code> to build realistic records
+      without setup bloat.
+    </p>
+    <div class="callout">
+      <strong>The goal is boring production code</strong>
+      <p>
+        Bedrock should make the safe path easy. Your services should still read
+        like normal Apex, and your tests should prove behavior without begging the
+        database for help.
+      </p>
+    </div>
   </section>
 
-  <section class="doc-section" id="authoring-shape">
-    <h2>Authoring Shape</h2>
-    <p>
-      Each page should read like a contract: what the tool owns, how production
-      code calls it, how tests replace or assert it, and which edge behavior
-      developers need to remember.
-    </p>
+  <section class="doc-section" id="first-three-tools">
+    <h2>First Three Tools</h2>
     <div class="doc-grid">
       <article class="doc-card">
-        <h3>Contract</h3>
-        <p>Name the responsibility before listing methods or examples.</p>
+        <h3><a href="/test-data">TestData</a></h3>
+        <p>
+          Build in-memory records with mock Ids, parent relationships, and fields
+          the normal constructor will not let you set.
+        </p>
       </article>
       <article class="doc-card">
-        <h3>Usage</h3>
-        <p>Show the smallest Apex snippet that proves how the API is meant to feel.</p>
+        <h3><a href="/dml">DML</a></h3>
+        <p>
+          Replace raw writes with a tiny facade. Production commits. Tests capture
+          inserts, updates, upserts, deletes, and undeletes.
+        </p>
       </article>
       <article class="doc-card">
-        <h3>Testing</h3>
-        <p>Document the mock path and the assertion shape alongside the production path.</p>
+        <h3><a href="/query">Query</a></h3>
+        <p>
+          Keep SOQL in production and swap in test results without relying on org
+          data, <code>SeeAllData</code>, or fragile setup.
+        </p>
       </article>
       <article class="doc-card">
-        <h3>Boundaries</h3>
-        <p>Separate implemented behavior from roadmap notes and planned names.</p>
+        <h3><a href="/platform-cache">PlatformCache</a></h3>
+        <p>
+          Put org and session cache behind a mockable seam when cache-backed code
+          needs real assertions.
+        </p>
       </article>
     </div>
   </section>
 
-  <section class="doc-section" id="first-content-pass">
-    <h2>First Content Pass</h2>
+  <section class="doc-section" id="move-work-safely">
+    <h2>Move Work Safely</h2>
     <p>
-      Start with the tools that already exist in <code>force-app/bedrock/lib</code>.
-      A useful order is the testing foundation first, then trigger coordination,
-      then roadmap pages once the public shape is clearer.
+      Once your service layer has clean seams, use the automation tools where the
+      platform starts pushing back.
     </p>
     <ul class="token-list">
       <li>
-        <strong>1. TestData</strong>
-        <span>Fast setup examples, mock Ids, relationship fields, and typed casting.</span>
+        <strong><a href="/trigger-handler">TriggerHandler</a></strong>
+        <span>Keep triggers thin and route context to the hook that owns the work.</span>
       </li>
       <li>
-        <strong>2. DML</strong>
-        <span>Production facade, mock recording, and assertions for operation intent.</span>
+        <strong><a href="/record-buffer">RecordBuffer</a></strong>
+        <span>Stage related writes during a transaction, then flush grouped DML once.</span>
       </li>
       <li>
-        <strong>3. Query</strong>
-        <span>Single and multiple mock responses, query ordering, and failure expectations.</span>
+        <strong><a href="/async">Async</a></strong>
+        <span>Process record Ids in tracked background batches instead of burning Queueable slots.</span>
       </li>
       <li>
-        <strong>4. RecordBuffer</strong>
-        <span>Trigger-context staging, grouped flush behavior, and recursion-minded usage.</span>
+        <strong><a href="/scheduler">Scheduler</a></strong>
+        <span>Run recurring jobs from metadata without consuming one scheduled Apex slot per logical job.</span>
       </li>
     </ul>
+  </section>
+
+  <section class="doc-section" id="operational-visibility">
+    <h2>Operational Visibility</h2>
+    <p>
+      The optional Bedrock Console lives here:
+    </p>
+    <Code code={installConsole} lang="text" />
+    <p>
+      It gives teams views for async backlog, errors, completed work, async job
+      configuration, and scheduler status. It is there for debugging and recovery;
+      the programming model still lives in the library contracts.
+    </p>
+    <p>
+      Read the short <a href="/console">Bedrock Console</a> page when you are
+      ready to give admins and developers an operations window.
+    </p>
   </section>
 
   <section class="doc-section" id="validation">
     <h2>Validation</h2>
     <p>
-      Build the docs before shipping layout changes. The build is fast and catches
-      invalid Astro markup, broken imports, and accidental client-only assumptions.
+      Deploy the library source you use, then run the smallest tests that prove
+      the behavior you changed. For new code, prefer focused tests that assert
+      mutations, DML calls, query results, or async work records.
     </p>
-    <Code code={codeValidation} lang="bash" />
-    <div class="callout">
-      <strong>Keep docs trustworthy</strong>
-      <p>
-        When a page describes Apex behavior, verify it against the current class
-        before presenting it as an implemented contract.
-      </p>
-    </div>
+    <p>
+      Keep the first adoption boring: one service, one test, one clear win. Then
+      repeat.
+    </p>
   </section>
 </DocsLayout>

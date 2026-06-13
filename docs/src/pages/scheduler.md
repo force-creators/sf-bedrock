@@ -34,11 +34,9 @@ Salesforce scheduled Apex works, but each scheduled job consumes one of your
 org's 100 scheduled-job slots. That limit is shared with installed packages. A
 large org can run out faster than you expect.
 
-`Scheduler` keeps the scheduled Apex footprint fixed. Bedrock creates twelve
-physical scheduled jobs, one for each five-minute mark in the hour. Those jobs
-all call the same top-level `SchedulerTick` entrypoint. On each tick, the
-framework reads your logical job configuration and enqueues only the jobs that
-are due.
+`Scheduler` keeps the scheduled Apex footprint fixed. Bedrock installs one
+heartbeat at each five-minute mark in the hour. On each tick, the framework
+reads your logical job configuration and enqueues only the jobs that are due.
 
 **Use `Scheduler` when** the work is time-based and should run repeatedly.
 
@@ -166,10 +164,7 @@ Each logical job has one `Scheduler_Config__mdt` record.
 | `Apex__c` | API name of the class to run. The class must extend `Scheduler`. Required. |
 | `Is_Enabled__c` | Whether the job can run. Defaults to `true`. Set it to `false` to pause a job. |
 | `Frequency__c` | Cadence unit. Supported values are `Minutes`, `Hours`, `Days`, `Weeks`, and `Months`. Blank values are treated as `Minutes`. |
-| `Frequency_Value__c` | Cadence amount. For `Minutes`, choose `5`, `10`, `15`, through `55`. For `Hours`, choose `1` through `55`. For `Days`, choose `1` through `31`. For `Weeks`, choose `1` through `52`. For `Months`, choose `1` through `12`. |
-
-`Interval__c` is legacy metadata. Current Scheduler code reads
-`Frequency_Value__c` instead.
+| `Frequency_Value__c` | Cadence amount. `Minutes` values below `5` become `5` and values above `55` become `55`. `Days` cap at `31`, `Weeks` cap at `52`, and `Months` cap at `12`. Blank or invalid values become `1`, except minute jobs become `5`. |
 
 To change how often a job runs, edit the metadata record. There is no job class
 to redeploy and no per-job scheduled Apex record to recreate. The change applies
@@ -217,11 +212,11 @@ job class thin enough that it does not need much of its own coverage.
 
 ## How It Works
 
-Three ideas explain everything `Scheduler` does.
+Three ideas explain the part most teams need.
 
 **One: twelve scheduled jobs, one five-minute heartbeat.** `Scheduler.schedule()`
-creates a top-level `SchedulerTick` scheduled job at each five-minute mark in the
-hour. Salesforce sees twelve scheduled Apex jobs. Bedrock sees one heartbeat.
+creates a scheduled Apex job at each five-minute mark in the hour. Salesforce
+sees twelve scheduled jobs. Bedrock treats them as one shared heartbeat.
 
 **Two: logical jobs live in metadata.** On each heartbeat, Scheduler checks
 `Scheduler_Config__mdt`. If the metadata hash changed, it translates those
@@ -244,8 +239,8 @@ caught by normal Apex `try/catch`.
 
 ## Public API
 
-Most app code touches only one method: the `execute()` override in your
-`Scheduler` subclass. Setup code may call `Scheduler.schedule()` to install the
+Most app code touches one method: the `execute()` override in your `Scheduler`
+subclass. Setup code calls `Scheduler.schedule()` to install or refresh the
 heartbeat.
 
 ### Job contract
@@ -254,18 +249,11 @@ heartbeat.
 | --- | --- | --- |
 | `execute` | `public override void execute()` | Holds the scheduled work. The base implementation throws, so each job must override it. |
 
-### Setup methods
+### Setup method
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `schedule` | `public static void schedule()` | Replaces existing `Bedrock Scheduler %` scheduled jobs and creates twelve five-minute `SchedulerTick` jobs. |
-| `tick` | `public static void tick()` | Runs one scheduler heartbeat. Usually called by `SchedulerTick`, not application code. |
-
-### Schedulable entrypoint
-
-| Class | Signature | Description |
-| --- | --- | --- |
-| `SchedulerTick` | `public with sharing class SchedulerTick implements Schedulable` | Top-level scheduled Apex class used by the physical Bedrock heartbeat jobs. It delegates to `Scheduler.tick()`. |
+| `schedule` | `public static void schedule()` | Replaces existing `Bedrock Scheduler %` scheduled jobs and creates twelve five-minute heartbeat jobs. |
 
 ### Schema
 
@@ -275,10 +263,8 @@ heartbeat.
 | --- | --- |
 | `Apex__c` | API name of the `Scheduler` subclass to run. Required. |
 | `Is_Enabled__c` | Whether the job can run. Defaults to `true`. |
-| `Frequency__c` | Cadence unit: `Minutes`, `Hours`, or `Days`. |
-| `Frequency_Value__c` | Cadence amount. Minute values are five-minute increments from `5` through `55`; hour and day values are `1` through `55`. |
-| `Interval__c` | Legacy field retained for compatibility. Current Scheduler code does not read it. |
-
+| `Frequency__c` | Cadence unit: `Minutes`, `Hours`, `Days`, `Weeks`, or `Months`. Blank values are treated as `Minutes`. |
+| `Frequency_Value__c` | Cadence amount. See [Configuration](#configuration) for clamping behavior. |
 **`Scheduler__c`** is one runtime row per logical job. Scheduler owns these rows.
 
 | Field | Purpose |
@@ -288,7 +274,7 @@ heartbeat.
 | `Is_Enabled__c` | Runtime enabled flag copied from metadata. |
 | `Frequency__c` | Runtime cadence unit copied from metadata. |
 | `Frequency_Value__c` | Runtime cadence amount copied from metadata. |
-| `Metadata_Hash__c` | Internal hash of the metadata state that produced the runtime row. |
+| `Metadata_Hash__c` | Metadata-change marker owned by Scheduler. Useful only to know whether runtime rows match current config. |
 | `Next_Run_At__c` | Next heartbeat time when the job is eligible to run. |
 | `Last_Executed_At__c` | Last actual Queueable execution attempt. |
 | `Last_Error__c` | Last error message, or blank after a successful run. |

@@ -217,14 +217,14 @@ The class keeps a private static `Map<String, Feature_Flag__mdt>` named `flagsBy
 
 ## Public API
 
-`FeatureFlag` is a `public inherited sharing` class. Only **two** members are callable from production code; the rest are private implementation details.
+`FeatureFlag` is a `public inherited sharing` class. Two methods are public. Production code should call `isEnabled`; `set` is public so tests can seed the cache, but it is a test seam by convention rather than durable configuration.
 
 > **A note on access modifiers:** in Apex, a member with **no** access modifier is `private`. Two methods in this class — `get(String name)` and `clearCache()` — have no `public` modifier, so they are private. `clearCache` is annotated `@TestVisible`, which exposes it to test classes only. It remains private to all other callers.
 
 | Member | Signature | Returns | Description |
 | --- | --- | --- | --- |
 | `isEnabled` | `public static Boolean isEnabled(String name)` | `Boolean` | The one method production code should call. Returns `true` only when a `Feature_Flag__mdt` record with `Name__c = name` exists and its `Is_Enabled__c` is `true`. Returns `false` for blank names and missing flags (fail closed). |
-| `set` | `@TestVisible public static void set(String name, Boolean enabled)` | `void` | Writes a flag value directly into the in-memory cache, overriding or pre-seeding what `isEnabled` will return for `name` in the current transaction. Intended for tests only — see [Testing](#testing). |
+| `set` | `@TestVisible public static void set(String name, Boolean enabled)` | `void` | Public cache override for tests. Writes a flag value directly into the in-memory cache, overriding or pre-seeding what `isEnabled` will return for `name` in the current transaction. See [Testing](#testing). |
 
 ### Public properties
 
@@ -240,7 +240,7 @@ The class keeps a private static `Map<String, Feature_Flag__mdt>` named `flagsBy
 
 ## Notes & Edge Cases
 
-- **No access modifier means private.** Only `isEnabled` and `set` are callable from production code. `get` and `clearCache` are private; `clearCache` is reachable only from test code via `@TestVisible`. Do not build production logic against them.
+- **No access modifier means private.** `isEnabled` and `set` are public. `get` and `clearCache` are private; `clearCache` is reachable only from test code via `@TestVisible`. Treat `set` as a test helper, not production configuration.
 
 - **Match on `Name__c`, not `DeveloperName`.** The query filters on the custom "Flag Key" field. The string in `Name__c` must exactly equal the string you pass to `isEnabled` — case, dots, and all.
 

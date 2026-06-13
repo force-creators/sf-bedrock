@@ -1,10 +1,10 @@
 ---
 layout: ../layouts/DocsLayout.astro
 title: TestData | sf-bedrock docs
-description: A fluent builder that creates in-memory SObject records for Apex unit tests — including writting fields that are normally read-only — without touching the database.
+description: A fluent builder that creates in-memory SObject records for Apex unit tests — including writing fields that are normally read-only — without touching the database.
 eyebrow: Foundation API
 heading: TestData
-lede: A fluent builder that creates in-memory SObject records for Apex tests — including writting fields you normally cannot set, like formula fields, system audit fields, parent relationships, and Ids — without ever touching the database.
+lede: A fluent builder that creates in-memory SObject records for Apex tests — including writing fields you normally cannot set, like formula fields, system audit fields, parent relationships, and Ids — without ever touching the database.
 sections:
   - label: Overview
     href: "#overview"
@@ -18,6 +18,8 @@ sections:
     href: "#read-only-and-system-fields"
   - label: Mock Ids
     href: "#mock-ids"
+  - label: Testing
+    href: "#testing"
   - label: How It Works
     href: "#how-it-works"
   - label: Public API
@@ -143,36 +145,6 @@ Assert.areEqual('New',    open.Status,   'Expected first snapshot to stay New.')
 Assert.areEqual('Closed', closed.Status, 'Expected second snapshot to be Closed.');
 ```
 
-### Realistic service test
-
-`TestData` is itself a test utility with no separate mock, so this realistic
-service test serves as the "Testing" section of the spine. The common shape:
-build mock records with Ids, hand them to the unit under test, and assert on
-the result — no database involved.
-
-```apex
-@istest
-static void testAssignTiers_highRevenueMapToEnterprise() {
-    List<Account> accounts = (List<Account>) new TestData(Account.sObjectType)
-        .put(Account.Name, 'Enterprise Co')
-        .put(Account.AnnualRevenue, 10000000)
-        .mockIds()
-        .count(2)
-        .build();
-
-    AccountTierService service = new AccountTierService();
-    Map<Id, String> tiers = service.assignTiers(accounts);
-
-    for (Account a : accounts) {
-        Assert.areEqual(
-            'Enterprise',
-            tiers.get(a.Id),
-            'Expected high revenue to map to Enterprise tier.'
-        );
-    }
-}
-```
-
 ## Relationships
 
 When the value you pass to `put` is itself an `SObject`, `TestData` treats it
@@ -288,6 +260,35 @@ Assert.isTrue(
 
 // Avoid: depends on prior builds in the transaction
 // Assert.areEqual('001000000000001', a.Id, ...);
+```
+
+## Testing
+
+`TestData` is itself a test utility with no separate mock. The common shape is
+simple: build mock records with the fields and Ids your code needs, hand them to
+the unit under test, and assert on the result.
+
+```apex
+@istest
+static void testAssignTiers_highRevenueMapToEnterprise() {
+    List<Account> accounts = (List<Account>) new TestData(Account.sObjectType)
+        .put(Account.Name, 'Enterprise Co')
+        .put(Account.AnnualRevenue, 10000000)
+        .mockIds()
+        .count(2)
+        .build();
+
+    AccountTierService service = new AccountTierService();
+    Map<Id, String> tiers = service.assignTiers(accounts);
+
+    for (Account account : accounts) {
+        Assert.areEqual(
+            'Enterprise',
+            tiers.get(account.Id),
+            'Expected high revenue to map to Enterprise tier.'
+        );
+    }
+}
 ```
 
 ## How It Works

@@ -359,8 +359,8 @@ trigger body.
 | Member | Signature | Description |
 | --- | --- | --- |
 | `run` | `public void run()` | The main entry point. Exits immediately unless `isExecuting()` is `true`; otherwise opens a buffer, dispatches to the matching hook, and flushes. |
-| `stageBuffers` | `protected void stageBuffers()` | Opens a `RecordBuffer` context via `RecordBuffer.start()`. Overridable if you need different setup. |
-| `flushBuffers` | `protected void flushBuffers()` | Flushes the `RecordBuffer` via `RecordBuffer.flush()`. Overridable if you need different teardown. |
+| `stageBuffers` | `protected void stageBuffers()` | Opens a `RecordBuffer` context via `RecordBuffer.start()`. Called by `run()`. |
+| `flushBuffers` | `protected void flushBuffers()` | Flushes the `RecordBuffer` via `RecordBuffer.flush()`. Called by `run()`. |
 
 ### Context accessors (override to mock; otherwise leave alone)
 

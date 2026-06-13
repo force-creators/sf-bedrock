@@ -1,10 +1,10 @@
 ---
 layout: ../layouts/DocsLayout.astro
 title: PlatformCache | sf-bedrock docs
-description: A thin, mockable facade over Salesforce Platform Cache with a uniform get / put / remove API across org and session partitions.
+description: Read and write Salesforce Platform Cache through a small API that can be tested with an in-memory mock.
 eyebrow: Foundation API
 heading: PlatformCache
-lede: A thin, mockable facade over Salesforce Platform Cache that gives you a uniform get / put / remove API across org and session partitions — and ships with a drop-in mock so cache-backed code is finally easy to unit test.
+lede: PlatformCache gives org and session cache the same get, put, and remove API, plus an in-memory mock for cache-backed unit tests.
 sections:
   - label: Overview
     href: "#overview"
@@ -24,7 +24,7 @@ sections:
 
 ## Overview
 
-`PlatformCache` is a **facade** over Salesforce
+`PlatformCache` wraps Salesforce
 [Platform Cache](https://developer.salesforce.com/docs/atlas.en-us.apexref.meta/apexref/apex_namespace_namespaces_cache.htm).
 Platform Cache lets you store data in memory on the Salesforce side so that
 expensive work — a slow callout, a heavy SOQL aggregation, a parsed
@@ -35,11 +35,10 @@ every time. Salesforce exposes two kinds of storage:
 - **Session cache** (`Cache.Session`) — scoped to a single user's session.
 
 The raw `Cache.Org` / `Cache.Session` namespaces are awkward to use directly.
-The calls are static, scattered, and — most painfully — **almost impossible to
-unit test**. There is no supported way to fake what the platform cache returns
-inside a test. `PlatformCache` wraps both namespaces behind one small interface
-(`get`, `put`, `remove`) and a registry that can swap the real partition for a
-mock. That single seam is what makes cache-backed code testable.
+The calls are static, scattered, and hard to test. There is no supported way to
+fake what the platform cache returns inside a test. `PlatformCache` gives both
+scopes the same three calls (`get`, `put`, `remove`) and lets tests register an
+in-memory mock for the partition your code uses.
 
 **Use `PlatformCache` when** you want to read or write Platform Cache from Apex
 and you care about being able to unit test that code — which, in a Bedrock
@@ -101,8 +100,7 @@ String greeting = (String) new PlatformCache.Session('Bedrock').get('greeting');
 
 A clean pattern is to subclass `PlatformCache.Org` or `PlatformCache.Session`
 so the partition name lives in one place and callers never repeat the string
-literal. Subclasses route through the same registry, so they are mockable with
-no extra wiring.
+literal. Subclasses stay mockable with no extra wiring.
 
 ```apex
 public inherited sharing class BedrockCache extends PlatformCache.Org {
@@ -125,12 +123,10 @@ API to pre-load `Cache.Org` with a value inside a test and have your code read
 it back deterministically. Depending on partition setup, the platform may
 silently return `null`. Naive cache code is either untestable or flaky.
 
-`PlatformCache` solves this with a registry seam. `PlatformCache.Org` and
-`PlatformCache.Session` do not call `Cache.Org` / `Cache.Session` directly —
-they delegate through `PlatformCache.partition`, a static `PartitionRegistry`.
-In tests, register a `PlatformCacheMock` under a partition name and scope.
-From that point, any code that constructs `new PlatformCache.Org('Bedrock')`
-transparently reads and writes the mock instead of the live cache.
+`PlatformCache` solves this by letting tests register a `PlatformCacheMock`
+under a partition name and scope. From that point, any code that constructs
+`new PlatformCache.Org('Bedrock')` transparently reads and writes the mock
+instead of the live cache.
 
 ### The injection recipe
 
@@ -281,7 +277,7 @@ instantiate. Both take a **partition name** (the API name of a Platform Cache
 partition configured in your org) and differ only in which Salesforce namespace
 they ultimately call.
 
-### 2. A registry indirection makes it mockable
+### 2. Registered mocks make it testable
 
 `Org` and `Session` do not call `Cache.Org` / `Cache.Session` directly. Instead
 they delegate through a shared registry:
@@ -293,17 +289,10 @@ public override virtual Object get(String key) {
 }
 ```
 
-`PlatformCache.partition` is a static `PartitionRegistry`. When you ask it for
-a partition by name and scope, it either returns a **registered mock** for that
-partition or, if none is registered, hands back a real `PlatformCache.Partition`
-that talks to the live `Cache.Org` / `Cache.Session` namespace. In production
-the registry returns the real partition. In a test, register a
-`PlatformCacheMock` and the same code transparently reads and writes the mock
-instead.
-
-Mocks are keyed by **both** partition name and scope (the registry builds a key
-like `ORG:Bedrock` or `SESSION:Bedrock`), so an org-scoped mock and a
-session-scoped mock for the same partition name never collide.
+When code asks for a partition by name and scope, Bedrock uses a registered mock
+when one exists. If no mock is registered, it uses the live Platform Cache
+partition. Mocks are keyed by **both** partition name and scope, so an org-scoped
+mock and a session-scoped mock for the same partition name never collide.
 
 ### 3. Scope is decided by the concrete type
 
@@ -332,14 +321,14 @@ ships separately as `PlatformCacheMock`.
 > methods (`setMock`, `setOrgMock`, `setSessionMock`) have no modifier, so they
 > are **not public API** — they are reachable from tests only because they are
 > marked `@TestVisible`. Likewise every method on `PartitionRegistry` (`org`,
-> `session`, `key`, etc.) is private — treat it as internal plumbing. The
+> `session`, `key`, etc.) is private and not a caller-facing API. The
 > `scope` field on `Partition` is also private; only `partitionName` is public.
 
 ### Static members on `PlatformCache`
 
 | Member | Signature | Returns | Description |
 | --- | --- | --- | --- |
-| `partition` | `public static PartitionRegistry partition` | `PartitionRegistry` | The shared registry that resolves a partition name and scope to either a registered mock or a real partition. You rarely touch this directly. |
+| `partition` | `public static PartitionRegistry partition` | `PartitionRegistry` | Shared resolver for registered mocks and real partitions. Application code should not need to touch this directly. |
 | `consts` | `public static final Constants consts` | `Constants` | Holder for the scope string constants `ORG_SCOPE` and `SESSION_SCOPE`. |
 
 ### Abstract instance methods (the cache interface)
@@ -360,7 +349,7 @@ Implemented by `Partition`, `Org`, `Session`, and `PlatformCacheMock`.
 | `PlatformCache.Session` | `Session(String partitionName)` | Session-scoped cache for the named partition. Routes through `Cache.Session` via the registry. `virtual` — extend it for typed session-cache subclasses. |
 | `PlatformCache.Partition` | `Partition(String partitionName)` / `Partition(String partitionName, String scope)` | The base partition. `Org` and `Session` extend it; `PlatformCacheMock` also extends it. Has one public field, `partitionName`. Defaults to org scope. |
 | `PlatformCache.Constants` | (instance is `PlatformCache.consts`) | Exposes the public final strings `ORG_SCOPE` (`'ORG'`) and `SESSION_SCOPE` (`'SESSION'`). |
-| `PlatformCache.PartitionRegistry` | — | The DI registry behind `PlatformCache.partition`. Public class, but all of its methods are private — treat it as internal plumbing. |
+| `PlatformCache.PartitionRegistry` | — | Resolver behind `PlatformCache.partition`. Public class, but its methods are private; application code should use `Org`, `Session`, or a typed subclass. |
 
 > **There are no public properties you set directly to configure a cache.**
 > Apart from the static `partition` and `consts` holders and the `partitionName`

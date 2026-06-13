@@ -388,11 +388,11 @@ time. At each step it inspects the current node:
 - If the node is a `Map<String, Object>`, the segment is used as a **key**.
 - If the node is a `List<Object>`, the segment is parsed as an **integer index**.
 
-`get` returns `null` the moment a segment is missing or an index is out of
-bounds. You'll never get a `NullPointerException` or `ListException` mid-walk.
-`put` is the mirror image: as it walks toward the last segment, it **creates the
-intermediate maps it needs**, so `put('a.b.c', x)` works even on an empty
-container.
+`get` returns `null` when a map segment is missing or a list index is past the
+end of the list. List segments must still be valid non-negative integers; a path
+like `tags[abc]` is not a safe list access. `put` is the mirror image for maps:
+as it walks toward the last segment, it **creates the intermediate maps it
+needs**, so `put('a.b.c', x)` works even on an empty container.
 
 ### 3. Coercion and conversion go through JSON
 
@@ -412,21 +412,20 @@ helpers, and two `virtual` extension methods.
 > **A note on "properties":** `Generic` has **no public properties**. Its only
 > instance state is the `generic` field, which is **`protected`** — visible to
 > subclasses but not to outside callers. To read the underlying map from outside
-> the class, use the `generic()` method. All state changes go through `put`,
-> keeping the container's internals encapsulated behind the path API.
+> the class, use the `generic()` method. All normal state changes go through
+> `put`.
 
 > **A note on access modifiers:** in Apex, a member with **no** access modifier
-> is **private**. The `coerce(...)` and `normalizeParths(...)` methods have no
-> modifier, so they are private implementation details — **not** part of the
-> public surface. They appear in [How It Works](#how-it-works) only to explain
-> behavior.
+> is **private**. Generic has private helpers for type conversion and path
+> normalization. They are not part of the public surface; use the string path
+> methods below.
 
 | Member | Signature | Returns | Description |
 | --- | --- | --- | --- |
 | Constructor | `Generic()` | `Generic` | Creates an empty container backed by a new `Map<String, Object>`. |
 | Constructor | `Generic(String unknown)` | `Generic` | Hydrates the container from a JSON string via `JSON.deserializeUntyped`. The JSON's top level must be an object. |
 | Constructor | `Generic(Map<String, Object> unknown)` | `Generic` | Copies the entries of an existing map into a new backing map (defensive copy). |
-| `get` | `get(String path)` | `Object` | Returns the raw value at `path`, or `null` if any segment is missing / out of bounds. |
+| `get` | `get(String path)` | `Object` | Returns the raw value at `path`, or `null` if a map segment is missing or a positive list index is out of bounds. |
 | `get` | `get(String path, Type target)` | `Object` | Returns the value at `path` coerced to `target`. If `target` is `null`, behaves like `get(path)`. See [Type Coercion](#type-coercion). |
 | `get` | `get(Object current, List<String> parts, Integer index)` | `Object` | Recursive walker used internally by the two `get` overloads. Public, but you normally call the string overloads. |
 | `put` | `put(String key, Object value)` | `void` | Writes `value` at the dotted/bracketed path `key`, creating intermediate maps as needed. |
@@ -439,19 +438,22 @@ helpers, and two `virtual` extension methods.
 | `transform` | `transform()` (`virtual`) | `Map<String, Object>` | Builds a new `Generic` from `mapping()` and returns its backing map. See [Subclassing & transform()](#subclassing-and-transform). |
 
 > **About the recursive overloads.** `get(Object, List<String>, Integer)` and
-> `put(Object, List<String>, Integer, Object)` are public only because Apex
-> requires it for the recursion to work. They power the string-based overloads.
-> In day-to-day code, call `get(path)`, `get(path, type)`, and `put(key, value)`.
+> `put(Object, List<String>, Integer, Object)` are public in the current class,
+> but they expect already-normalized path segments. In day-to-day code, call
+> `get(path)`, `get(path, type)`, and `put(key, value)`.
 
 ## Notes & Edge Cases
 
 - **The string JSON constructor expects a top-level object.** `new Generic(json)`
   casts the deserialized result to `Map<String, Object>`. If the JSON root is an
   array or a scalar, you'll get a cast exception. Wrap it in an object first.
-- **`get` is null-safe; coercion can still throw.** The path walk never throws on
-  missing data, but converting an incompatible value can. For example,
-  `get('name', Integer.class)` on a non-numeric string raises a `TypeException`.
-  Coerce only values you expect to fit the target type.
+- **`get` is safe for missing map keys and out-of-range positive list indexes;
+  malformed list indexes can still throw.** A path like `items[99]` returns
+  `null` when the list is shorter. A path like `items[abc]` can throw because the
+  list segment cannot be parsed as an integer.
+- **Coercion can throw.** Converting an incompatible value still fails. For
+  example, `get('name', Integer.class)` on a non-numeric string raises a
+  `TypeException`. Coerce only values you expect to fit the target type.
 - **`put` builds maps, not lists.** Writing `a.b.c` creates intermediate maps,
   but `put` cannot create list elements or set an item by index. To write into a
   list, build the list yourself and `put` it as a whole value.

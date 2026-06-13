@@ -1,10 +1,10 @@
 ---
 layout: ../layouts/DocsLayout.astro
 title: Query | sf-bedrock docs
-description: Technical documentation and usage examples for the sf-bedrock Query dependency-injection facade and its QueryMock test double.
+description: Route record lists through Query so tests can control what a service reads without inserting org data.
 eyebrow: Dependency Injection
 heading: Query
-lede: A tiny dependency-injection facade that sits between your code and the records it consumes — so production code runs real queries while tests swap in mock results, with no database access and no SeeAllData.
+lede: Query lets production code use real SOQL results while tests supply the records a service should read, with no database setup and no SeeAllData.
 sections:
   - label: Overview
     href: "#overview"
@@ -24,16 +24,14 @@ sections:
 
 ## Overview
 
-`Query` is a dependency-injection (DI) facade for the records your code reads.
-Instead of consuming a `List<SObject>` directly, you route it through
-`Query.records(...)`. In production, that call returns the list unchanged. In a
-test, inject a `QueryMock` first, and the same call returns whatever records the
-mock was primed with.
+`Query` is the tiny handoff point for records your code reads. Instead of
+consuming a `List<SObject>` directly, route it through `Query.records(...)`. In
+production, that call returns the list unchanged. In a test, inject a
+`QueryMock` first, and the same call returns whatever records the mock was
+primed with.
 
-The point is **seam, not transformation.** `Query` does not run SOQL, filter,
-sort, or reshape anything. Its only job is to give you a single, swappable point
-where a test can substitute mock data for the real thing — the classic *seam*
-that makes otherwise hard-to-test code testable.
+`Query` does not run SOQL, filter, sort, or reshape anything. It lets a test
+substitute mock data for real query results while keeping production code direct.
 
 **Use `Query` when** a unit needs a collection of records and you want tests to
 control exactly which records it sees, without inserting rows, running SOQL, or
@@ -50,7 +48,7 @@ Route the records a unit reads through `Query.records(...)`. In production this
 is a no-op. In a test, inject a `QueryMock` before calling the unit:
 
 ```apex
-// Production code: route records through the seam
+// Production code: route records through Query.records(...)
 public class AccountTierService {
     public Map<Id, String> assignTiers(List<Account> accounts) {
         Map<Id, String> tiers = new Map<Id, String>();

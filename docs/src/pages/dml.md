@@ -1,10 +1,10 @@
 ---
 layout: ../layouts/DocsLayout.astro
 title: DML | sf-bedrock docs
-description: Technical documentation and usage examples for the sf-bedrock DML Apex facade and its DMLMock test double.
+description: Write normal Apex DML through a tiny API so tests can capture intended database changes without committing records.
 eyebrow: Dependency Injection
 heading: DML
-lede: A static facade over Apex DML operations that routes every insert, update, upsert, delete, and undelete through one swappable instance — so production code runs real DML, and tests swap in DMLMock to capture every operation without ever touching the database.
+lede: DML lets production code commit records normally while tests capture the intended inserts, updates, upserts, deletes, and undeletes in memory.
 sections:
   - label: Overview
     href: "#overview"
@@ -24,11 +24,11 @@ sections:
 
 ## Overview
 
-`DML` is a thin static facade over the six Apex DML verbs: `insert`, `update`,
-`upsert` (with and without an external Id), `delete`, and `undelete`. Instead of
-writing `insert records;` directly in your service classes, you call
-`DML.insertRecords(records)`. The work is delegated to a single, swappable
-instance behind the scenes.
+`DML` wraps the six Apex DML verbs: `insert`, `update`, `upsert` (with and
+without an external Id), `delete`, and `undelete`. Instead of writing
+`insert records;` directly in your service classes, call
+`DML.insertRecords(records)`. Production still commits records. Tests can swap in
+`DMLMock` and inspect what would have happened.
 
 **Use `DML` when** your business logic performs DML and you want to unit-test
 that logic in isolation — prove that a service inserts the right records, updates
@@ -43,8 +43,8 @@ platform directly.
 
 ## Quickstart
 
-Replace bare DML statements with facade calls. The runtime behavior is identical —
-your service now produces interceptable DML without any other change.
+Replace bare DML statements with `DML` calls. The runtime behavior is identical,
+and your service now produces testable writes without any other change.
 
 ```apex
 public class AccountService {
