@@ -337,6 +337,26 @@ public with sharing class AsyncTest {
         Assert.areEqual(0, result.Retry_Count__c, 'Expected Retry_Count__c to stay 0 when auto-retry is disabled.');
     }
 
+    @istest static void testJobWatcher_continueAfterSuccess_dispatchesNextWorkerDirectly() {
+        SpyJobService jobs = new SpyJobService();
+        Async.jobs = jobs;
+
+        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>()).continueAfterSuccess();
+
+        Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected success-path dispatch to keep chaining directly to the next worker batch.');
+        Assert.areEqual(0, jobs.startThreadCalls, 'Expected success-path dispatch not to restart the thread through AsyncThread.');
+    }
+
+    @istest static void testJobWatcher_continueAfterFailure_restartsThroughAsyncThread() {
+        SpyJobService jobs = new SpyJobService();
+        Async.jobs = jobs;
+
+        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>()).continueAfterFailure();
+
+        Assert.areEqual(0, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch not to chain another worker directly from the finalizer.');
+        Assert.areEqual(1, jobs.startThreadCalls, 'Expected failure-path dispatch to restart the backlog through AsyncThread.');
+    }
+
     @istest static void testManualRetry_pastCapDoesNotBumpRetryCount() {
         Contact contact = new Contact(LastName = 'Manual');
         insert contact;
@@ -379,6 +399,19 @@ public with sharing class AsyncTest {
         protected override Async_Settings__c loadSettings() {
             this.loadCount++;
             return new Async_Settings__c();
+        }
+    }
+
+    public with sharing class SpyJobService extends Async.JobService {
+        public Integer enqueueNextJobCalls = 0;
+        public Integer startThreadCalls = 0;
+
+        public override void enqueueNextJob() {
+            this.enqueueNextJobCalls++;
+        }
+
+        public override void startThread() {
+            this.startThreadCalls++;
         }
     }
 

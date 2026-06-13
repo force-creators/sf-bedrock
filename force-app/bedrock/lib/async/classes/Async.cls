@@ -419,7 +419,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 if (context.getResult() == ParentJobResult.SUCCESS) {
                     work.complete(this.workItemIds);
                     this.createDeferredWork();
-                    jobs.enqueueNextJob();
+                    this.continueAfterSuccess();
                     return;
                 }
 
@@ -429,10 +429,18 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                     error == null ? String.valueOf(context.getResult()) : error.getMessage(),
                     error == null ? null : error.getStackTraceString()
                 );
-                jobs.enqueueNextJob();
+                this.continueAfterFailure();
             } finally {
                 Async.jobs.isFinalizer = false;
             }
+        }
+
+        @testVisible void continueAfterSuccess() {
+            jobs.enqueueNextJob();
+        }
+
+        @testVisible void continueAfterFailure() {
+            jobs.startThread();
         }
 
         void createDeferredWork() {
