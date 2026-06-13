@@ -267,6 +267,7 @@ heartbeat.
 | `Is_Enabled__c` | Runtime enabled flag copied from metadata. |
 | `Frequency__c` | Runtime cadence unit copied from metadata. |
 | `Frequency_Value__c` | Runtime cadence amount copied from metadata. |
+| `Metadata_Hash__c` | Internal hash of the metadata state that produced the runtime row. |
 | `Last_Executed_At__c` | Last attempted run time. |
 | `Last_Error__c` | Last error message, or blank after a successful run. |
 

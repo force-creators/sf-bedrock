@@ -6,21 +6,18 @@ public virtual with sharing class Scheduler implements Queueable {
     public static JobService jobs = new JobService();
     public static MetadataService metadata = new MetadataService();
     public static QueryService queries = new QueryService();
-    public static SettingsService settings = new SettingsService();
     public Id schedulerJobId;
 
     @testVisible static void setMock(SchedulerMock mock) {
         jobs = mock.jobs;
         metadata = mock.metadata;
         queries = mock.queries;
-        settings = mock.settings;
     }
 
     @testVisible static void reset() {
         jobs = new JobService();
         metadata = new MetadataService();
         queries = new QueryService();
-        settings = new SettingsService();
     }
 
     public static void tick() {
@@ -106,6 +103,7 @@ public virtual with sharing class Scheduler implements Queueable {
 
         public virtual void translateMetadata() {
             List<Scheduler_Config__mdt> configs = metadata.getConfigs();
+            String metadataHash = metadata.getHash(configs);
             Map<String, Scheduler__c> jobsByKey = new Map<String, Scheduler__c>();
 
             for (Scheduler__c job : queries.getJobsByKeys(metadata.getConfigKeys(configs))) {
@@ -124,6 +122,7 @@ public virtual with sharing class Scheduler implements Queueable {
 
                 job.Apex__c = config.Apex__c;
                 job.Is_Enabled__c = config.Is_Enabled__c;
+                job.Metadata_Hash__c = metadataHash;
                 String unit = frequency(config.Frequency__c);
                 job.Frequency__c = unit;
                 job.Frequency_Value__c = String.valueOf(interval(config.Frequency_Value__c, unit));
@@ -132,14 +131,13 @@ public virtual with sharing class Scheduler implements Queueable {
 
             for (Scheduler__c job : queries.getJobsNotInKeys(keys)) {
                 job.Is_Enabled__c = false;
+                job.Metadata_Hash__c = metadataHash;
                 jobs.add(job);
             }
 
             if (!jobs.isEmpty()) {
                 DML.upsertRecords(jobs, Scheduler__c.Fields.Config_Key__c);
             }
-
-            settings.saveHash(metadata.getHash(configs));
         }
 
         public virtual void run(Scheduler__c job) {
@@ -212,9 +210,17 @@ public virtual with sharing class Scheduler implements Queueable {
         }
 
         public virtual Boolean hasChanged() {
-            String currentHash = getHash(getConfigs());
-            String previousHash = settings.getSettings().Metadata_Hash__c;
-            return currentHash != previousHash;
+            List<Scheduler_Config__mdt> configs = getConfigs();
+            String currentHash = getHash(configs);
+            Set<String> keys = getConfigKeys(configs);
+
+            if (keys.isEmpty()) {
+                List<Scheduler__c> jobs = queries.getJobsNotInKeys(keys);
+                if (jobs.isEmpty()) return false;
+                return queries.getJobsByMetadataHash(currentHash).size() != jobs.size();
+            }
+
+            return queries.getJobsByKeysAndMetadataHash(keys, currentHash).size() != keys.size();
         }
 
         public virtual String getHash(List<Scheduler_Config__mdt> configs) {
@@ -226,22 +232,40 @@ public virtual with sharing class Scheduler implements Queueable {
         public virtual List<Scheduler__c> getJobsByKeys(Set<String> keys) {
             if (keys == null || keys.isEmpty()) return new List<Scheduler__c>();
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Metadata_Hash__c, Last_Executed_At__c, Last_Error__c
                 FROM Scheduler__c
                 WHERE Config_Key__c IN :keys
+            ]);
+        }
+
+        public virtual List<Scheduler__c> getJobsByKeysAndMetadataHash(Set<String> keys, String metadataHash) {
+            if (keys == null || keys.isEmpty()) return new List<Scheduler__c>();
+            return (List<Scheduler__c>) Query.records([
+                SELECT Id, Config_Key__c, Metadata_Hash__c
+                FROM Scheduler__c
+                WHERE Config_Key__c IN :keys
+                AND Metadata_Hash__c = :metadataHash
+            ]);
+        }
+
+        public virtual List<Scheduler__c> getJobsByMetadataHash(String metadataHash) {
+            return (List<Scheduler__c>) Query.records([
+                SELECT Id, Config_Key__c, Metadata_Hash__c
+                FROM Scheduler__c
+                WHERE Metadata_Hash__c = :metadataHash
             ]);
         }
 
         public virtual List<Scheduler__c> getJobsNotInKeys(Set<String> keys) {
             if (keys == null || keys.isEmpty()) {
                 return (List<Scheduler__c>) Query.records([
-                    SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Last_Executed_At__c, Last_Error__c
+                    SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Metadata_Hash__c, Last_Executed_At__c, Last_Error__c
                     FROM Scheduler__c
                 ]);
             }
 
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Metadata_Hash__c, Last_Executed_At__c, Last_Error__c
                 FROM Scheduler__c
                 WHERE Config_Key__c NOT IN :keys
             ]);
@@ -249,34 +273,11 @@ public virtual with sharing class Scheduler implements Queueable {
 
         public virtual List<Scheduler__c> getEnabledJobs() {
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Metadata_Hash__c, Last_Executed_At__c, Last_Error__c
                 FROM Scheduler__c
                 WHERE Is_Enabled__c = true
                 ORDER BY Config_Key__c
             ]);
-        }
-    }
-
-    public virtual with sharing class SettingsService {
-        Scheduler_Settings__c schedulerSettings;
-
-        public virtual Scheduler_Settings__c getSettings() {
-            if (schedulerSettings != null) return schedulerSettings;
-
-            schedulerSettings = Scheduler_Settings__c.getOrgDefaults();
-            if (schedulerSettings != null) return schedulerSettings;
-
-            schedulerSettings = new Scheduler_Settings__c(
-                SetupOwnerId = UserInfo.getOrganizationId()
-            );
-            return schedulerSettings;
-        }
-
-        public virtual void saveHash(String hash) {
-            Scheduler_Settings__c row = getSettings();
-            row.Metadata_Hash__c = hash;
-            row.Translated_At__c = System.now();
-            DML.upsertRecords(new List<SObject> { row });
         }
     }
 

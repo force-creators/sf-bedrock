@@ -32,7 +32,7 @@ public with sharing class SchedulerTest {
         }
     }
 
-    @istest static void testTick_translatesChangedMetadataAndPersistsHash() {
+    @istest static void testTick_translatesChangedMetadataAndPersistsHashOnRuntimeRows() {
         successfulExecutions = 0;
         SchedulerMock mock = new SchedulerMock()
             .config(new Scheduler_Config__mdt(
@@ -55,19 +55,41 @@ public with sharing class SchedulerTest {
 
         Assert.areEqual(1, dmlMock.upserts.size(), 'Expected one upsert for translated scheduler jobs.');
         Assert.areEqual(2, dmlMock.upserts[0].size(), 'Expected the translated job and disabled stale job to be upserted together.');
-        Assert.areEqual(
-            mock.metadata.getHash(mock.metadata.configs),
-            mock.settings.schedulerSettings.Metadata_Hash__c,
-            'Expected the translated metadata hash to persist after a config change.'
-        );
-        Assert.isNotNull(
-            mock.settings.schedulerSettings.Translated_At__c,
-            'Expected translation time to be recorded when metadata is re-evaluated.'
-        );
+        String expectedHash = mock.metadata.getHash(mock.metadata.configs);
         Scheduler__c archiveJob = findJob(dmlMock.upserts[0], 'ArchiveJobs');
+        Scheduler__c staleJob = findJob(dmlMock.upserts[0], 'OldJob');
         Assert.areEqual(Scheduler.HOURS, archiveJob.Frequency__c, 'Expected metadata frequency unit to be translated onto the scheduler row.');
         Assert.areEqual('2', archiveJob.Frequency_Value__c, 'Expected metadata frequency value to be translated onto the scheduler row.');
+        Assert.areEqual(expectedHash, archiveJob.Metadata_Hash__c, 'Expected translated jobs to store the metadata hash on the runtime row.');
+        Assert.areEqual(expectedHash, staleJob.Metadata_Hash__c, 'Expected disabled stale jobs to store the metadata hash after translation.');
+        Assert.areEqual(false, staleJob.Is_Enabled__c, 'Expected scheduler rows with no matching metadata config to be disabled.');
         Assert.areEqual(1, successfulExecutions, 'Expected translated enabled jobs to be enqueued and run after the metadata sync.');
+    }
+
+    @istest static void testTick_skipsTranslationWhenRuntimeRowsMatchMetadataHash() {
+        successfulExecutions = 0;
+        Scheduler_Config__mdt config = new Scheduler_Config__mdt(
+            DeveloperName = 'ArchiveJobs',
+            Apex__c = 'SchedulerTest.SchedulerSuccessfulJob',
+            Is_Enabled__c = true,
+            Frequency__c = Scheduler.MINUTES,
+            Frequency_Value__c = '5'
+        );
+        SchedulerMock mock = new SchedulerMock()
+            .config(config)
+            .seedCurrentHash()
+            .job(job('ArchiveJobs', 'SchedulerTest.SchedulerSuccessfulJob', true, null));
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
+        Test.startTest();
+        Scheduler.tick();
+        Test.stopTest();
+
+        Assert.areEqual(0, dmlMock.upserts.size(), 'Expected scheduler translation to be skipped when runtime rows already carry the current metadata hash.');
+        Assert.areEqual(1, successfulExecutions, 'Expected matching runtime rows to still run normally when they are due.');
     }
 
     @istest static void testTick_runsEnabledJobsAndClearsPriorErrorOnSuccess() {
@@ -314,13 +336,6 @@ public with sharing class SchedulerTest {
 
     static Id schedulerId() {
         return new TestData.IdService().get(Scheduler__c.SObjectType);
-    }
-
-    static Scheduler_Settings__c settings(String hash) {
-        return new Scheduler_Settings__c(
-            SetupOwnerId = UserInfo.getOrganizationId(),
-            Metadata_Hash__c = hash
-        );
     }
 
     static Scheduler__c job(String key, String apex, Boolean isEnabled, String lastError) {

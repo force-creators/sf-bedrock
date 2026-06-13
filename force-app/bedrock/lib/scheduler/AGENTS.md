@@ -27,13 +27,11 @@ scheduler job that is due.
   `Scheduler_Config__mdt` into `Scheduler__c`, then re-query enabled jobs and
   enqueue only the jobs whose cadence is due.
 - `Scheduler.MetadataService` reads `Scheduler_Config__mdt` and computes the
-  stable config hash used to short-circuit translation when nothing changed.
-- `Scheduler.SettingsService` reads and writes the org-level
-  `Scheduler_Settings__c` row that stores the last metadata hash and
-  translation timestamp.
+  stable config hash used to short-circuit translation when matching runtime
+  rows already exist.
 - `Scheduler.QueryService` owns `Scheduler__c` reads through `Query`.
-- `SchedulerMock` provides lightweight in-memory seams for metadata, query, and
-  settings behavior in unit tests.
+- `SchedulerMock` provides lightweight in-memory seams for metadata and query
+  behavior in unit tests.
 
 ## Schema
 
@@ -42,9 +40,8 @@ scheduler job that is due.
   is not read by current Scheduler code.
 - `Scheduler__c` persists one runtime row per metadata job
   (`Config_Key__c`, `Apex__c`, `Is_Enabled__c`, `Frequency__c`,
-  `Frequency_Value__c`, `Last_Executed_At__c`, `Last_Error__c`).
-- `Scheduler_Settings__c` stores org-level scheduler state
-  (`Metadata_Hash__c`, `Translated_At__c`).
+  `Frequency_Value__c`, `Metadata_Hash__c`, `Last_Executed_At__c`,
+  `Last_Error__c`).
 
 ## Notes
 

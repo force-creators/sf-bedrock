@@ -19,9 +19,8 @@ enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`, and
 - `Scheduler_Config__mdt` defines Apex class, enabled state, frequency, and
   frequency value.
 - `Scheduler__c` stores translated runtime state, including last execution and
-  last error.
-- `Scheduler_Settings__c` stores the metadata hash used to short-circuit
-  translation.
+  last error. It also stores the metadata hash used to short-circuit
+  translation when runtime rows already match the current config.
 - Outages self-heal by running overdue jobs once on the next scheduler tick.
 
 ## Near-Term Integration
