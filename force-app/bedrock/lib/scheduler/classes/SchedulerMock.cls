@@ -57,7 +57,7 @@ public with sharing class SchedulerMock {
             return rows;
         }
 
-        public override List<Scheduler__c> getRunnableJobs() {
+        public override List<Scheduler__c> getEnabledJobs() {
             List<Scheduler__c> rows = new List<Scheduler__c>();
             for (Scheduler__c job : jobs) {
                 if (job.Is_Enabled__c) {

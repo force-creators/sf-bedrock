@@ -11,7 +11,8 @@ on exact method behavior.
 `Scheduler` is a lightweight recordless job framework. A single physical
 scheduled Apex job fires every five minutes, checks whether
 `Scheduler_Config__mdt` changed, translates metadata rows into `Scheduler__c`
-runtime rows when needed, and then invokes each enabled logical scheduler job.
+runtime rows when needed, and then invokes each enabled logical scheduler job
+that is due.
 
 ## Current shape
 
@@ -21,8 +22,8 @@ runtime rows when needed, and then invokes each enabled logical scheduler job.
 - `Scheduler.ScheduleTick` is the physical `Schedulable` entrypoint. It calls
   `Scheduler.tick()` directly so one tick can enqueue many logical queueables.
 - `Scheduler.JobService` owns the tick flow: compare metadata hash, translate
-  `Scheduler_Config__mdt` into `Scheduler__c`, then re-query and enqueue enabled
-  jobs by Apex class name.
+  `Scheduler_Config__mdt` into `Scheduler__c`, then re-query enabled jobs and
+  enqueue only the jobs whose cadence is due.
 - `Scheduler.MetadataService` reads `Scheduler_Config__mdt` and computes the
   stable config hash used to short-circuit translation when nothing changed.
 - `Scheduler.SettingsService` reads and writes the org-level
@@ -34,10 +35,11 @@ runtime rows when needed, and then invokes each enabled logical scheduler job.
 
 ## Schema
 
-- `Scheduler_Config__mdt` describes logical jobs (`Apex__c`, `Is_Enabled__c`).
+- `Scheduler_Config__mdt` describes logical jobs (`Apex__c`, `Is_Enabled__c`,
+  `Frequency__c`, `Interval__c`).
 - `Scheduler__c` persists one runtime row per metadata job
-  (`Config_Key__c`, `Apex__c`, `Is_Enabled__c`, `Last_Executed_At__c`,
-  `Last_Error__c`).
+  (`Config_Key__c`, `Apex__c`, `Is_Enabled__c`, `Frequency__c`, `Interval__c`,
+  `Last_Executed_At__c`, `Last_Error__c`).
 - `Scheduler_Settings__c` stores org-level scheduler state
   (`Metadata_Hash__c`, `Translated_At__c`).
 
@@ -45,5 +47,6 @@ runtime rows when needed, and then invokes each enabled logical scheduler job.
 
 - Removed metadata rows are not deleted from `Scheduler__c` in this MVP. They
   are disabled so runtime history remains available.
-- There is no cadence math, outage correction, or slot protection yet. Every
-  enabled scheduler job runs on each five-minute tick.
+- Cadence is based on `Last_Executed_At__c`. `Every 5 Minutes` jobs run on every
+  tick; `Hours` and `Days` jobs run once they are overdue by `Interval__c`.
+- There is no missed-tic replay, outage backfill, or slot protection yet.

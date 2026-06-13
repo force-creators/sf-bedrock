@@ -38,7 +38,9 @@ public with sharing class SchedulerTest {
             .config(new Scheduler_Config__mdt(
                 DeveloperName = 'ArchiveJobs',
                 Apex__c = 'SchedulerTest.SchedulerSuccessfulJob',
-                Is_Enabled__c = true
+                Is_Enabled__c = true,
+                Frequency__c = Scheduler.HOURS,
+                Interval__c = 2
             ))
             .job(job('OldJob', 'OldSchedulerJob', true, null));
 
@@ -61,6 +63,9 @@ public with sharing class SchedulerTest {
             mock.settings.schedulerSettings.Translated_At__c,
             'Expected translation time to be recorded when metadata is re-evaluated.'
         );
+        Scheduler__c archiveJob = findJob(dmlMock.upserts[0], 'ArchiveJobs');
+        Assert.areEqual(Scheduler.HOURS, archiveJob.Frequency__c, 'Expected metadata frequency to be translated onto the scheduler row.');
+        Assert.areEqual(2, archiveJob.Interval__c.intValue(), 'Expected metadata interval to be translated onto the scheduler row.');
         Assert.areEqual(1, successfulExecutions, 'Expected translated enabled jobs to be enqueued and run after the metadata sync.');
     }
 
@@ -82,6 +87,110 @@ public with sharing class SchedulerTest {
         Assert.areEqual(1, successfulExecutions, 'Expected one enabled scheduler job to execute during the tick.');
         Assert.isNotNull(updatedJob.Last_Executed_At__c, 'Expected job execution time to be recorded after a successful run.');
         Assert.areEqual(null, updatedJob.Last_Error__c, 'Expected a successful run to clear the previous error message.');
+    }
+
+    @istest static void testTick_runsEveryFiveMinuteJobEvenWhenRecentlyExecuted() {
+        successfulExecutions = 0;
+        SchedulerMock mock = new SchedulerMock()
+            .seedSettings(settings('same-hash'))
+            .job(job(
+                'ArchiveJobs',
+                'SchedulerTest.SchedulerSuccessfulJob',
+                true,
+                null,
+                Scheduler.EVERY_FIVE_MINUTES,
+                1,
+                System.now()
+            ));
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
+        Test.startTest();
+        Scheduler.tick();
+        Test.stopTest();
+
+        Assert.areEqual(1, successfulExecutions, 'Expected every-five-minute jobs to run on each scheduler tick.');
+        Assert.areEqual(1, dmlMock.updates.size(), 'Expected a recent every-five-minute job to still record execution.');
+    }
+
+    @istest static void testTick_skipsHourlyJobBeforeInterval() {
+        successfulExecutions = 0;
+        SchedulerMock mock = new SchedulerMock()
+            .seedSettings(settings('same-hash'))
+            .job(job(
+                'ArchiveJobs',
+                'SchedulerTest.SchedulerSuccessfulJob',
+                true,
+                null,
+                Scheduler.HOURS,
+                2,
+                System.now().addHours(-1)
+            ));
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
+        Test.startTest();
+        Scheduler.tick();
+        Test.stopTest();
+
+        Assert.areEqual(0, successfulExecutions, 'Expected hourly jobs to wait until their interval has elapsed.');
+        Assert.areEqual(0, dmlMock.updates.size(), 'Expected skipped jobs not to record a new execution.');
+    }
+
+    @istest static void testTick_runsHourlyJobAfterInterval() {
+        successfulExecutions = 0;
+        SchedulerMock mock = new SchedulerMock()
+            .seedSettings(settings('same-hash'))
+            .job(job(
+                'ArchiveJobs',
+                'SchedulerTest.SchedulerSuccessfulJob',
+                true,
+                null,
+                Scheduler.HOURS,
+                2,
+                System.now().addHours(-2)
+            ));
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
+        Test.startTest();
+        Scheduler.tick();
+        Test.stopTest();
+
+        Assert.areEqual(1, successfulExecutions, 'Expected overdue hourly jobs to run on the next scheduler tick.');
+        Assert.areEqual(1, dmlMock.updates.size(), 'Expected overdue hourly jobs to record execution.');
+    }
+
+    @istest static void testTick_runsDailyJobAfterInterval() {
+        successfulExecutions = 0;
+        SchedulerMock mock = new SchedulerMock()
+            .seedSettings(settings('same-hash'))
+            .job(job(
+                'ArchiveJobs',
+                'SchedulerTest.SchedulerSuccessfulJob',
+                true,
+                null,
+                Scheduler.DAYS,
+                2,
+                System.now().addDays(-2)
+            ));
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Scheduler.setMock(mock);
+
+        Test.startTest();
+        Scheduler.tick();
+        Test.stopTest();
+
+        Assert.areEqual(1, successfulExecutions, 'Expected overdue daily jobs to run on the next scheduler tick.');
+        Assert.areEqual(1, dmlMock.updates.size(), 'Expected overdue daily jobs to record execution.');
     }
 
     @istest static void testTick_recordsErrorMessageWhenJobFails() {
@@ -129,12 +238,37 @@ public with sharing class SchedulerTest {
     }
 
     static Scheduler__c job(String key, String apex, Boolean isEnabled, String lastError) {
+        return job(key, apex, isEnabled, lastError, Scheduler.EVERY_FIVE_MINUTES, 1, null);
+    }
+
+    static Scheduler__c job(
+        String key,
+        String apex,
+        Boolean isEnabled,
+        String lastError,
+        String frequency,
+        Integer interval,
+        DateTime lastExecutedAt
+    ) {
         return new Scheduler__c(
             Id = schedulerId(),
             Config_Key__c = key,
             Apex__c = apex,
             Is_Enabled__c = isEnabled,
+            Frequency__c = frequency,
+            Interval__c = interval,
+            Last_Executed_At__c = lastExecutedAt,
             Last_Error__c = lastError
         );
+    }
+
+    static Scheduler__c findJob(List<SObject> rows, String key) {
+        for (SObject row : rows) {
+            Scheduler__c job = (Scheduler__c) row;
+            if (job.Config_Key__c == key) return job;
+        }
+
+        Assert.fail('Expected to find scheduler job ' + key + '.');
+        return null;
     }
 }
