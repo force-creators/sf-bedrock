@@ -57,6 +57,7 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Other',
     items: [
+      { label: 'Limiter', href: '/limiter' },
       { label: 'Pluck', href: '/pluck' }
     ]
   }

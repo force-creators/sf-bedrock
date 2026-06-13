@@ -6,7 +6,7 @@ work. Cross-cutting roadmap principles and feature sequencing live in the repo
 root `ROADMAP.md`.
 
 `ThreadService` and `Thread_Context__c` are deliberately *shared* infrastructure
-(like `LimitsService` in `../limits-service/ROADMAP.md`): sharing a mechanism is
+(like `Limiter` in `../limiter/ROADMAP.md`): sharing a mechanism is
 not collapsing the pools. `Async` (`../async/ROADMAP.md`) and the future `Event`
 framework (`../event/ROADMAP.md`) are both consumers; their work pools stay
 separate while the concurrency mechanism lives here in one place.
@@ -41,7 +41,7 @@ throughput.
 **ThreadService (shared infrastructure):** the source of truth for threads — it
 mints the `threadId`, creates and queries `Thread_Context__c` records, and owns
 thread `Status__c` transitions. Because **Event also needs `Thread_Context__c`**,
-this is a standalone injectable service like `LimitsService` — *not* an `Async`
+this is a standalone injectable service like `Limiter` — *not* an `Async`
 inner class. Async and Event are both consumers; the concurrency mechanism (soft
 cap, `FOR UPDATE` spin-up coordination, backlog handoff) lives in one place
 while the work pools stay separate. It sits beside `WorkService` (which owns
@@ -62,7 +62,7 @@ accurately, and without collisions.
   concurrency cap for a user, scoped by `CreatedById` — the framework runs in
   the user's context, so no separate owner field is needed. **Caps are counted
   per pool:** Async and Event each cap their own threads independently so neither
-  starves the other, with `LimitsService` as the cross-pool org-health backstop.
+  starves the other, with `Limiter` as the cross-pool org-health backstop.
   The **recommended org default is `1`** — no multithreading unless deliberately
   opted into. Heavy automation and service identities (`AutomatedProcessUser`,
   integration/service accounts) are the intended place to raise it via per-user
@@ -85,9 +85,9 @@ accurately, and without collisions.
   system monitor launches it — and as many other backlogged threads as its
   limits allow. This is the one path that does not run in the originating user's
   context.
-- **Composes with LimitsService:** a thread starts only when both a slot is
-  available AND `LimitsService.isSafe()`. The cap is per-user concurrency;
-  LimitsService is org health. (LimitsService is itself blocked by Scheduler
+- **Composes with Limiter:** a thread starts only when both a slot is
+  available AND `Limiter.isSafe()`. The cap is per-user concurrency;
+  Limiter is org health. (Limiter is itself blocked by Scheduler
   MVP1, so the cap can ship first and gain the safety gate later.)
 
 **Schema:** new `Thread_Context__c` object (`Status__c` plus enough to tie it to
@@ -106,5 +106,5 @@ can tell the two pools apart.
   statuses (e.g. `Pending`/`Running`/`Done`) and how they relate to work-item
   statuses.
 - Whether the 15-minute starvation-recovery monitor is the same job as the
-  LimitsService resume monitor or a sibling. **Deferred until Scheduler MVP1** —
+  Limiter resume monitor or a sibling. **Deferred until Scheduler MVP1** —
   the answer isn't needed before then, and could land either way.

@@ -11,7 +11,7 @@ names, schemas, metadata objects, or behavior that does not exist yet.
 
 ## Event
 
-Status: future. Depends on `LimitsService` (`../limits-service/ROADMAP.md`) and
+Status: future. Depends on `Limiter` (`../limiter/ROADMAP.md`) and
 the shared `ThreadService` / `Thread_Context__c` (`../thread-service/ROADMAP.md`
 — its threads are `Thread_Context__c` rows tagged with the `Event` pool). Shares
 `Async`'s Queueable thread model but is a **sibling framework**, not a subclass —
@@ -31,7 +31,7 @@ Platform Event pain point: silent failures and the lack of built-in retry.
 
 A limits-safe wrapper around `EventBus.publish()`. The caller hands Event a
 payload; Event persists an `Event_Job__c` row and a Queueable performs the
-actual `EventBus.publish()` only when `LimitsService.isSafe()` allows. If limits
+actual `EventBus.publish()` only when `Limiter.isSafe()` allows. If limits
 are exhausted, the work item moves to `Paused` instead of being dropped or
 failing silently, and the framework auto-recovers (the Scheduler MVP1 monitor
 re-checks and flips `Paused` back to pending).
@@ -83,7 +83,7 @@ Handler:
 - Bundling may be supported, but only when explicitly enabled by configuration.
 - Use async processing and finalizer tracking to avoid the silent-failure
   problem common with Platform Events.
-- Consult `LimitsService` before publishing events or starting event work.
+- Consult `Limiter` before publishing events or starting event work.
 
 ### Schema
 
@@ -118,7 +118,7 @@ picklist small.
 
 ### Open / not-yet-locked
 
-- Whether `Paused` publish recovery shares the same `LimitsService` resume
+- Whether `Paused` publish recovery shares the same `Limiter` resume
   monitor as Async or needs an Event-specific check (Event additionally watches
   available Platform Event publish allocation, not just Queueable depth).
 - Exact `stage` / `flush` buffering signatures.
