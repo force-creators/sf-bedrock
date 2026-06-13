@@ -57,6 +57,6 @@ scheduler job that is due.
   not stop the rest of the tick.
 - Outage recovery is intentionally simple: overdue jobs run once on the next
   successful tick. The framework does not replay every missed occurrence.
-- There is no missed-tic replay, outage backfill, or slot protection yet.
-- Future discussion for missed-tic replay, concurrency caps, and additional
+- There is no missed-tick replay, outage backfill, or slot protection yet.
+- Future discussion for missed-tick replay, concurrency caps, and additional
   cadence types belongs in `ROADMAP.md`, not in the implemented contract.
