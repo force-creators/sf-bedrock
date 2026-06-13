@@ -18,7 +18,9 @@ scheduler job that is due.
 
 - `Scheduler` is a `virtual` base class that also implements `Queueable`.
   Subclasses override `execute()` with no parameters; the framework wrapper
-  handles queueable execution and runtime-state updates.
+  handles queueable execution and runtime-state updates. It attaches a Queueable
+  Finalizer so unhandled queueable failures, including governor limit
+  exceptions, are recorded on the runtime row.
 - `SchedulerTick` is the top-level physical `Schedulable` entrypoint. It calls
   `Scheduler.tick()` directly so one tick can enqueue many logical queueables.
 - `Scheduler.schedule()` replaces existing `Bedrock Scheduler %` jobs and then
@@ -27,13 +29,11 @@ scheduler job that is due.
   `Scheduler_Config__mdt` into `Scheduler__c`, then re-query enabled jobs and
   enqueue only the jobs whose cadence is due.
 - `Scheduler.MetadataService` reads `Scheduler_Config__mdt` and computes the
-  stable config hash used to short-circuit translation when nothing changed.
-- `Scheduler.SettingsService` reads and writes the org-level
-  `Scheduler_Settings__c` row that stores the last metadata hash and
-  translation timestamp.
+  stable config hash used to short-circuit translation when matching runtime
+  rows already exist.
 - `Scheduler.QueryService` owns `Scheduler__c` reads through `Query`.
-- `SchedulerMock` provides lightweight in-memory seams for metadata, query, and
-  settings behavior in unit tests.
+- `SchedulerMock` provides lightweight in-memory seams for metadata and query
+  behavior in unit tests.
 
 ## Schema
 
@@ -42,19 +42,23 @@ scheduler job that is due.
   is not read by current Scheduler code.
 - `Scheduler__c` persists one runtime row per metadata job
   (`Config_Key__c`, `Apex__c`, `Is_Enabled__c`, `Frequency__c`,
-  `Frequency_Value__c`, `Last_Executed_At__c`, `Last_Error__c`).
-- `Scheduler_Settings__c` stores org-level scheduler state
-  (`Metadata_Hash__c`, `Translated_At__c`).
+  `Frequency_Value__c`, `Metadata_Hash__c`, `Next_Run_At__c`,
+  `Last_Executed_At__c`, `Last_Error__c`).
 
 ## Notes
 
 - Removed metadata rows are not deleted from `Scheduler__c` in this MVP. They
   are disabled so runtime history remains available.
-- Cadence is based on `Last_Executed_At__c`. `Minutes`, `Hours`, and `Days`
-  jobs run once they are overdue by `Frequency_Value__c`. Minute values are
-  clamped to a minimum of five minutes.
+- Cadence is based on `Next_Run_At__c`. New or newly enabled jobs wait one full
+  configured interval before their first run, so the UI does not report a run
+  before one actually happened. Queueable start delay must not push the next due
+  window later. `Minutes`, `Hours`, `Days`, `Weeks`, and `Months` jobs run once
+  they reach `Next_Run_At__c`. Minute values are clamped to `5` through `55`,
+  day values to `1` through `31`, week values to `1` through `52`, and month
+  values to `1` through `12`.
 - Run or enqueue failures for one logical row are recorded on that row and do
   not stop the rest of the tick.
+- Unhandled Queueable failures are recorded by `Scheduler.JobFinalizer`.
 - Outage recovery is intentionally simple: overdue jobs run once on the next
   successful tick. The framework does not replay every missed occurrence.
 - There is no missed-tick replay, outage backfill, or slot protection yet.
