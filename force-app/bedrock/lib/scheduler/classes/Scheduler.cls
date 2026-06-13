@@ -1,5 +1,6 @@
 public virtual with sharing class Scheduler implements Queueable {
     public static final String EVERY_FIVE_MINUTES = 'Every 5 Minutes';
+    public static final String MINUTES = 'Minutes';
     public static final String HOURS = 'Hours';
     public static final String DAYS = 'Days';
     public static JobService jobs = new JobService();
@@ -62,17 +63,29 @@ public virtual with sharing class Scheduler implements Queueable {
         });
     }
 
-    String truncateError(String message) {
+    static String truncateError(String message) {
         if (String.isBlank(message)) return null;
         return message.left(32768);
     }
 
     public virtual with sharing class JobService {
         public virtual void schedule() {
-            System.schedule('Bedrock Scheduler 00', '0 0 * * * ? *', new ScheduleTick());
-            System.schedule('Bedrock Scheduler 15', '0 15 * * * ? *', new ScheduleTick());
-            System.schedule('Bedrock Scheduler 30', '0 30 * * * ? *', new ScheduleTick());
-            System.schedule('Bedrock Scheduler 45', '0 45 * * * ? *', new ScheduleTick());
+            for (CronTrigger cronTrigger : [
+                SELECT Id
+                FROM CronTrigger
+                WHERE CronJobDetail.Name LIKE 'Bedrock Scheduler %'
+            ]) {
+                System.abortJob(cronTrigger.Id);
+            }
+
+            for (Integer minute = 0; minute < 60; minute += 5) {
+                String label = minute < 10 ? '0' + String.valueOf(minute) : String.valueOf(minute);
+                System.schedule(
+                    'Bedrock Scheduler ' + label,
+                    '0 ' + String.valueOf(minute) + ' * * * ? *',
+                    new SchedulerTick()
+                );
+            }
         }
 
         public virtual void tick() {
@@ -83,7 +96,11 @@ public virtual with sharing class Scheduler implements Queueable {
             DateTime now = System.now();
             for (Scheduler__c job : queries.getEnabledJobs()) {
                 if (!isDue(job, now)) continue;
-                run(job);
+                try {
+                    run(job);
+                } catch (Exception error) {
+                    recordFailure(job, now, error);
+                }
             }
         }
 
@@ -107,8 +124,9 @@ public virtual with sharing class Scheduler implements Queueable {
 
                 job.Apex__c = config.Apex__c;
                 job.Is_Enabled__c = config.Is_Enabled__c;
-                job.Frequency__c = frequency(config.Frequency__c);
-                job.Interval__c = interval(config.Interval__c);
+                String unit = frequency(config.Frequency__c);
+                job.Frequency__c = unit;
+                job.Frequency_Value__c = String.valueOf(interval(config.Frequency_Value__c, unit));
                 jobs.add(job);
             }
 
@@ -129,31 +147,57 @@ public virtual with sharing class Scheduler implements Queueable {
             System.enqueueJob(task.setSchedulerJob(job.Id));
         }
 
+        public virtual void recordFailure(Scheduler__c job, DateTime attemptedAt, Exception error) {
+            if (job.Id == null) return;
+
+            DML.updateRecords(new List<SObject> {
+                new Scheduler__c(
+                    Id = job.Id,
+                    Last_Executed_At__c = attemptedAt,
+                    Last_Error__c = truncateError(error.getMessage())
+                )
+            });
+        }
+
         public virtual Boolean isDue(Scheduler__c job, DateTime now) {
             if (job.Last_Executed_At__c == null) return true;
 
-            Integer amount = interval(job.Interval__c);
             String unit = frequency(job.Frequency__c);
+            Integer amount = interval(job.Frequency_Value__c, unit);
 
+            if (unit == MINUTES) return job.Last_Executed_At__c <= now.addMinutes(-amount);
             if (unit == HOURS) return job.Last_Executed_At__c <= now.addHours(-amount);
             if (unit == DAYS) return job.Last_Executed_At__c <= now.addDays(-amount);
-            return true;
+            return job.Last_Executed_At__c <= now.addMinutes(-amount);
         }
 
         String frequency(String value) {
-            return String.isBlank(value) ? EVERY_FIVE_MINUTES : value;
+            if (String.isBlank(value) || value == EVERY_FIVE_MINUTES) return MINUTES;
+            return value;
         }
 
-        Integer interval(Decimal value) {
-            if (value == null || value < 1) return 1;
-            return value.intValue();
+        Integer interval(String value) {
+            if (String.isBlank(value)) return 1;
+
+            try {
+                Integer amount = Integer.valueOf(value);
+                return amount < 1 ? 1 : amount;
+            } catch (Exception error) {
+                return 1;
+            }
+        }
+
+        Integer interval(String value, String unit) {
+            Integer amount = interval(value);
+            if (unit == MINUTES && amount < 5) return 5;
+            return amount;
         }
     }
 
     public virtual with sharing class MetadataService {
         public virtual List<Scheduler_Config__mdt> getConfigs() {
             return [
-                SELECT DeveloperName, Apex__c, Is_Enabled__c, Frequency__c, Interval__c
+                SELECT DeveloperName, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c
                 FROM Scheduler_Config__mdt
                 ORDER BY DeveloperName
             ];
@@ -182,7 +226,7 @@ public virtual with sharing class Scheduler implements Queueable {
         public virtual List<Scheduler__c> getJobsByKeys(Set<String> keys) {
             if (keys == null || keys.isEmpty()) return new List<Scheduler__c>();
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Interval__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Last_Executed_At__c, Last_Error__c
                 FROM Scheduler__c
                 WHERE Config_Key__c IN :keys
             ]);
@@ -191,13 +235,13 @@ public virtual with sharing class Scheduler implements Queueable {
         public virtual List<Scheduler__c> getJobsNotInKeys(Set<String> keys) {
             if (keys == null || keys.isEmpty()) {
                 return (List<Scheduler__c>) Query.records([
-                    SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Interval__c, Last_Executed_At__c, Last_Error__c
+                    SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Last_Executed_At__c, Last_Error__c
                     FROM Scheduler__c
                 ]);
             }
 
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Interval__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Last_Executed_At__c, Last_Error__c
                 FROM Scheduler__c
                 WHERE Config_Key__c NOT IN :keys
             ]);
@@ -205,7 +249,7 @@ public virtual with sharing class Scheduler implements Queueable {
 
         public virtual List<Scheduler__c> getEnabledJobs() {
             return (List<Scheduler__c>) Query.records([
-                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Interval__c, Last_Executed_At__c, Last_Error__c
+                SELECT Id, Config_Key__c, Apex__c, Is_Enabled__c, Frequency__c, Frequency_Value__c, Last_Executed_At__c, Last_Error__c
                 FROM Scheduler__c
                 WHERE Is_Enabled__c = true
                 ORDER BY Config_Key__c

@@ -5,7 +5,7 @@ public with sharing class SchedulerMock {
     public SettingsService settings;
 
     public SchedulerMock() {
-        jobs = new Scheduler.JobService();
+        jobs = new JobService();
         metadata = new MetadataService();
         queries = new QueryService();
         settings = new SettingsService();
@@ -24,6 +24,21 @@ public with sharing class SchedulerMock {
     public SchedulerMock seedSettings(Scheduler_Settings__c settingsRecord) {
         settings.schedulerSettings = settingsRecord;
         return this;
+    }
+
+    public SchedulerMock seedCurrentHash() {
+        settings.schedulerSettings.Metadata_Hash__c = metadata.getHash(metadata.configs);
+        return this;
+    }
+
+    public with sharing class JobService extends Scheduler.JobService {
+        public List<Scheduler__c> ranJobs = new List<Scheduler__c>();
+
+        public override void run(Scheduler__c job) {
+            ranJobs.add(job);
+            Scheduler task = (Scheduler) Type.forName(job.Apex__c).newInstance();
+            task.setSchedulerJob(job.Id).execute(null);
+        }
     }
 
     public with sharing class MetadataService extends Scheduler.MetadataService {
