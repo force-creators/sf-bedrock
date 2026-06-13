@@ -5,6 +5,9 @@ import { spawn, spawnSync } from 'node:child_process';
 const scriptArguments = process.argv.slice(2);
 const docsDirectory = resolve('docs');
 const localUrlPattern = /(https?:\/\/(127\.0\.0\.1|localhost):\d+\/)/;
+const tunnelUrlPattern = /(https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com)/;
+const docsHost = '127.0.0.1';
+const docsPort = '4321';
 
 function openBrowser(url) {
   if (process.platform === 'darwin') {
@@ -89,9 +92,20 @@ function runDeploy(deployArguments) {
 }
 
 function runDev(devArguments) {
+  const cloudflaredCheck = spawnSync('cloudflared', ['--version'], {
+    stdio: 'ignore',
+  });
+
+  if (cloudflaredCheck.error || (cloudflaredCheck.status ?? 1) !== 0) {
+    console.error('Could not find the Cloudflare Tunnel client "cloudflared".');
+    console.error('Install it with: brew install cloudflared');
+    console.error('Then rerun: npm run docs');
+    process.exit(1);
+  }
+
   runBuild([]);
 
-  const commandArguments = ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '4321'];
+  const commandArguments = ['run', 'dev', '--', '--host', docsHost, '--port', docsPort];
 
   if (devArguments.length > 0) {
     commandArguments.push(...devArguments);
@@ -104,14 +118,73 @@ function runDev(devArguments) {
     stdio: ['inherit', 'pipe', 'pipe'],
   });
 
+  let tunnelProcess;
   let browserOpened = false;
 
-  function relayOutput(output, writer) {
+  function stopProcesses(signal) {
+    if (tunnelProcess && !tunnelProcess.killed) {
+      tunnelProcess.kill(signal);
+    }
+
+    if (!devServer.killed) {
+      devServer.kill(signal);
+    }
+  }
+
+  function relayTunnelOutput(output, writer) {
     writer.write(output);
 
     if (browserOpened) {
       return;
     }
+
+    const tunnelUrlMatch = output.match(tunnelUrlPattern);
+
+    if (!tunnelUrlMatch) {
+      return;
+    }
+
+    browserOpened = true;
+
+    console.log(`Opening Cloudflare Tunnel URL: ${tunnelUrlMatch[1]}`);
+
+    const browserProcess = openBrowser(tunnelUrlMatch[1]);
+    browserProcess.unref();
+  }
+
+  function startTunnel(localUrl) {
+    if (tunnelProcess) {
+      return;
+    }
+
+    console.log(`Starting Cloudflare Tunnel for ${localUrl}`);
+
+    tunnelProcess = spawn('cloudflared', ['tunnel', '--url', localUrl], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    tunnelProcess.stdout.on('data', (chunk) => relayTunnelOutput(chunk.toString(), process.stdout));
+    tunnelProcess.stderr.on('data', (chunk) => relayTunnelOutput(chunk.toString(), process.stderr));
+
+    tunnelProcess.on('error', (error) => {
+      console.error(error.message);
+      stopProcesses('SIGTERM');
+      process.exit(1);
+    });
+
+    tunnelProcess.on('exit', (code, signal) => {
+      if (code === 0 || signal) {
+        return;
+      }
+
+      console.error(`Cloudflare Tunnel exited with code ${code}.`);
+      stopProcesses('SIGTERM');
+      process.exit(code ?? 1);
+    });
+  }
+
+  function relayOutput(output, writer) {
+    writer.write(output);
 
     const localUrlMatch = output.match(localUrlPattern);
 
@@ -119,10 +192,7 @@ function runDev(devArguments) {
       return;
     }
 
-    browserOpened = true;
-
-    const browserProcess = openBrowser(localUrlMatch[1]);
-    browserProcess.unref();
+    startTunnel(localUrlMatch[1]);
   }
 
   devServer.stdout.on('data', (chunk) => relayOutput(chunk.toString(), process.stdout));
@@ -134,15 +204,19 @@ function runDev(devArguments) {
   });
 
   devServer.on('exit', (code) => {
+    if (tunnelProcess && !tunnelProcess.killed) {
+      tunnelProcess.kill('SIGTERM');
+    }
+
     process.exit(code ?? 1);
   });
 
   process.on('SIGINT', () => {
-    devServer.kill('SIGINT');
+    stopProcesses('SIGINT');
   });
 
   process.on('SIGTERM', () => {
-    devServer.kill('SIGTERM');
+    stopProcesses('SIGTERM');
   });
 }
 

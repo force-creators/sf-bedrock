@@ -46,6 +46,20 @@ const isActive = (href: string) => href !== '#' && (href.replace(/\/$/, '') || '
           <img class="brand-logo" src="/icon.svg" alt="" />
           <span class="brand-text">Bedrock Documentation</span>
         </a>
+        <button
+          class="menu-toggle"
+          type="button"
+          aria-label="Open documentation menu"
+          aria-controls="docs-sidebar"
+          aria-expanded="false"
+        >
+          <span class="menu-toggle-icon" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          <span class="menu-toggle-text">Menu</span>
+        </button>
         <div class="top-actions">
           <div class="search" role="search" aria-label="Documentation search placeholder">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -77,7 +91,14 @@ const isActive = (href: string) => href !== '#' && (href.replace(/\/$/, '') || '
     </header>
 
     <div class="layout">
-      <aside class="sidebar" aria-label="Documentation navigation">
+      <aside class="sidebar" id="docs-sidebar" aria-label="Documentation navigation">
+        <div class="sidebar-header">
+          <span class="sidebar-title">Documentation</span>
+          <button class="menu-close" type="button" aria-label="Close documentation menu" aria-controls="docs-sidebar">
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+          </button>
+        </div>
         <nav class="sidebar-inner">
           {
             navGroups.map((group) => (
@@ -116,6 +137,7 @@ const isActive = (href: string) => href !== '#' && (href.replace(/\/$/, '') || '
           }
         </nav>
       </aside>
+      <button class="sidebar-backdrop" type="button" aria-label="Dismiss documentation menu" hidden></button>
 
       <main class="content-wrap">
         <article class="content">
@@ -140,6 +162,62 @@ const isActive = (href: string) => href !== '#' && (href.replace(/\/$/, '') || '
 
     <script>
       (() => {
+        const sidebar = document.querySelector('#docs-sidebar');
+        const menuButton = document.querySelector('.menu-toggle');
+        const closeButton = document.querySelector('.menu-close');
+        const backdrop = document.querySelector('.sidebar-backdrop');
+        const mobileNavigation = window.matchMedia('(max-width: 1020px)');
+
+        const closeMenu = () => {
+          document.body.classList.remove('nav-open');
+          menuButton?.setAttribute('aria-expanded', 'false');
+          menuButton?.setAttribute('aria-label', 'Open documentation menu');
+          if (backdrop instanceof HTMLElement) {
+            backdrop.hidden = true;
+          }
+        };
+
+        const openMenu = () => {
+          document.body.classList.add('nav-open');
+          menuButton?.setAttribute('aria-expanded', 'true');
+          menuButton?.setAttribute('aria-label', 'Close documentation menu from header');
+          if (backdrop instanceof HTMLElement) {
+            backdrop.hidden = false;
+          }
+          closeButton?.focus();
+        };
+
+        menuButton?.addEventListener('click', () => {
+          if (document.body.classList.contains('nav-open')) {
+            closeMenu();
+          } else {
+            openMenu();
+          }
+        });
+
+        closeButton?.addEventListener('click', closeMenu);
+        backdrop?.addEventListener('click', closeMenu);
+
+        sidebar?.addEventListener('click', (event) => {
+          const link = event.target instanceof Element ? event.target.closest('a') : null;
+          if (link && mobileNavigation.matches) {
+            closeMenu();
+          }
+        });
+
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape' && document.body.classList.contains('nav-open')) {
+            closeMenu();
+            menuButton?.focus();
+          }
+        });
+
+        mobileNavigation.addEventListener('change', (event) => {
+          if (!event.matches) {
+            closeMenu();
+          }
+        });
+
         const sectionLinks = Array.from(
           document.querySelectorAll('.nav-sublink[href^="#"], .toc-link[href^="#"]')
         );
