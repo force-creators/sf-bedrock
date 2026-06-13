@@ -337,6 +337,39 @@ public with sharing class AsyncTest {
         Assert.areEqual(0, result.Retry_Count__c, 'Expected Retry_Count__c to stay 0 when auto-retry is disabled.');
     }
 
+    @istest static void testJobWatcher_continueAfterFailure_underThreshold_keepsDirectChain() {
+        SpyJobService jobs = new SpyJobService();
+        Async.jobs = jobs;
+
+        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 2).continueAfterFailure();
+
+        Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch below the threshold to continue the current worker chain.');
+        Assert.areEqual(3, jobs.lastEnqueueFailures, 'Expected failure-path dispatch below the threshold to increment the failure streak for the next worker batch.');
+        Assert.areEqual(0, jobs.startThreadCalls, 'Expected failure-path dispatch below the threshold not to restart through AsyncThread yet.');
+    }
+
+    @istest static void testJobWatcher_continueAfterFailure_atThreshold_restartsThroughAsyncThread() {
+        SpyJobService jobs = new SpyJobService();
+        Async.jobs = jobs;
+
+        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 3).continueAfterFailure();
+
+        Assert.areEqual(0, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch at the threshold not to chain another worker directly from the finalizer.');
+        Assert.areEqual(1, jobs.startThreadCalls, 'Expected failure-path dispatch to restart the backlog through AsyncThread.');
+        Assert.areEqual(0, jobs.lastStartFailures, 'Expected failure-path dispatch at the threshold to reset the failure streak on the restarted thread.');
+    }
+
+    @istest static void testAsyncThread_execute_passesFailureCountToNextWorkerDispatch() {
+        SpyJobService jobs = new SpyJobService();
+        Async.jobs = jobs;
+
+        new AsyncThread('thread-123', 2).execute(null);
+
+        Assert.areEqual('thread-123', Async.jobs.threadId, 'Expected AsyncThread to adopt the provided thread id before dispatching the next worker batch.');
+        Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected AsyncThread to dispatch the next worker batch once.');
+        Assert.areEqual(2, jobs.lastEnqueueFailures, 'Expected AsyncThread to forward the carried failure streak into the next worker dispatch.');
+    }
+
     @istest static void testManualRetry_pastCapDoesNotBumpRetryCount() {
         Contact contact = new Contact(LastName = 'Manual');
         insert contact;
@@ -379,6 +412,23 @@ public with sharing class AsyncTest {
         protected override Async_Settings__c loadSettings() {
             this.loadCount++;
             return new Async_Settings__c();
+        }
+    }
+
+    public with sharing class SpyJobService extends Async.JobService {
+        public Integer enqueueNextJobCalls = 0;
+        public Integer startThreadCalls = 0;
+        public Integer lastEnqueueFailures = -1;
+        public Integer lastStartFailures = -1;
+
+        public override void enqueueNextJob(Integer failures) {
+            this.enqueueNextJobCalls++;
+            this.lastEnqueueFailures = failures;
+        }
+
+        public override void startThread(Integer failures) {
+            this.startThreadCalls++;
+            this.lastStartFailures = failures;
         }
     }
 

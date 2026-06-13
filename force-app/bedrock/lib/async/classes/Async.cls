@@ -30,12 +30,18 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     }
 
     public String threadId;
+    public Integer failures = 0;
     public Set<Id> recordIds = new Set<Id>();
     public Set<Id> workItemIds = new Set<Id>();
 
     public void setWork(String threadId, Set<Id> workItemIds) {
+        this.setWork(threadId, workItemIds, 0);
+    }
+
+    public void setWork(String threadId, Set<Id> workItemIds, Integer failures) {
         this.threadId = threadId;
         this.workItemIds = workItemIds;
+        this.failures = failures == null ? 0 : failures;
     }
 
     public void enqueue() {
@@ -47,7 +53,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     }
 
     public void execute(QueueableContext context) {
-        JobWatcher watcher = jobs.watch(this.threadId, this.workItemIds);
+        JobWatcher watcher = jobs.watch(this.threadId, this.workItemIds, this.failures);
         jobs.attachFinalizer(watcher);
 
         this.execute(this.getRecordIds());
@@ -66,6 +72,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         public boolean hasEnqueued = false;
         @testVisible JobWatcher watcher;
         @testVisible Boolean isFinalizer = false;
+        @testVisible Integer restartLimit = 4;
 
         public virtual void enqueue() {
             if(!this.canEnqueue() || this.hasEnqueued || System.isQueueable() || this.isFinalizer || this.isRunningThread()) return;
@@ -74,7 +81,11 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual JobWatcher watch(String threadId, Set<Id> workItemIds) {
-            this.watcher = new JobWatcher(threadId, workItemIds);
+            return this.watch(threadId, workItemIds, 0);
+        }
+
+        public virtual JobWatcher watch(String threadId, Set<Id> workItemIds, Integer failures) {
+            this.watcher = new JobWatcher(threadId, workItemIds, failures);
             return this.watcher;
         }
 
@@ -83,7 +94,11 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual void startThread() {
-            System.enqueueJob(new AsyncThread(this.threadId));
+            this.startThread(0);
+        }
+
+        public virtual void startThread(Integer failures) {
+            System.enqueueJob(new AsyncThread(this.threadId, failures));
         }
 
         public virtual void attachFinalizer(Finalizer finalizer) {
@@ -91,6 +106,10 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual void enqueueNextJob() {
+            this.enqueueNextJob(0);
+        }
+
+        public virtual void enqueueNextJob(Integer failures) {
             Async__c nextWorkItem = queries.getNextWorkItem(this.threadId);
             System.debug(nextWorkItem);
             if(nextWorkItem == null) return; //todo: this should never happen, throw an exception and alert.
@@ -101,9 +120,14 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             
             //dynamically instantiate the async job
             Async asyncJob = (Async) Type.forName(nextWorkItem.Apex__c).newInstance();
-            asyncJob.setWork(this.threadId, workItemIds);
+            asyncJob.setWork(this.threadId, workItemIds, failures);
             work.running(workItemIds);
             asyncJob.enqueue();
+        }
+
+        public virtual Boolean shouldRestartThread(Integer failures) {
+            Integer safeFailures = failures == null ? 0 : failures;
+            return safeFailures >= this.restartLimit;
         }
 
         public void retry(Set<Id> workItemIds) {
@@ -405,11 +429,13 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     public with sharing class JobWatcher implements Finalizer {
         Set<Id> workItemIds;
         String threadId;
+        Integer failures;
         Map<String, Set<Id>> deferredWork = new Map<String, Set<Id>>();
 
-        public JobWatcher(String threadId, Set<Id> workItemIds) {
+        public JobWatcher(String threadId, Set<Id> workItemIds, Integer failures) {
             this.workItemIds = workItemIds;
             this.threadId = threadId;
+            this.failures = failures == null ? 0 : failures;
         }
 
         public void execute(FinalizerContext context) {
@@ -429,10 +455,20 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                     error == null ? String.valueOf(context.getResult()) : error.getMessage(),
                     error == null ? null : error.getStackTraceString()
                 );
-                jobs.enqueueNextJob();
+                this.continueAfterFailure();
             } finally {
                 Async.jobs.isFinalizer = false;
             }
+        }
+
+        @testVisible void continueAfterFailure() {
+            Integer nextFailures = this.failures + 1;
+            if (jobs.shouldRestartThread(nextFailures)) {
+                jobs.startThread(0);
+                return;
+            }
+
+            jobs.enqueueNextJob(nextFailures);
         }
 
         void createDeferredWork() {
