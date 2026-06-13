@@ -1,5 +1,13 @@
 @istest
 public with sharing class SchedulerTest {
+    static Integer successfulExecutions = 0;
+
+    class SchedulerSuccessfulJob extends Scheduler {
+        public override void execute() {
+            successfulExecutions++;
+        }
+    }
+
     class SchedulerFailingJob extends Scheduler {
         public override void execute() {
             throw new Scheduler.SchedulerException('Scheduler job failed.');
@@ -26,11 +34,11 @@ public with sharing class SchedulerTest {
 
     @istest static void testTick_translatesChangedMetadataAndPersistsHash() {
         TestData.IdService ids = new TestData.IdService();
-        SchedulerSuccessfulJob.executions = 0;
+        successfulExecutions = 0;
         SchedulerMock mock = new SchedulerMock()
             .config(new Scheduler_Config__mdt(
                 DeveloperName = 'ArchiveJobs',
-                Apex__c = 'SchedulerSuccessfulJob',
+                Apex__c = 'SchedulerTest.SchedulerSuccessfulJob',
                 Is_Enabled__c = true
             ))
             .job(new Scheduler__c(
@@ -59,11 +67,11 @@ public with sharing class SchedulerTest {
             mock.settings.schedulerSettings.Translated_At__c,
             'Expected translation time to be recorded when metadata is re-evaluated.'
         );
-        Assert.areEqual(1, SchedulerSuccessfulJob.executions, 'Expected translated enabled jobs to be enqueued and run after the metadata sync.');
+        Assert.areEqual(1, successfulExecutions, 'Expected translated enabled jobs to be enqueued and run after the metadata sync.');
     }
 
     @istest static void testTick_runsEnabledJobsAndClearsPriorErrorOnSuccess() {
-        SchedulerSuccessfulJob.executions = 0;
+        successfulExecutions = 0;
         TestData.IdService ids = new TestData.IdService();
 
         SchedulerMock mock = new SchedulerMock()
@@ -74,7 +82,7 @@ public with sharing class SchedulerTest {
             .job(new Scheduler__c(
                 Id = ids.get(Scheduler__c.SObjectType),
                 Config_Key__c = 'ArchiveJobs',
-                Apex__c = 'SchedulerSuccessfulJob',
+                Apex__c = 'SchedulerTest.SchedulerSuccessfulJob',
                 Is_Enabled__c = true,
                 Last_Error__c = 'previous failure'
             ));
@@ -88,7 +96,7 @@ public with sharing class SchedulerTest {
         Test.stopTest();
 
         Scheduler__c updatedJob = (Scheduler__c) dmlMock.updates[0][0];
-        Assert.areEqual(1, SchedulerSuccessfulJob.executions, 'Expected one enabled scheduler job to execute during the tick.');
+        Assert.areEqual(1, successfulExecutions, 'Expected one enabled scheduler job to execute during the tick.');
         Assert.isNotNull(updatedJob.Last_Executed_At__c, 'Expected job execution time to be recorded after a successful run.');
         Assert.areEqual(null, updatedJob.Last_Error__c, 'Expected a successful run to clear the previous error message.');
     }
