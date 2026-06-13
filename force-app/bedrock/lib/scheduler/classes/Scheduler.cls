@@ -83,9 +83,8 @@ public virtual with sharing class Scheduler implements Queueable {
 
             DateTime now = System.now();
             for (Scheduler__c job : queries.getEnabledJobs()) {
-                if (isDue(job, now)) {
-                    run(job);
-                }
+                if (!isDue(job, now)) continue;
+                run(job);
             }
         }
 
@@ -105,9 +104,7 @@ public virtual with sharing class Scheduler implements Queueable {
                 keys.add(key);
 
                 Scheduler__c job = jobsByKey.get(key);
-                if (job == null) {
-                    job = new Scheduler__c(Config_Key__c = key);
-                }
+                if (job == null) job = new Scheduler__c(Config_Key__c = key);
 
                 job.Apex__c = config.Apex__c;
                 job.Is_Enabled__c = config.Is_Enabled__c;
