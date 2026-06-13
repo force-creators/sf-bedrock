@@ -221,16 +221,14 @@ public virtual with sharing class Scheduler implements Queueable {
         Scheduler_Settings__c schedulerSettings;
 
         public virtual Scheduler_Settings__c getSettings() {
-            if (schedulerSettings == null) {
-                schedulerSettings = Scheduler_Settings__c.getOrgDefaults();
+            if (schedulerSettings != null) return schedulerSettings;
 
-                if (schedulerSettings == null) {
-                    schedulerSettings = new Scheduler_Settings__c(
-                        SetupOwnerId = UserInfo.getOrganizationId()
-                    );
-                }
-            }
+            schedulerSettings = Scheduler_Settings__c.getOrgDefaults();
+            if (schedulerSettings != null) return schedulerSettings;
 
+            schedulerSettings = new Scheduler_Settings__c(
+                SetupOwnerId = UserInfo.getOrganizationId()
+            );
             return schedulerSettings;
         }
 
