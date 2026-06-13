@@ -344,7 +344,7 @@ public with sharing class AsyncTest {
         new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 3).continueAfterSuccess();
 
         Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected success-path dispatch to keep chaining directly to the next worker batch.');
-        Assert.areEqual(0, jobs.lastEnqueueNextJobFailureCount, 'Expected success-path dispatch to reset the failure streak before the next worker batch.');
+        Assert.areEqual(0, jobs.lastEnqueueFailures, 'Expected success-path dispatch to reset the failure streak before the next worker batch.');
         Assert.areEqual(0, jobs.startThreadCalls, 'Expected success-path dispatch not to restart the thread through AsyncThread.');
     }
 
@@ -355,7 +355,7 @@ public with sharing class AsyncTest {
         new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 2).continueAfterFailure();
 
         Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch below the threshold to continue the current worker chain.');
-        Assert.areEqual(3, jobs.lastEnqueueNextJobFailureCount, 'Expected failure-path dispatch below the threshold to increment the failure streak for the next worker batch.');
+        Assert.areEqual(3, jobs.lastEnqueueFailures, 'Expected failure-path dispatch below the threshold to increment the failure streak for the next worker batch.');
         Assert.areEqual(0, jobs.startThreadCalls, 'Expected failure-path dispatch below the threshold not to restart through AsyncThread yet.');
     }
 
@@ -367,7 +367,7 @@ public with sharing class AsyncTest {
 
         Assert.areEqual(0, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch at the threshold not to chain another worker directly from the finalizer.');
         Assert.areEqual(1, jobs.startThreadCalls, 'Expected failure-path dispatch to restart the backlog through AsyncThread.');
-        Assert.areEqual(0, jobs.lastStartThreadFailureCount, 'Expected failure-path dispatch at the threshold to reset the failure streak on the restarted thread.');
+        Assert.areEqual(0, jobs.lastStartFailures, 'Expected failure-path dispatch at the threshold to reset the failure streak on the restarted thread.');
     }
 
     @istest static void testAsyncThread_execute_passesFailureCountToNextWorkerDispatch() {
@@ -378,7 +378,7 @@ public with sharing class AsyncTest {
 
         Assert.areEqual('thread-123', Async.jobs.threadId, 'Expected AsyncThread to adopt the provided thread id before dispatching the next worker batch.');
         Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected AsyncThread to dispatch the next worker batch once.');
-        Assert.areEqual(2, jobs.lastEnqueueNextJobFailureCount, 'Expected AsyncThread to forward the carried failure streak into the next worker dispatch.');
+        Assert.areEqual(2, jobs.lastEnqueueFailures, 'Expected AsyncThread to forward the carried failure streak into the next worker dispatch.');
     }
 
     @istest static void testManualRetry_pastCapDoesNotBumpRetryCount() {
@@ -429,17 +429,17 @@ public with sharing class AsyncTest {
     public with sharing class SpyJobService extends Async.JobService {
         public Integer enqueueNextJobCalls = 0;
         public Integer startThreadCalls = 0;
-        public Integer lastEnqueueNextJobFailureCount = -1;
-        public Integer lastStartThreadFailureCount = -1;
+        public Integer lastEnqueueFailures = -1;
+        public Integer lastStartFailures = -1;
 
-        public override void enqueueNextJob(Integer failureCount) {
+        public override void enqueueNextJob(Integer failures) {
             this.enqueueNextJobCalls++;
-            this.lastEnqueueNextJobFailureCount = failureCount;
+            this.lastEnqueueFailures = failures;
         }
 
-        public override void startThread(Integer failureCount) {
+        public override void startThread(Integer failures) {
             this.startThreadCalls++;
-            this.lastStartThreadFailureCount = failureCount;
+            this.lastStartFailures = failures;
         }
     }
 
