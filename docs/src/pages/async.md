@@ -306,20 +306,35 @@ drain in parallel up to the configured soft cap.
 
 ## Multithreading
 
-Async multithreading is backlog-based, not record-sharding-based.
+Async multithreading is backlog-based, not record-sharding-based. The important
+unit is the enqueueing transaction.
 
-One enqueueing transaction creates one logical backlog. All work created in that
-transaction stays linear inside that backlog. If five separate transactions
-enqueue work and the running user's `Max_Threads__c` is `5`, those backlogs can
-drain in parallel. If the cap is `1`, one drains while the others wait.
+One synchronous transaction creates one logical backlog. All work created in that
+transaction stays linear inside that backlog: Bedrock pulls one configured batch,
+calls `execute(Set<Id> ids)`, records the outcome, then chains to the next batch
+until that backlog is empty.
 
-This gives high-volume users more throughput without changing the subscriber
-contract. The job still receives `Set<Id> ids`; the concurrency decision stays in
-configuration.
+Branching happens between backlogs. If several synchronous transactions create
+work for the same user and that user's `Max_Threads__c` allows more than one
+chain, those backlogs can drain side by side. If the cap is `1`, one backlog
+drains while the others wait.
 
-> A single large `Async.enqueue(...)` call does not split itself across several
-> parallel chains. To use multiple chains, separate synchronous transactions must
-> create separate backlogs.
+![Diagram showing four synchronous transactions becoming four Async backlogs, three running in parallel under Max_Threads__c = 3 and one waiting for a slot.](/images/async-threading-model.png)
+
+That model gives high-volume users more throughput without changing the
+subscriber contract. The job still receives `Set<Id> ids`; configuration decides
+how many framework-managed chains may run for the user.
+
+There are two practical rules to remember:
+
+- A single large `Async.enqueue(...)` call does not split itself across several
+  parallel chains. It creates one backlog that drains batch by batch.
+- Async and finalizer contexts stay conservative. When an async job performs DML
+  and that DML fires triggers, the practical Queueable enqueue limit is 1, so
+  Bedrock does not use those contexts to fan out extra chains.
+
+> Branching is a throughput tool for independent synchronous transactions, not a
+> way to make one subscriber process the same record set in parallel.
 
 ## Testing
 
