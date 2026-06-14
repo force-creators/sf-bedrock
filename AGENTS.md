@@ -319,6 +319,7 @@ tool's detail up front.
 | `RecordBuffer` | [`lib/record-buffer/AGENTS.md`](force-app/bedrock/lib/record-buffer/AGENTS.md) |
 | `TriggerHandler` | [`lib/trigger-handler/AGENTS.md`](force-app/bedrock/lib/trigger-handler/AGENTS.md) |
 | `Async` (framework) | [`lib/async/AGENTS.md`](force-app/bedrock/lib/async/AGENTS.md) |
+| `Thread` | [`lib/thread-service/AGENTS.md`](force-app/bedrock/lib/thread-service/AGENTS.md) |
 | `Scheduler` | [`lib/scheduler/AGENTS.md`](force-app/bedrock/lib/scheduler/AGENTS.md) |
 | `Pluck` | [`lib/pluck/AGENTS.md`](force-app/bedrock/lib/pluck/AGENTS.md) |
 | `FeatureFlag` | [`lib/feature-flag/AGENTS.md`](force-app/bedrock/lib/feature-flag/AGENTS.md) |
@@ -327,10 +328,10 @@ tool's detail up front.
 ## Roadmap
 
 Planned and future work is split the same way. `ROADMAP.md` at the repo root
-holds the cross-cutting sequencing and the shared "keep the pools separate"
+holds the cross-cutting sequencing and the shared "keep threads linear"
 principle; each framework's detailed roadmap lives in
 `force-app/bedrock/lib/<component>/ROADMAP.md` (Async features + Console UI,
-ThreadService/Multithreading, Limiter, Scheduler, Event, Selector). Treat
+Thread/Multithreading, Limiter, Scheduler, Event, Selector). Treat
 those files as intended direction, not finalized public APIs. Names, schemas,
 and behavior described there are not finalized; inspect current code and ask
 before locking them.
@@ -347,7 +348,7 @@ tool should compose with the others:
 - `RecordBuffer` coordinates DML staging in trigger flows.
 - `TriggerHandler` coordinates Bedrock lifecycle hooks around domain logic;
   `Async` already builds on it via `AsyncTriggerHandler`.
-- `Async` runs on `DML`, `Query`, and `Pluck` today.
+- `Async` runs on `DML`, `Query`, `Pluck`, and `Thread` today.
 
 Prefer one clear bite at a time over large speculative framework builds. Planned
 extensions that build on these tools are tracked in the component `ROADMAP.md`

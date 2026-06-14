@@ -14,21 +14,21 @@ const sections = [
 
 <DocsLayout
   title="sf-bedrock — enterprise Apex that stays readable"
-      description="sf-bedrock is a Salesforce architecture toolkit: background jobs that scale, untyped-JSON handling, database-free tests, and dependency injection for enterprise Apex."
+  description="sf-bedrock is a Salesforce architecture toolkit: multithreaded Async Apex, untyped-JSON handling, database-free tests, and dependency injection for enterprise automation."
   eyebrow="Salesforce Architecture Toolkit"
   sections={sections}
 >
   <Fragment slot="header">
     <h1>Apex that scales without the ceremony.</h1>
     <p class="lede">
-      sf-bedrock is a foundation for enterprise Apex: tracked background work,
-      setup-object-safe async chaining, database-free unit tests, and dependency
-      injection that keeps production code direct. It protects high-volume orgs
-      without making everyday work heavy. And it reads the way the engineer who
-      owns it would write it.
+      sf-bedrock is a foundation for enterprise Apex: multithreaded background
+      work, setup-object-safe async chaining, database-free unit tests, and
+      dependency injection that keeps production code direct. It protects
+      high-volume orgs without making everyday work heavy. And it reads the way
+      the engineer who owns it would write it.
     </p>
     <div class="pill-row" style="margin-top: 1.25rem;">
-      <span class="pill">Scalable Async</span>
+      <span class="pill">Multithreaded Async Apex</span>
       <span class="pill">Setup-Object Safe</span>
       <span class="pill">Tame Untyped JSON</span>
       <span class="pill">Dependency Injection</span>
@@ -62,8 +62,8 @@ const sections = [
       <article class="doc-card">
         <h3>Safe at real volume</h3>
         <p>
-          Background work that drains thousands of records in governor-safe
-          batches, grouped upserts, and recursion-minded triggers.
+          Multithreaded background work that drains thousands of records in
+          governor-safe batches, grouped upserts, and recursion-minded triggers.
         </p>
       </article>
       <article class="doc-card">
@@ -88,9 +88,9 @@ const sections = [
     <p>
       These patterns come from real enterprise Salesforce pressure: large data
       volume, busy automation, strict deploy windows, and teams that need tests
-      they can trust. Recursive triggers, exhausted Queueable slots, and tests
-      that depend on org data are not rare problems in that world. Bedrock
-      packages the parts that proved useful under that pressure.
+      they can trust. Recursive triggers, Queueables colliding inside trigger
+      paths, and tests that depend on org data are not rare problems in that
+      world. Bedrock packages the parts that proved useful under that pressure.
     </p>
     <div class="callout">
       <strong>Developer-first, by design</strong>
@@ -126,10 +126,10 @@ const sections = [
       <article class="doc-card">
         <h3><a href="/async">Async</a></h3>
         <p>
-          Hand the framework a set of record Ids and it drains them in the
-          background, in governor-safe batches, chaining job to job until the
-          queue is empty. Every work item is tracked to success or error. Process
-          thousands of records without ever tripping the 50-job limit.
+          Hand the framework record Ids and it drains them in tracked,
+          governor-safe batches. Per-job metadata tunes batch size, retry, and
+          priority; user-level settings allow multithreaded throughput when the
+          org needs more than one straight-line chain.
         </p>
       </article>
       <article class="doc-card">
@@ -237,9 +237,8 @@ const sections = [
       <span class="pill">Limiter</span>
     </div>
     <p style="margin-top: 1rem;">
-      The direction is simple: keep execution pools separate, make limits
-      visible, and add shared services only when they make daily development
-      safer.
+      The direction is simple: keep work linear, make limits visible, and add
+      shared services only when they make daily development safer.
     </p>
   </section>
 
@@ -249,7 +248,7 @@ const sections = [
       Stand up the docs locally, then start with the testing foundation —
       <code>TestData</code>, <code>DML</code>, and <code>Query</code> — and feel
       how fast a Bedrock test suite runs. When you are ready to move real volume,
-      reach for <code>Async</code>.
+      reach for multithreaded <code>Async</code>.
     </p>
     <div class="utility-panel">
       <div>

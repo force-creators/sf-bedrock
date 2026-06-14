@@ -12,22 +12,23 @@ These are intended designs, not finalized public APIs. Inspect current code in
 metadata objects, or behavior that does not exist yet. Prefer one clear bite at
 a time over large speculative framework builds.
 
-## Cross-cutting principle: keep the pools separate
+## Cross-cutting principle: keep threads linear
 
-Keep each framework's logical execution pool (Async, Event, Scheduler) separate
-— do not collapse their queues, job tracking, or policy without an explicit
-plan. The thread-slot concurrency layer (`ThreadService` / `Thread_Context__c`)
-and `Limiter` are deliberately *shared* infrastructure beneath those
-separate pools; sharing a mechanism is not collapsing pools. Extend `AsyncMock`
-and the service override surface only when a concrete test needs a new seam;
-keep the exposed levers intentionally light.
+Treat a thread as a container of ordered work. Work created while a thread is
+running should stay on that thread unless a future design explicitly breaks it
+out. Async and Event may keep their own work-item objects and policies, but they
+share the same `Thread__c` lifecycle so chained work remains easy to reason
+about. Event publication is allowed to interrupt Async work on the same thread
+when needed, because reliable event publication is more urgent than continuing
+ordinary async backlog. Extend mocks and service override surfaces only when a
+concrete test needs a new seam; keep the exposed levers intentionally light.
 
 ## Component roadmaps
 
 | Component | Roadmap | Status |
 |---|---|---|
 | Async (features + Console UI) | [`lib/async/ROADMAP.md`](force-app/bedrock/lib/async/ROADMAP.md) | Active — Retry, Priority, Performance Tracking, SettingsService, MetadataService, Job Archiving, Completed/Archive tabs |
-| ThreadService / Multithreading | [`lib/thread-service/ROADMAP.md`](force-app/bedrock/lib/thread-service/ROADMAP.md) | Shared infra — concurrency cap + handoff |
+| Thread / Multithreading | [`lib/thread-service/ROADMAP.md`](force-app/bedrock/lib/thread-service/ROADMAP.md) | Shared infra — Async cap + handoff implemented; Event integration pending |
 | Limiter | [`lib/limiter/ROADMAP.md`](force-app/bedrock/lib/limiter/ROADMAP.md) | Shared infra — org-health gate |
 | Scheduler | [`lib/scheduler/ROADMAP.md`](force-app/bedrock/lib/scheduler/ROADMAP.md) | Active MVP — cadence, metadata translation, runtime state |
 | Event | [`lib/event/ROADMAP.md`](force-app/bedrock/lib/event/ROADMAP.md) | Future framework |
@@ -40,8 +41,8 @@ orphaned `Running` reaper, bulk-enqueue chunking) live with the Async roadmap.
 
 - **Unblocked now:** Retry, Priority, Performance Tracking, SettingsService,
   MetadataService, Async UI Completed tab.
-- **After SettingsService Bucket 1:** Multithreading core (cap + handoff; needs
-  `Max_Threads__c` and a new `Thread_Context__c` object).
+- **Implemented now:** Multithreading core for Async (cap + handoff; uses
+  `Max_Threads__c` and `Thread__c`).
 - **Scheduler follow-up:** Job Archiving, Limiter resume monitor,
   Multithreading backlog-starvation recovery.
 - **Blocked by Job Archiving:** Async UI Archive tab.

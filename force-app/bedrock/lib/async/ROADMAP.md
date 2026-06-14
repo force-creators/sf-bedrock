@@ -14,8 +14,8 @@ levers intentionally light.
 Two roadmap items that `Async` consumes live in their own component folders
 because they are shared infrastructure, not Async internals:
 
-- Multithreading (per-user thread cap + handoff) and the shared `ThreadService`
-  / `Thread_Context__c` → `../thread-service/ROADMAP.md`.
+- Multithreading (per-user thread cap + handoff) and the shared `Thread` /
+  `Thread__c` service → `../thread-service/ROADMAP.md`.
 - `Limiter` (org-health gate consulted before enqueuing) →
   `../limiter/ROADMAP.md`.
 
@@ -95,7 +95,7 @@ Split into two buckets:
 | `Archive_After_Days__c` (Number, default 30) | Job Archiving |
 | `Default_Batch_Size__c` (Number) | MetadataService (fallback batch size) |
 | `Track_Performance__c` (Checkbox, default true) | Performance Tracking |
-| `Max_Threads__c` (Number, default 1) | Multithreading (per-user, per-pool cap) |
+| `Max_Threads__c` (Number, default 1) | Multithreading (per-user thread cap) |
 
 > `Max_Threads__c` is read by the multithreading layer in
 > `../thread-service/ROADMAP.md`; `Limits_Threshold_Pct__c` is read by
@@ -143,7 +143,7 @@ count).
   framework machinery.
 - **Thread cleanup:** the archive run records the `threadId` of each archived
   work item and, as its final step, deletes the corresponding
-  `Thread_Context__c` records so they do not accumulate.
+  `Thread__c` records so they do not accumulate.
 - The Bedrock Console exposes an ad-hoc "Archive Now" trigger (see Async UI).
 
 ---

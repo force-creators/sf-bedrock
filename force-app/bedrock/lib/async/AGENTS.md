@@ -92,8 +92,6 @@ defaults to `0` when absent so mixed backlogs still drain deterministically.
 
 ## Composition
 
-`Async` runs on `DML`, `Query`, and `Pluck` today, and builds on
-`TriggerHandler` via `AsyncTriggerHandler`. The planned multithreading layer
-that `Async` will consume (shared `ThreadService` / `Thread_Context__c`) lives
-in `../thread-service/ROADMAP.md`; the shared limits gate lives in
-`../limiter/ROADMAP.md`.
+`Async` runs on `DML`, `Query`, `Pluck`, and `Thread` today, and builds on
+`TriggerHandler` via `AsyncTriggerHandler`. The shared thread service lives in
+`../thread-service`; the shared limits gate lives in `../limiter/ROADMAP.md`.

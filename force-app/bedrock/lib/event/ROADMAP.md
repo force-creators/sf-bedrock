@@ -2,9 +2,8 @@
 
 A future Bedrock framework. This folder has no implemented code yet — it is
 proposed work. Cross-cutting roadmap principles and feature sequencing live in
-the repo root `ROADMAP.md`. Keep this framework's logical execution pool
-separate from Async and Scheduler — do not collapse their queues, job tracking,
-or policy without an explicit plan.
+the repo root `ROADMAP.md`. Event should use the same `Thread__c` container as
+Async so chained work remains linear and understandable.
 
 These are intended designs, not finalized public APIs. Ask before locking
 names, schemas, metadata objects, or behavior that does not exist yet.
@@ -12,16 +11,17 @@ names, schemas, metadata objects, or behavior that does not exist yet.
 ## Event
 
 Status: future. Depends on `Limiter` (`../limiter/ROADMAP.md`) and
-the shared `ThreadService` / `Thread_Context__c` (`../thread-service/ROADMAP.md`
-— its threads are `Thread_Context__c` rows tagged with the `Event` pool). Shares
+the shared `Thread` / `Thread__c` service (`../thread-service/ROADMAP.md`
+— Event work is expected to stay on the current `Thread__c`). Shares
 `Async`'s Queueable thread model but is a **sibling framework**, not a subclass —
 its payload model, table, and lack of priority make it look like a stripped-down
 Async rather than an extension of it.
 
 Event is the **stateful** answer to Async. Where Async refuses stateful payloads
 and re-fetches records by Id inside `execute(Set<Id> ids)`, Event serializes the
-payload itself and carries it through the work item. It is also simpler: strict
-FIFO, no priority, a straight-line processing chain.
+payload itself and carries it through the work item. It should interrupt lower-
+urgency Async work on the same thread when reliable publication is needed, while
+preserving the straight-line processing model of the thread.
 
 Event solves **two halves of the same coin** — reliable publish and reliable
 consume — which is why it is separate from Async. Both halves address the same
@@ -96,7 +96,7 @@ field's storage limit:
 | `Apex__c` | Text(255) | Handler class name |
 | `Job_Type__c` | Picklist | `Publish` \| `Process` |
 | `Status__c` | Picklist | `Pending` \| `Running` \| `Paused` \| `Done` \| `Error` |
-| `Thread__c` | Text(255) | Request thread id (same concept as `Async__c.Thread__c`) |
+| `Thread__c` | Lookup(Thread__c) | Thread that owns this event work item. |
 | `Payload1__c` | LongTextArea | Serialized JSON chunk 1 |
 | `Payload2__c` | LongTextArea | Serialized JSON chunk 2 |
 | `Payload3__c` | LongTextArea | Serialized JSON chunk 3 |

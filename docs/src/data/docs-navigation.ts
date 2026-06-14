@@ -27,6 +27,7 @@ export const navGroups: NavGroup[] = [
     label: 'Async Services',
     items: [
       { label: 'Async', href: '/async' },
+      { label: 'Thread', href: '/thread' },
       { label: 'Scheduler', href: '/scheduler' },
       { label: 'Event', href: '#', status: 'Roadmap' }
     ]

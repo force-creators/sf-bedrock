@@ -15,15 +15,18 @@ public with sharing class AsyncCompletedController {
         String orderByDirection = sortOrder(sortDirection);
 
         List<CompletedRow> rows = new List<CompletedRow>();
-        for (Async__c workItem : [
-            SELECT Id, Name, Apex__c, Record_Id__c, Thread__c, CreatedDate
-            FROM Async__c
-            WHERE Status__c = 'Done'
-            WITH USER_MODE
-            ORDER BY CreatedDate DESC
-            LIMIT 500
-        ]) {
-            CompletedRow row = new CompletedRow(workItem);
+        List<Async__c> workItems = Database.query(
+            'SELECT Id, Name, Apex__c, Record_Id__c, Thread__c, CreatedDate ' +
+            'FROM Async__c ' +
+            'WHERE Status__c = \'Done\' ' +
+            'WITH USER_MODE ' +
+            'ORDER BY CreatedDate DESC ' +
+            'LIMIT 500'
+        );
+        Map<Id, Thread__c> threadsById = threadsById(workItems);
+
+        for (Async__c workItem : workItems) {
+            CompletedRow row = new CompletedRow(workItem, threadsById);
             if (matchesFilter(row, normalizedSearchTerm)) {
                 rows.add(row);
             }
@@ -42,7 +45,7 @@ public with sharing class AsyncCompletedController {
             'asyncJobNumber' => 'asyncJobNumber',
             'apexClass' => 'Apex__c',
             'recordId' => 'Record_Id__c',
-            'thread' => 'Thread__c',
+            'thread' => 'thread',
             'createdDate' => 'CreatedDate'
         };
         return fieldByName.get(sortBy);
@@ -67,6 +70,26 @@ public with sharing class AsyncCompletedController {
         return value != null && value.toLowerCase().contains(searchTerm);
     }
 
+    static Map<Id, Thread__c> threadsById(List<Async__c> workItems) {
+        Set<Id> threadIds = new Set<Id>();
+        for (Async__c workItem : workItems) {
+            if (workItem.get('Thread__c') != null) {
+                threadIds.add((Id) workItem.get('Thread__c'));
+            }
+        }
+        return threadIds.isEmpty() ? new Map<Id, Thread__c>() : new Map<Id, Thread__c>([
+            SELECT Id, Name
+            FROM Thread__c
+            WHERE Id IN :threadIds
+        ]);
+    }
+
+    static String threadLabel(Async__c workItem, Map<Id, Thread__c> threadsById) {
+        Id threadId = (Id) workItem.get('Thread__c');
+        if (threadId == null || !threadsById.containsKey(threadId)) return null;
+        return threadsById.get(threadId).Name;
+    }
+
     public class CompletedRow {
         @AuraEnabled public Id id;
         @AuraEnabled public String asyncJobNumber;
@@ -75,12 +98,12 @@ public with sharing class AsyncCompletedController {
         @AuraEnabled public String thread;
         @AuraEnabled public Datetime createdDate;
 
-        CompletedRow(Async__c workItem) {
+        CompletedRow(Async__c workItem, Map<Id, Thread__c> threadsById) {
             this.id = workItem.Id;
             this.asyncJobNumber = workItem.Name;
             this.apexClass = workItem.Apex__c;
             this.recordId = workItem.Record_Id__c;
-            this.thread = workItem.Thread__c;
+            this.thread = threadLabel(workItem, threadsById);
             this.createdDate = workItem.CreatedDate;
         }
     }
@@ -103,7 +126,7 @@ public with sharing class AsyncCompletedController {
                 result = compareStrings(left.apexClass, right.apexClass);
             } else if (this.sortBy == 'Record_Id__c') {
                 result = compareStrings(left.recordId, right.recordId);
-            } else if (this.sortBy == 'Thread__c') {
+            } else if (this.sortBy == 'thread') {
                 result = compareStrings(left.thread, right.thread);
             } else {
                 result = compareDatetimes(left.createdDate, right.createdDate);

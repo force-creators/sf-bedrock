@@ -1,10 +1,10 @@
 ---
 layout: ../layouts/DocsLayout.astro
 title: Async | sf-bedrock docs
-description: A contract for running record-driven Apex work in tracked background batches without tripping Salesforce's Queueable limits.
+description: A tracked, configurable framework for record-driven Async Apex that drains high-volume work safely.
 eyebrow: Async Services
 heading: Async
-lede: Async runs record-driven Apex work in tracked background batches. You override one method, enqueue record Ids, and the framework drains them safely while recording success or error.
+lede: Async turns record-driven background work into a tracked, configurable pipeline. You write one execute method, enqueue record Ids, and Bedrock drains the work in safe batches with visible success, retry, and error state.
 sections:
   - label: Overview
     href: "#overview"
@@ -18,6 +18,8 @@ sections:
     href: "#staging-work"
   - label: Configuration
     href: "#configuration"
+  - label: Multithreading
+    href: "#multithreading"
   - label: Testing
     href: "#testing"
   - label: How It Works
@@ -30,172 +32,137 @@ sections:
 
 ## Overview
 
-Some work is too slow or too heavy to do while a user waits — recalculating
-every contact on an account, calling an external API for a few thousand records,
-rolling up data across a large object. The Salesforce answer is *asynchronous*
-Apex, and the most flexible flavor is the **Queueable**.
+`Async` is Bedrock's framework for background Apex that has to survive real
+Salesforce volume. It is built for the work that should not run while a user
+waits: recalculations, post-save enrichment, integration follow-up, compliance
+checks, and other record-driven automation that can outgrow one transaction.
 
-But raw Queueables are easy to get wrong at volume. The platform enforces hard
-limits that a junior developer usually discovers the hard way:
+The public model is intentionally small:
 
-- You can only **enqueue 50 jobs** in a single transaction.
-- A running Queueable can **chain only one** child Queueable.
-- Each Queueable execution has its **own governor limits** (SOQL rows, CPU, DML),
-  so you cannot just "process everything" in one job.
+- **Contract:** extend `Async` and override `execute(Set<Id> ids)`.
+- **Start work:** call `Async.enqueue(...)` with records or Ids.
+- **Coordinate work:** call `Async.stage(...)` from several services, then
+  `Async.flush()` once.
+- **Tune behavior:** use `Async_Job__mdt` and `Async_Settings__c` metadata for
+  batch size, retry, priority, and per-user concurrency.
 
-The naive approach — loop over records and enqueue one Queueable each — blows the
-50-job limit the moment you have more than 50 records, and gives you no record of
-what ran, what failed, or what is left to do.
+Use `Async` when you need background work that is tracked, retryable,
+configurable, and safe to run across thousands of records without enqueueing one
+Queueable per record.
 
-`Async` solves this. Instead of enqueuing a Queueable per record, you hand the
-framework a set of record Ids. It **saves them as work items** in a custom object,
-then runs a single managed background thread that drains those work items a
-**safe batch at a time**, chaining one job to the next until the queue is empty.
-Every work item is tracked through `Pending → Running → Done` (or `Error`), so
-nothing is silently lost.
+Use one async strategy consistently. Mixing ad hoc Queueables into trigger and
+service code makes the org harder to reason about, especially when automation
+runs inside automation. The painful failure is the trigger-side nightmare where
+an async job performs DML, that DML calls a trigger, and the trigger tries to
+enqueue another Queueable. In that async context the practical Queueable limit
+is not 50; it is 1, so the second enqueue throws `Too many queueable jobs added
+to the queue: 2`. Those failures are hard to diagnose because the enqueue can
+be several layers away from the automation that created the async context.
 
-Because framework-managed follow-up work is created from the Queueable
-finalizer, an `Async` job can touch setup objects and still call `Async.enqueue`
-or `Async.stage` for more work. That keeps mixed-DML-sensitive framework writes
-out of the subscriber's Queueable transaction.
+`Async` packages those decisions into one contract: record intent, drain it in
+managed batches, keep outcomes visible, and tune throughput in metadata. That
+lets application code focus on business work instead of rediscovering Queueable
+edge cases in every trigger path.
 
 ## Quickstart
 
 Using `Async` as a subscriber is two steps.
 
-**Step 1** — extend `Async` and override `execute(Set<Id> ids)`. That method is
-the only code you write. It receives a batch of record Ids and does the work for
-that batch. Here it counts the Contacts on each Account and stores the total on
-the parent — the kind of roll-up a native summary field cannot do across a
-lookup relationship.
+**Step 1** - extend `Async` and override `execute(Set<Id> ids)`. That method
+receives one batch of record Ids. Query the current records, do the work, and use
+Bedrock seams like `Query` and `DML` so the job stays testable.
 
 ```apex
 public with sharing class RollupContactCountAsync extends Async {
-
     public override void execute(Set<Id> ids) {
         List<Account> accounts = (List<Account>) Query.records([
             SELECT Id, (SELECT Id FROM Contacts)
             FROM Account
             WHERE Id IN :ids
         ]);
+
         for (Account account : accounts) {
             account.Number_of_Contacts__c = account.Contacts.size();
         }
+
         DML.updateRecords(accounts);
     }
 }
 ```
 
-**Step 2** — call `Async.enqueue` with your class type and the records to
-process. Do this from anywhere: a trigger handler, a service method, a
-controller.
+**Step 2** - call `Async.enqueue` with your class type and the records to
+process.
 
 ```apex
 List<Account> accounts = Query.records([
-    SELECT Id FROM Account WHERE Industry = 'Technology'
+    SELECT Id
+    FROM Account
+    WHERE Industry = 'Technology'
 ]);
+
 Async.enqueue(RollupContactCountAsync.class, accounts);
 ```
 
-That is everything. The framework creates one work item per Account Id, starts a
-background thread, and drains the queue in batches — each calling your
-`execute` method with a small slice of Ids until every Account is recounted.
+The caller records one work item per Account Id. Bedrock starts a managed
+background chain when a concurrency slot is available, then calls your
+`execute(Set<Id>)` method with safe batches until the queue is drained.
 
 ## Examples
 
-### Background-update a field on many records
+### Refresh account health after high-volume changes
+
+This example recalculates account health outside the user transaction. The
+subscriber owns only the business behavior: query the current accounts, calculate
+the field, and save the mutation.
 
 ```apex
-public with sharing class FlagStaleContactsAsync extends Async {
+public with sharing class RefreshAccountHealthAsync extends Async {
     public override void execute(Set<Id> ids) {
-        List<Contact> contacts = (List<Contact>) Query.records([
-            SELECT Id, Description FROM Contact WHERE Id IN :ids
+        List<Account> accounts = (List<Account>) Query.records([
+            SELECT Id, AnnualRevenue, NumberOfEmployees, Health_Score__c
+            FROM Account
+            WHERE Id IN :ids
         ]);
-        for (Contact contact : contacts) {
-            contact.Description = 'Reviewed by background job';
+
+        for (Account account : accounts) {
+            account.Health_Score__c = calculateHealth(account);
         }
-        DML.updateRecords(contacts);
+
+        DML.updateRecords(accounts);
+    }
+
+    static Decimal calculateHealth(Account account) {
+        Decimal revenue = account.AnnualRevenue == null ? 0 : account.AnnualRevenue;
+        Decimal employees = account.NumberOfEmployees == null ? 0 : account.NumberOfEmployees;
+        return revenue > 1000000 && employees > 50 ? 100 : 50;
     }
 }
 ```
 
-Enqueue it from a trigger handler or service:
+Enqueue it from a service after deciding which records need recalculation:
 
 ```apex
-List<Contact> stale = Query.records([
-    SELECT Id FROM Contact WHERE LastActivityDate < LAST_N_DAYS:90
+List<Account> changedAccounts = Query.records([
+    SELECT Id
+    FROM Account
+    WHERE LastModifiedDate = TODAY
 ]);
-Async.enqueue(FlagStaleContactsAsync.class, stale);
+
+Async.enqueue(RefreshAccountHealthAsync.class, changedAccounts);
 ```
 
-If `stale` returns 4,000 records, the calling transaction records 4,000 work
-items. With the default batch size the framework runs 800 background batches of
-5, one chaining to the next, each within its own limits.
+If the query returns 4,000 records, the caller records 4,000 work items in one
+operation. Bedrock drains those records in configured batches, with each batch
+running inside its own Queueable limits and each item ending in a visible success
+or error state.
 
-## Enqueueing Work
+### Coordinate several services in one trigger flow
 
-```apex
-// From a Set<Id> you already have:
-Set<Id> contactIds = new Set<Id>{ /* ... */ };
-Async.enqueue(SendWelcomeEmailAsync.class, contactIds);
-
-// Or directly from a list of records — the framework plucks their Ids for you:
-List<Contact> contacts = Query.records([
-    SELECT Id FROM Contact WHERE MailingCountry = 'USA'
-]);
-Async.enqueue(SendWelcomeEmailAsync.class, contacts);
-```
-
-Both overloads do the same thing: they create one **work item** per record Id
-and mark it `Pending`. That is all `enqueue` does in the calling transaction. It
-does **not** run your `execute` method inline. Processing happens afterward, in
-the background, on the framework's managed thread.
-
-When `enqueue` is called from inside an `Async` job, the framework defers the
-new work until the job's finalizer runs. That means a job can update setup
-objects, such as groups or users, and still enqueue follow-up work without
-mixing setup-object DML with `Async__c` work-item DML in the same Queueable
-transaction.
-
-This is the scaling win: whether you enqueue 5 records or 5,000, the calling
-transaction does the same small amount of work (insert the work items). You never
-approach the 50-job limit, because you are not enqueuing one job per record —
-you are recording intent, and a single thread drains it.
-
-### Why Ids, not SObjects
-
-Even the `List<SObject>` overload throws the records away and keeps only their
-Ids. That is not a limitation; it is the design protecting you from a classic,
-hard-to-debug async bug.
-
-**Background work runs in a different transaction, at a different time.** When
-you call `enqueue`, the job does not run then and there. It might run a fraction
-of a second later, or — if the queue is busy, limits are tight, or a job had to
-retry — minutes later. An `SObject` captured at enqueue time is a frozen snapshot
-of that record as it looked in that moment. By the time the job actually runs, the
-real record may have changed: a user edited a field, another automation updated
-the status, or the record was modified several more times.
-
-**Forcing Ids removes the trap entirely.** An Id is permanent and never goes
-stale. Because all you carry into the job is an identifier, the only way to act
-on the record is to re-query it inside `execute`. That means you are always
-working with the *current* state of the data at the moment the work runs.
-
-> **What if I genuinely need to carry data, not just Ids?** That is not
-> `Async`'s job. Use `Async` for saved records you can re-query. If the payload
-> itself is the work, use a purpose-built integration or event pattern instead
-> of smuggling stateful records through this API.
-
-## Staging Work
-
-Use `stage` and `flush` when several services in the same transaction may add
-work and you want one work-item insert at the controlled flush point. This is a
-natural fit for trigger orchestration: each domain service can stage the records
-it cares about, and the trigger handler can flush once.
+Use `stage` when independent services need to request background work in the same
+transaction. Use `flush` once at the orchestration boundary.
 
 ```apex
 public with sharing class ContactTriggerService {
-
     public void stageWelcomeEmails(List<Contact> contacts) {
         Async.stage(SendWelcomeEmailAsync.class, contacts);
     }
@@ -210,290 +177,289 @@ public with sharing class ContactTriggerService {
 }
 ```
 
-`flush` merges duplicate Ids by async class, creates all staged work items in a
-single DML call, and then clears the buffer. If `flush` runs inside an `Async`
-job, the staged work is moved into the job finalizer instead of inserted in the
+That keeps trigger-side services declarative: each service states the work it
+needs, and the orchestrator decides when background work is created.
+
+## Enqueueing Work
+
+`enqueue` is the direct entry point for work that should be created immediately.
+Pass either a `Set<Id>` or a list of records.
+
+```apex
+Set<Id> contactIds = new Set<Id>{ /* ... */ };
+Async.enqueue(SendWelcomeEmailAsync.class, contactIds);
+
+List<Contact> contacts = Query.records([
+    SELECT Id
+    FROM Contact
+    WHERE MailingCountry = 'USA'
+]);
+Async.enqueue(SendWelcomeEmailAsync.class, contacts);
+```
+
+Both overloads create one work item per record Id. The `List<SObject>` overload
+plucks Ids from the records; it does not keep the SObjects themselves.
+
+`enqueue` does not run your `execute` method inline. It performs the work-item
+insert operation, whose row count scales with the number of Ids, and the
+framework may start one managed Queueable chain when a concurrency slot is
+available. Processing happens later in background batches.
+
+When `enqueue` is called from inside an `Async` job, Bedrock defers the new work
+until the job finalizer runs. That lets a job touch setup objects and still add
+follow-up work without mixing setup-object DML with work-item DML in the same
 Queueable transaction.
+
+### Why Ids, not SObjects
+
+Background work runs in another transaction, at another time. A captured SObject
+is only a snapshot of the record at enqueue time. By the time the job runs, a
+user, flow, trigger, or integration may have changed the record.
+
+`Async` keeps only Ids so each subscriber re-queries current data inside
+`execute(Set<Id>)`. That is the safer default for automation that may run seconds
+or minutes after the original transaction.
+
+> If the payload itself is the work, use a purpose-built integration or event
+> pattern. `Async` is for saved records that can be re-queried by Id.
+
+## Staging Work
+
+`stage` and `flush` are the transaction-level coordination API. They let several
+services declare background work without scattering work-item inserts across the
+transaction.
+
+```apex
+Async.stage(SendWelcomeEmailAsync.class, contacts);
+Async.stage(ReviewContactAsync.class, contactIds);
+Async.flush();
+```
+
+`stage` stores Ids in the current transaction buffer, grouped by subscriber
+class. Duplicate Ids collapse naturally within each class. `flush` creates the
+buffered work items in one controlled insert operation and clears the buffer.
+
+This pattern is especially useful in trigger orchestration: domain services can
+stage the work they own, while the trigger handler or service boundary flushes
+once after all decisions have been made.
+
+If `flush` runs inside an `Async` job, the staged work is moved into the job
+finalizer instead of inserted directly in the Queueable transaction.
 
 ## Configuration
 
-By default the framework processes **5 work items per batch**. You can change
-that per Apex class — without touching code — using the `Async_Job__mdt`
-custom metadata type. Create a record with:
+Async's control plane lives in metadata and settings. That means a team can tune
+throughput, retry behavior, priority, and concurrency without changing the
+subscriber class.
+
+### Job metadata
+
+By default, the framework processes **5 work items per batch**. Change that per
+subscriber using `Async_Job__mdt`.
 
 | Field | Meaning |
 | --- | --- |
-| `Apex__c` | The exact name of your `Async` subclass, e.g. `FlagStaleContactsAsync`. |
-| `Batch_Size__c` | How many work items one batch (one `execute` call) processes. |
-| `Max_Retries__c` | How many times the framework auto-retries a failed item before it rests in `Error`. Absent or `0` ⇒ auto-retry off. |
-| `Priority__c` | Higher values run first within the same thread. Blank values default to `0`. |
+| `Apex__c` | Exact name of the `Async` subclass, e.g. `RefreshAccountHealthAsync`. |
+| `Batch_Size__c` | How many work items one `execute` call receives. |
+| `Max_Retries__c` | How many times the framework auto-retries a failed item before it stays in `Error`. Blank or `0` means auto-retry is off. |
+| `Priority__c` | Higher values run first within the same framework thread. Blank values default to `0`. |
 
-For example, a record with `Apex__c = FlagStaleContactsAsync` and
+For example, a record with `Apex__c = RefreshAccountHealthAsync` and
 `Batch_Size__c = 50` makes each `execute` call receive up to 50 record Ids
 instead of 5.
 
-**Choosing a batch size is a governor-limit trade-off:**
+Choosing a batch size is a governor-limit trade-off:
 
-- **Larger batches** do more per Queueable execution — fewer total jobs, faster
-  overall — but each `execute` must finish within one Queueable's limits (SOQL
-  rows, DML rows, CPU time). If your `execute` is heavy (callouts, lots of DML,
-  complex CPU work), keep the batch small.
+- **Larger batches** do more per Queueable execution and finish in fewer jobs,
+  but each batch must stay inside one Queueable's SOQL, DML, CPU, and callout
+  limits.
 - **Smaller batches** are safer per job and isolate failures to fewer records,
-  but take more total jobs to drain a large queue.
+  but take more jobs to drain a large backlog.
 
-Start at the default and raise the batch size only when you have measured that a
-batch comfortably fits inside one Queueable's limits.
-
-> If no `Async_Job__mdt` record exists for your class, the framework falls
-> back to a batch size of **5**. You only need a metadata record when you want
-> something other than the default.
+Start at the default and raise the batch size only after measuring that the
+subscriber comfortably fits inside one Queueable execution.
 
 ### Bounded auto-retry
 
-When a batch fails, the framework can retry it for you instead of leaving every
-item in `Error`. Set `Max_Retries__c` on the job type's `Async_Job__mdt`
-record to turn it on:
+Set `Max_Retries__c` when failures are likely to be transient, such as row locks
+or short callout interruptions.
 
-- Each `Async__c` work item carries a `Retry_Count__c` (starts at `0`) that
-  tracks how many times the framework has re-run it.
-- On failure, an item whose `Retry_Count__c` is **under** `Max_Retries__c` is
-  re-queued to `Pending` with its counter incremented, and the chain runs it
-  again.
-- Once `Retry_Count__c` reaches `Max_Retries__c`, the item rests in terminal
-  `Error`. A job with `Max_Retries__c = 3` therefore runs once, retries up to
-  three more times, then stops.
-- With `Max_Retries__c` absent or `0`, a failed item goes straight to `Error` —
-  no auto-retry.
+- Each work item tracks how many times the framework has re-run it.
+- A failed item under the cap returns to `Pending` and is tried again.
+- Once the retry count reaches `Max_Retries__c`, the item stays in `Error`.
+- Blank or `0` means a failed item goes straight to `Error`.
 
-Auto-retry is for transient failures that self-heal (a row lock, a brief callout
-hiccup). It does not change manual recovery: flipping an `Error` item back to
-`Pending` yourself is still unbounded, always honored, and never touches
-`Retry_Count__c`.
+Manual recovery still works separately: changing an errored work item back to
+`Pending` is recognized by the framework and is not limited by
+`Max_Retries__c`.
+
+### User-level concurrency
+
+`Async_Settings__c.Max_Threads__c` controls how many framework-managed chains may
+run for the current user at the same time. It is a hierarchical custom setting,
+so you can keep the org default conservative and raise the cap for service users
+or other high-volume identities.
+
+Blank, `0`, and negative values default to **1**. A value of 1 keeps work
+straight-line for that user. Higher values let separate enqueueing transactions
+drain in parallel up to the configured soft cap.
+
+## Multithreading
+
+Async multithreading is backlog-based, not record-sharding-based. The important
+unit is the enqueueing transaction.
+
+One synchronous transaction creates one logical backlog. All work created in that
+transaction stays linear inside that backlog: Bedrock pulls one configured batch,
+calls `execute(Set<Id> ids)`, records the outcome, then chains to the next batch
+until that backlog is empty.
+
+Branching happens between backlogs. If several synchronous transactions create
+work for the same user and that user's `Max_Threads__c` allows more than one
+chain, those backlogs can drain side by side. If the cap is `1`, one backlog
+drains while the others wait.
+
+![Diagram showing four synchronous transactions becoming four Async backlogs, three running in parallel under Max_Threads__c = 3 and one waiting for a slot.](/images/async-threading-model.png)
+
+That model gives high-volume users more throughput without changing the
+subscriber contract. The job still receives `Set<Id> ids`; configuration decides
+how many framework-managed chains may run for the user.
+
+There are two practical rules to remember:
+
+- A single large `Async.enqueue(...)` call does not split itself across several
+  parallel chains. It creates one backlog that drains batch by batch.
+- Async and finalizer contexts stay conservative. When an async job performs DML
+  and that DML fires triggers, the practical Queueable enqueue limit is 1, so
+  Bedrock does not use those contexts to fan out extra chains.
+
+> Branching is a throughput tool for independent synchronous transactions, not a
+> way to make one subscriber process the same record set in parallel.
 
 ## Testing
 
-The primary way to unit test an `Async` subscriber is to test only the job
-logic: construct the class and call `execute(Set<Id> ids)` directly. This keeps
-separation of concerns clear. You are testing your job's behavior, not thread
-drain logic, work item lifecycle, or framework wiring.
-
-### Testing Async Jobs
+The public testing path is to test the subscriber's job logic directly. Construct
+the class and call `execute(Set<Id> ids)` with mock Ids. Mock the collaborators
+your job uses, then assert the business mutation.
 
 ```apex
 @istest
-public with sharing class FlagStaleContactsAsyncTest {
-
-  @istest static void testExecute_updatesDescriptions_directly() {
-    List<Contact> contacts = (List<Contact>) new TestData(Contact.sObjectType)
-        .put(Contact.LastName, 'Test')
-        .mockIds()
-        .count(3)
-        .build();
-    Set<Id> ids = Pluck.ids(contacts);
-
-    Query.setMock(new QueryMock(contacts));
-    DMLMock dmlMock = new DMLMock();
-    DML.setMock(dmlMock);
-
-    new FlagStaleContactsAsync().execute(ids);
-
-    Assert.areEqual(1, dmlMock.updates.size(), 'Expected execute() to update one batch of contacts.');
-    Assert.areEqual(3, dmlMock.updates[0].size(), 'Expected execute() to update every queried contact.');
-
-    for (Contact contact : (List<Contact>) dmlMock.updates[0]) {
-        Assert.areEqual(
-            'Reviewed by background job',
-            contact.Description,
-            'Expected execute() to stamp each contact before update.'
-        );
-    }
-  }
-}
-```
-
-Use this pattern by default. It is faster, easier to read, and avoids coupling
-your unit test to framework internals.
-
-### Testing Chains of Work
-
-When you specifically want to verify framework-level behavior (work item
-creation, status transitions, and queue chaining), use this pattern:
-
-```apex
-@istest
-public with sharing class FlagStaleContactsAsyncTest {
-
-    @istest
-    static void testFlagsContacts_inBackground() {
-        List<Contact> contacts = (List<Contact>) new TestData(Contact.sObjectType)
-            .put(Contact.LastName, 'Test')
+public with sharing class RefreshAccountHealthAsyncTest {
+    @istest static void testExecute_updatesHealthScores() {
+        List<Account> accounts = (List<Account>) new TestData(Account.sObjectType)
+            .put(Account.Name, 'Test Account')
+            .put(Account.AnnualRevenue, 2000000)
+            .put(Account.NumberOfEmployees, 75)
             .mockIds()
             .count(3)
             .build();
-        DML.insertRecords(contacts);
 
-        // canEnqueue() lets the async chain actually run during the test.
-        AsyncMock mock = new AsyncMock().canEnqueue();
-        Async.setMock(mock);
+        Query.setMock(new QueryMock(accounts));
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
 
-        Test.startTest();
-            Async.enqueue(FlagStaleContactsAsync.class, contacts);
-        Test.stopTest();
+        new RefreshAccountHealthAsync().execute(Pluck.ids(accounts));
 
-        // Every work item should have completed.
-        for (Async__c workItem : (List<Async__c>) Query.records([
-            SELECT Status__c FROM Async__c
-        ])) {
-            Assert.areEqual('Done', workItem.Status__c,
-                'Expected every async work item to finish as Done.');
-        }
+        Assert.areEqual(1, dmlMock.updates.size(), 'Expected one account update batch.');
+        Assert.areEqual(3, dmlMock.updates[0].size(), 'Expected every queried account to be updated.');
 
-        // And the job's side effect should have happened.
-        for (Contact contact : (List<Contact>) Query.records([
-            SELECT Description FROM Contact
-        ])) {
-            Assert.areEqual('Reviewed by background job', contact.Description,
-                'Expected the async job to update each contact description.');
+        for (Account account : (List<Account>) dmlMock.updates[0]) {
+            Assert.areEqual(
+                100,
+                account.Health_Score__c,
+                'Expected high-value accounts to receive the high health score.'
+            );
         }
     }
 }
 ```
 
-What each piece does:
-
-- **`new AsyncMock().canEnqueue()`** turns on enqueuing inside a test. By default
-  the framework refuses to start its thread while a test is running (so you don't
-  accidentally fire real background work). `canEnqueue()` opts this test in so the
-  chain runs and drains during `Test.stopTest()`. The mock caps Queueable stack
-  depth at 5 in tests, which practically means up to 4 unique async jobs can be
-  chained through this pattern in a single unit test.
-- **`Async.setMock(mock)`** installs the mock services for the current
-  transaction.
-- **Enqueue inside `Test.startTest()`** and let `Test.stopTest()` flush the
-  asynchronous work. Then assert on two things: the **work item statuses** (proof
-  the framework ran your job to completion) and the **side effect** of your
-  `execute` (proof your logic did the right thing).
-
-Use this second pattern intentionally, not as your default. It is more of an
-integration test for the framework chain plus your subscriber.
-
-You can also define the subscriber class as a small inner class in the test when
-you only need it there, exactly as `AsyncTest` does with its `MyTestAsync` inner
-class.
+Use this pattern by default. It keeps subscriber tests fast, direct, and focused
+on the behavior your class owns. The framework's queue orchestration is tested by
+Bedrock.
 
 ## How It Works
 
 Three ideas explain the parts you need as a user.
 
-**One: records become work items.** `enqueue` stores one `Async__c` row per
-record Id. The row names the Apex class to run, the record Id to process, the
-thread that owns the work, and the current status.
+**One: records become tracked work.** `enqueue` stores one work item per record
+Id. Each item records which subscriber should run, which record it represents,
+and whether it is waiting, running, done, or in error.
 
-**Two: work drains in batches.** Bedrock pulls pending rows for one async class,
-marks that batch `Running`, and calls your `execute(Set<Id> ids)` method. The
-batch size comes from `Async_Job__mdt`, or from the default of 5 when no
+**Two: managed chains drain work in batches.** Bedrock selects pending work for a
+subscriber, marks that batch running, and calls your `execute(Set<Id> ids)`
+method. The batch size comes from `Async_Job__mdt`, or the default of 5 when no
 metadata record exists.
 
-**Three: every outcome is recorded.** Successful batches become `Done`. Failed
-batches become `Error`, unless bounded auto-retry is configured and the item is
-still under its retry cap. Follow-up work created inside an `Async` job is saved
-after the job finishes, which keeps setup-object-sensitive transactions out of
-your way.
+**Three: outcomes stay visible.** Successful items become `Done`. Failed items
+become `Error` unless bounded auto-retry is configured and the item is still
+under its retry cap. Follow-up work created inside an `Async` job is saved after
+the job finishes, which keeps setup-object-sensitive transactions out of your
+business code.
 
 ## Public API
 
 > **A note on access modifiers.** In Apex, an omitted modifier means `private`.
-> Members listed here without an access modifier are private to the class and
-> not accessible from outside it. `@testVisible` members are private in
-> production but accessible in test classes.
+> Members listed here are the intended subscriber-facing surface. Framework
+> services, mocks, triggers, filters, and thread internals are not part of the
+> public Async contract.
 
 ### Job contract
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `execute` | `public virtual void execute(Set<Id> ids)` | Override this in every subscriber. Receives the current batch of record Ids. The base implementation throws `AsyncException`. |
+| `execute` | `public virtual void execute(Set<Id> ids)` | Override this in every subscriber. Receives the current batch of record Ids. The base implementation throws if a subclass does not override it. |
 
 ### Static entry points
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `enqueue` | `public static void enqueue(Type jobType, List<SObject> records)` | Creates one `Async__c` work item per record Id (Ids are plucked from the list). |
-| `enqueue` | `public static void enqueue(Type jobType, Set<Id> recordIds)` | Creates one `Async__c` work item per Id in `recordIds`. |
-| `stage` | `public static void stage(Type jobType, List<SObject> records)` | Adds record Ids to the current transaction's async work buffer. Ids are plucked from the list. |
-| `stage` | `public static void stage(Type jobType, Set<Id> recordIds)` | Adds record Ids to the current transaction's async work buffer. Duplicate Ids are merged by job type. |
-| `flush` | `public static void flush()` | Creates all buffered work items in one DML call, or defers them to the finalizer when called from inside an `Async` job. |
+| `enqueue` | `public static void enqueue(Type jobType, List<SObject> records)` | Creates tracked work for each record Id plucked from the list. |
+| `enqueue` | `public static void enqueue(Type jobType, Set<Id> recordIds)` | Creates tracked work for each Id. |
+| `stage` | `public static void stage(Type jobType, List<SObject> records)` | Adds record Ids to the current transaction's async work buffer. |
+| `stage` | `public static void stage(Type jobType, Set<Id> recordIds)` | Adds Ids to the current transaction's async work buffer. Duplicate Ids are merged by job type. |
+| `flush` | `public static void flush()` | Creates all buffered work items in one operation, or defers them to the finalizer when called from inside an `Async` job. |
 
-### `Async.AsyncException`
+### Metadata and settings
 
-`public class AsyncException extends Exception` — thrown when `execute(Set<Id>)`
-is called on the base class without being overridden.
-
-`AsyncMock` exists for framework-level tests, especially when you intentionally
-want an enqueued chain to run inside `Test.stopTest()`. Most subscriber tests
-should call `execute(Set<Id>)` directly and mock `Query` / `DML` instead.
-
-### Schema
-
-The framework relies on three schema artifacts in
-`force-app/bedrock/lib/async/objects`.
-
-**`Async__c`** (custom object) — one row per work item:
-
-| Field | Purpose |
-| --- | --- |
-| `Apex__c` | API name of the `Async` subclass to run. |
-| `Record_Id__c` | The Id of the record this work item represents. |
-| `Status__c` | Lifecycle status: `Pending`, `Running`, `Done`, `Error`. |
-| `Thread__c` | Request Id that groups work items enqueued in the same transaction. |
-| `Priority__c` | Higher values are processed first within a thread. |
-| `Retry_Count__c` | Number of times the framework has re-run this item. Starts at `0`; incremented on each auto-retry. |
-| `Error_Message__c` | Truncated exception message on failure (max 32,768 chars). |
-| `Error_Stack_Trace__c` | Truncated stack trace on failure (max 32,768 chars). |
-
-**`Async_Job__mdt`** (custom metadata type) — one record per subclass that
-needs a non-default batch size or auto-retry:
-
-| Field | Purpose |
-| --- | --- |
-| `Apex__c` | API name of the `Async` subclass. |
-| `Batch_Size__c` | Number of work items per `execute` call. Defaults to 5 when no record exists. |
-| `Max_Retries__c` | Cap on framework auto-retries for failed items. Absent or `0` ⇒ auto-retry off. |
-| `Priority__c` | Higher values run first within the same thread. Blank values default to `0`. |
+| Artifact | Field | Purpose |
+| --- | --- | --- |
+| `Async_Job__mdt` | `Apex__c` | Exact API name of the `Async` subclass. |
+| `Async_Job__mdt` | `Batch_Size__c` | Number of work items per `execute` call. Defaults to 5 when no record exists. |
+| `Async_Job__mdt` | `Max_Retries__c` | Cap on framework auto-retries. Blank or `0` means auto-retry is off. |
+| `Async_Job__mdt` | `Priority__c` | Higher values run first within the same backlog. Blank values default to `0`. |
+| `Async_Settings__c` | `Max_Threads__c` | Maximum concurrent framework-managed chains for the current user. Blank or non-positive values default to 1. |
 
 ## Notes & Edge Cases
 
-- **`enqueue` does not run your code inline.** It records work items and returns.
-  Your `execute` runs later, in the background. Do not assert on its side effects
-  in the same synchronous block — in a test, assert after `Test.stopTest()`.
-- **`execute` receives a batch, not the full set.** Write it to handle whatever
-  `ids` it is given, bulk-safely. Query once for the batch; never SOQL or DML
-  inside a per-record loop.
+- **`enqueue` does not run your code inline.** It records work and returns. Your
+  `execute` method runs later, in a background transaction.
+- **`execute` receives a batch, not the full set.** Query once for the batch and
+  write bulk-safe logic. Never put SOQL or DML inside a per-record loop.
 - **Work from Ids, not captured records.** Even when you enqueue a
-  `List<SObject>`, only the Ids are kept. Re-query inside `execute` so you act on
-  current data, not a stale snapshot.
+  `List<SObject>`, only Ids are kept. Re-query inside `execute` so you act on
+  current data.
 - **Override only `execute(Set<Id> ids)`.** The rest of the class is framework
-  machinery. As a subscriber you should not need to touch it.
+  machinery.
 - **Setup-object support applies inside Bedrock-managed async work.** When an
   `Async` job touches setup objects and then enqueues or flushes more work,
-  Bedrock creates the child `Async__c` rows from the finalizer. Outside the
-  framework, `enqueue` still creates work immediately in the caller's
-  transaction.
+  Bedrock creates the child work after the job finishes. Outside the framework,
+  `enqueue` creates work immediately in the caller's transaction.
 - **Use `stage(...)` with `flush()` deliberately.** Staged work stays in the
-  transaction buffer until `flush()` is called. If nothing flushes it, no work
-  items are created.
-- **Tune batch size to the work.** Heavy jobs (callouts, large DML, CPU-intensive
-  processing) need smaller batches to stay inside one Queueable's governor limits;
-  light jobs can use larger batches to finish faster. Configure per class in
-  `Async_Job__mdt`; the default is 5.
+  transaction buffer until `flush()` is called. If nothing flushes it, no work is
+  created.
+- **Tune batch size to the work.** Heavy jobs need smaller batches; light jobs
+  can use larger batches to finish faster. Configure per class in
+  `Async_Job__mdt`.
+- **Tune concurrency to the user.** `Max_Threads__c = 1` keeps one chain running
+  per user. Higher values let separate enqueueing transactions drain in parallel
+  for that user.
 - **Errors are recorded, not hidden.** A failing batch marks its work items
-  `Error` with the message and stack trace saved on the `Async__c` record. Check
-  there when a background job does not produce the expected results.
-- **Failed items can be retried two ways.** The framework auto-retries failures
-  up to `Async_Job__mdt.Max_Retries__c` (off by default), incrementing
-  `Retry_Count__c` each time. Separately, flipping a failed `Async__c` row back to
-  `Pending` (with the correct `Thread__c`) triggers `AsyncTriggerHandler` to start
-  a new thread via `AsyncFilters.shouldRetry`. Manual flips are unbounded — they
-  work even past `Max_Retries__c` — and never change `Retry_Count__c`.
-- **`canEnqueue()` must be called to run the chain in tests.** Without
-  `new AsyncMock().canEnqueue()`, `JobService.canEnqueue()` returns `false` and no
-  thread starts — `enqueue` inserts work items but nothing processes them.
+  `Error` with the exception message and stack trace saved for review.
+- **Failed items can be retried two ways.** Configure bounded auto-retry with
+  `Async_Job__mdt.Max_Retries__c`, or manually move an errored work item back to
+  `Pending` for framework-managed retry. Manual recovery is not limited by the
+  metadata retry cap.
+- **There is no stuck-running recovery yet.** If a platform incident, aborted
+  job, or finalizer failure leaves work stuck as running, recovery is a future
+  hardening item.

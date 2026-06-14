@@ -62,6 +62,7 @@ public with sharing class AsyncTest {
     @istest static void testStageAndFlush_createsWorkInSingleDmlTransaction() {
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
+        Async.setMock(new AsyncMock().mockThreadIds());
 
         List<SObject> contacts = new TestData(Contact.sObjectType)
             .mockIds()
@@ -134,7 +135,9 @@ public with sharing class AsyncTest {
     @istest static void testCreate_seedsConfiguredPriorityOnWorkItems() {
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
-        Async.setMock(new AsyncMock().config(MyPriorityAsync.class, new Async_Job__mdt(Priority__c = 42)));
+        Async.setMock(new AsyncMock()
+            .mockThreadIds()
+            .config(MyPriorityAsync.class, new Async_Job__mdt(Priority__c = 42)));
 
         List<SObject> contacts = new TestData(Contact.sObjectType)
             .mockIds()
@@ -152,7 +155,9 @@ public with sharing class AsyncTest {
     @istest static void testCreate_defaultsPriorityToLowestWhenConfigMissingOrBlank() {
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
-        Async.setMock(new AsyncMock().config(MyBlankPriorityAsync.class, new Async_Job__mdt()));
+        Async.setMock(new AsyncMock()
+            .mockThreadIds()
+            .config(MyBlankPriorityAsync.class, new Async_Job__mdt()));
 
         List<SObject> contacts = new TestData(Contact.sObjectType)
             .mockIds()
@@ -231,6 +236,16 @@ public with sharing class AsyncTest {
         Assert.areEqual(UserInfo.getUserId(), cached.SetupOwnerId, 'Expected the seeded settings values to be returned unchanged from memory.');
     }
 
+    @istest static void testSettingsService_maxThreadsDefaultsToOne() {
+        Async.SettingsService settings = new Async.SettingsService();
+
+        settings.setSettings(new Async_Settings__c());
+        Assert.areEqual(1, settings.maxThreads(), 'Expected blank Max Threads to default to one active thread.');
+
+        settings.setSettings(new Async_Settings__c(Max_Threads__c = 0));
+        Assert.areEqual(1, settings.maxThreads(), 'Expected non-positive Max Threads to default to one active thread.');
+    }
+
     @istest static void testShouldAutoRetry_respectsConfiguredCap() {
         AsyncMock mock = new AsyncMock()
             .config(MyTestAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Max_Retries__c = 3));
@@ -296,9 +311,11 @@ public with sharing class AsyncTest {
         Async.setMock(mock);
 
         String apex = String.valueOf(MyTestAsync.class);
-        String threadId = Request.getCurrent().getRequestId();
-        Async__c underCap = new Async__c(Apex__c = apex, Record_Id__c = contact.Id, Status__c = 'Running', Retry_Count__c = 0, Thread__c = threadId);
-        Async__c atCap = new Async__c(Apex__c = apex, Record_Id__c = contact.Id, Status__c = 'Running', Retry_Count__c = 2, Thread__c = threadId);
+        Id threadId = Thread.currentOrCreate();
+        Async__c underCap = workItem(apex, contact.Id, 'Running', threadId);
+        underCap.Retry_Count__c = 0;
+        Async__c atCap = workItem(apex, contact.Id, 'Running', threadId);
+        atCap.Retry_Count__c = 2;
         insert new List<Async__c> { underCap, atCap };
 
         Async.jobs.handleFailure(new Set<Id> { underCap.Id, atCap.Id }, 'boom', 'stack-trace');
@@ -321,13 +338,8 @@ public with sharing class AsyncTest {
             .config(MyTestAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Max_Retries__c = 0));
         Async.setMock(mock);
 
-        Async__c item = new Async__c(
-            Apex__c = String.valueOf(MyTestAsync.class),
-            Record_Id__c = contact.Id,
-            Status__c = 'Running',
-            Retry_Count__c = 0,
-            Thread__c = Request.getCurrent().getRequestId()
-        );
+        Async__c item = workItem(String.valueOf(MyTestAsync.class), contact.Id, 'Running', Thread.currentOrCreate());
+        item.Retry_Count__c = 0;
         insert item;
 
         Async.jobs.handleFailure(new Set<Id> { item.Id }, 'boom', 'stack-trace');
@@ -340,32 +352,44 @@ public with sharing class AsyncTest {
     @istest static void testJobWatcher_continueAfterFailure_underThreshold_keepsDirectChain() {
         SpyJobService jobs = new SpyJobService();
         Async.jobs = jobs;
+        ThreadMock threads = new ThreadMock().mockIds();
+        Thread.setMock(threads);
+        Thread.currentOrCreate();
+        Async.queries = new PendingWorkQueryService();
 
-        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 2).continueAfterFailure();
+        new Async.JobWatcher(Thread.currentId(), new Set<Id>(), 2).continueAfterFailure();
 
         Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch below the threshold to continue the current worker chain.');
         Assert.areEqual(3, jobs.lastEnqueueFailures, 'Expected failure-path dispatch below the threshold to increment the failure streak for the next worker batch.');
-        Assert.areEqual(0, jobs.startThreadCalls, 'Expected failure-path dispatch below the threshold not to restart through AsyncThread yet.');
+        Assert.areEqual(0, threads.service.startCalls, 'Expected failure-path dispatch below the threshold not to restart through AsyncThread yet.');
     }
 
     @istest static void testJobWatcher_continueAfterFailure_atThreshold_restartsThroughAsyncThread() {
         SpyJobService jobs = new SpyJobService();
         Async.jobs = jobs;
+        ThreadMock threads = new ThreadMock().mockIds();
+        Thread.setMock(threads);
+        Id threadId = Thread.currentOrCreate();
+        Async.queries = new PendingWorkQueryService();
 
-        new Async.JobWatcher(Request.getCurrent().getRequestId(), new Set<Id>(), 3).continueAfterFailure();
+        new Async.JobWatcher(threadId, new Set<Id>(), 3).continueAfterFailure();
 
         Assert.areEqual(0, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch at the threshold not to chain another worker directly from the finalizer.');
-        Assert.areEqual(1, jobs.startThreadCalls, 'Expected failure-path dispatch to restart the backlog through AsyncThread.');
-        Assert.areEqual(0, jobs.lastStartFailures, 'Expected failure-path dispatch at the threshold to reset the failure streak on the restarted thread.');
+        Assert.areEqual(1, threads.service.startCalls, 'Expected failure-path dispatch to restart the backlog through AsyncThread.');
+        Assert.areEqual(0, threads.service.lastFailures, 'Expected failure-path dispatch at the threshold to reset the failure streak on the restarted thread.');
     }
 
     @istest static void testAsyncThread_execute_passesFailureCountToNextWorkerDispatch() {
         SpyJobService jobs = new SpyJobService();
         Async.jobs = jobs;
+        Thread__c threadRecord = (Thread__c) new TestData(Thread__c.sObjectType)
+            .mockIds()
+            .build()[0];
+        Id threadId = threadRecord.Id;
 
-        new AsyncThread('thread-123', 2).execute(null);
+        new AsyncThread(threadId, 2).execute(null);
 
-        Assert.areEqual('thread-123', Async.jobs.threadId, 'Expected AsyncThread to adopt the provided thread id before dispatching the next worker batch.');
+        Assert.areEqual(threadId, Thread.currentId(), 'Expected AsyncThread to adopt the provided thread id before dispatching the next worker batch.');
         Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected AsyncThread to dispatch the next worker batch once.');
         Assert.areEqual(2, jobs.lastEnqueueFailures, 'Expected AsyncThread to forward the carried failure streak into the next worker dispatch.');
     }
@@ -379,13 +403,8 @@ public with sharing class AsyncTest {
             .config(MyTestAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Max_Retries__c = 2));
         Async.setMock(mock);
 
-        Async__c workItem = new Async__c(
-            Apex__c = String.valueOf(MyTestAsync.class),
-            Record_Id__c = contact.Id,
-            Status__c = 'Error',
-            Retry_Count__c = 5,
-            Thread__c = Request.getCurrent().getRequestId()
-        );
+        Async__c workItem = workItem(String.valueOf(MyTestAsync.class), contact.Id, 'Error', Thread.currentOrCreate());
+        workItem.Retry_Count__c = 5;
         insert workItem;
 
         Test.startTest();
@@ -415,14 +434,37 @@ public with sharing class AsyncTest {
         }
     }
 
+    public with sharing class PendingWorkQueryService extends Async.QueryService {
+        public override Boolean hasPendingWork(Id threadId) {
+            return true;
+        }
+    }
+
+    static Async__c workItem(String apexClass, Id recordId, String status, Id threadId) {
+        Async__c workItem = new Async__c(
+            Apex__c = apexClass,
+            Record_Id__c = String.valueOf(recordId),
+            Status__c = status
+        );
+        workItem.put('Thread__c', threadId);
+        return workItem;
+    }
+
     public with sharing class SpyJobService extends Async.JobService {
         public Integer enqueueNextJobCalls = 0;
         public Integer startThreadCalls = 0;
         public Integer lastEnqueueFailures = -1;
         public Integer lastStartFailures = -1;
+        public Id lastThreadId;
 
         public override void enqueueNextJob(Integer failures) {
             this.enqueueNextJobCalls++;
+            this.lastEnqueueFailures = failures;
+        }
+
+        public override void enqueueNextJob(Id threadId, Integer failures) {
+            this.enqueueNextJobCalls++;
+            this.lastThreadId = threadId;
             this.lastEnqueueFailures = failures;
         }
 

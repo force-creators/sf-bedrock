@@ -11,6 +11,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         queries = mock.queries;
         metadata = mock.metadata;
         settings = mock.settings;
+        Thread.setMock(mock.threads);
     }
 
     public static void enqueue(Type jobType, List<SObject> records) { 
@@ -29,16 +30,16 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         work.flush();
     }
 
-    public String threadId;
+    public Id threadId;
     public Integer failures = 0;
     public Set<Id> recordIds = new Set<Id>();
     public Set<Id> workItemIds = new Set<Id>();
 
-    public void setWork(String threadId, Set<Id> workItemIds) {
+    public void setWork(Id threadId, Set<Id> workItemIds) {
         this.setWork(threadId, workItemIds, 0);
     }
 
-    public void setWork(String threadId, Set<Id> workItemIds, Integer failures) {
+    public void setWork(Id threadId, Set<Id> workItemIds, Integer failures) {
         this.threadId = threadId;
         this.workItemIds = workItemIds;
         this.failures = failures == null ? 0 : failures;
@@ -53,6 +54,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     }
 
     public void execute(QueueableContext context) {
+        Thread.setCurrent(this.threadId);
         JobWatcher watcher = jobs.watch(this.threadId, this.workItemIds, this.failures);
         jobs.attachFinalizer(watcher);
 
@@ -68,29 +70,34 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     }
 
     public virtual with sharing class JobService {
-        public String threadId = Request.getCurrent().getRequestId();
         public boolean hasEnqueued = false;
         @testVisible JobWatcher watcher;
         @testVisible Boolean isFinalizer = false;
         @testVisible Integer restartLimit = 4;
 
         public virtual void enqueue() {
-            if(!this.canEnqueue() || this.hasEnqueued || System.isQueueable() || this.isFinalizer || this.isRunningThread()) return;
-            this.startThread();
+            Thread.enqueue();
             this.hasEnqueued = true;
         }
 
-        public virtual JobWatcher watch(String threadId, Set<Id> workItemIds) {
+        public virtual void enqueue(List<Async__c> workItems) {
+            if (Thread.currentId() == null && workItems != null && !workItems.isEmpty()) {
+                Thread.setCurrent((Id) workItems[0].get('Thread__c'));
+            }
+            this.enqueue();
+        }
+
+        public virtual JobWatcher watch(Id threadId, Set<Id> workItemIds) {
             return this.watch(threadId, workItemIds, 0);
         }
 
-        public virtual JobWatcher watch(String threadId, Set<Id> workItemIds, Integer failures) {
+        public virtual JobWatcher watch(Id threadId, Set<Id> workItemIds, Integer failures) {
             this.watcher = new JobWatcher(threadId, workItemIds, failures);
             return this.watcher;
         }
 
         public virtual Boolean isRunningThread() {
-            return this.threadId != Request.getCurrent().getRequestId();
+            return Thread.currentId() != null;
         }
 
         public virtual void startThread() {
@@ -98,7 +105,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual void startThread(Integer failures) {
-            System.enqueueJob(new AsyncThread(this.threadId, failures));
+            Thread.service.start(Thread.currentId(), failures);
         }
 
         public virtual void attachFinalizer(Finalizer finalizer) {
@@ -110,17 +117,21 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual void enqueueNextJob(Integer failures) {
-            Async__c nextWorkItem = queries.getNextWorkItem(this.threadId);
+            this.enqueueNextJob(Thread.currentId(), failures);
+        }
+
+        public virtual void enqueueNextJob(Id threadId, Integer failures) {
+            Async__c nextWorkItem = queries.getNextWorkItem(threadId);
             System.debug(nextWorkItem);
             if(nextWorkItem == null) return; //todo: this should never happen, throw an exception and alert.
             Async_Job__mdt config = queries.getJobConfig(nextWorkItem.Apex__c);
             List<Async__c> workItems = Async.queries.getMatchingWorkItems(
-                this.threadId, nextWorkItem.Apex__c, Integer.valueOf(config.Batch_Size__c));
+                threadId, nextWorkItem.Apex__c, Integer.valueOf(config.Batch_Size__c));
             Set<Id> workItemIds = Pluck.ids(workItems);
             
             //dynamically instantiate the async job
             Async asyncJob = (Async) Type.forName(nextWorkItem.Apex__c).newInstance();
-            asyncJob.setWork(this.threadId, workItemIds, failures);
+            asyncJob.setWork(threadId, workItemIds, failures);
             work.running(workItemIds);
             asyncJob.enqueue();
         }
@@ -223,13 +234,14 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
             if (String.isBlank(apexClass) || recordIds == null || recordIds.isEmpty()) return workItems;
             for (Id recordId : recordIds) {
-                workItems.add(new Async__c(
+                Async__c workItem = new Async__c(
                     Record_Id__c = String.valueOf(recordId),
                     Status__c = 'Pending',
-                    Thread__c = jobs.threadId,
                     Apex__c = apexClass,
                     Priority__c = priority
-                ));
+                );
+                workItem.put('Thread__c', Thread.currentOrCreate());
+                workItems.add(workItem);
             }
 
             return workItems;
@@ -279,9 +291,11 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual void retry(Set<Id> workItemIds) {
-            System.debug('Current Thread: ' + jobs.threadId);
+            System.debug('Current Thread: ' + Thread.currentId());
             System.debug('TX: Id:' + Request.getCurrent().getRequestId());
-            updateStatus(workItemIds, new Async__c(Status__c = 'Pending', Thread__c = jobs.threadId));
+            Async__c values = new Async__c(Status__c = 'Pending');
+            values.put('Thread__c', Thread.currentOrCreate());
+            updateStatus(workItemIds, values);
         }
 
         public virtual void autoRetry(List<Async__c> workItems) {
@@ -290,12 +304,13 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             List<SObject> updates = new List<SObject>();
             for (Async__c workItem : workItems) {
                 Decimal retryCount = workItem.Retry_Count__c == null ? 0 : workItem.Retry_Count__c;
-                updates.add(new Async__c(
+                Async__c updateRecord = new Async__c(
                     Id = workItem.Id,
                     Status__c = 'Pending',
-                    Thread__c = jobs.threadId,
                     Retry_Count__c = retryCount + 1
-                ));
+                );
+                updateRecord.put('Thread__c', Thread.currentOrCreate());
+                updates.add(updateRecord);
             }
 
             DML.updateRecords(updates);
@@ -329,7 +344,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 if(values.Status__c != null) updateRecord.Status__c = values.Status__c;
                 if(values.Error_Message__c != null) updateRecord.Error_Message__c = values.Error_Message__c;
                 if(values.Error_Stack_Trace__c != null) updateRecord.Error_Stack_Trace__c = values.Error_Stack_Trace__c;
-                if(values.Thread__c != null) updateRecord.Thread__c = values.Thread__c;
+                if(values.get('Thread__c') != null) updateRecord.put('Thread__c', values.get('Thread__c'));
                 updates.add(updateRecord);
             }
                     
@@ -346,37 +361,41 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     }
 
     public virtual with sharing class QueryService {
-        public virtual Async__c getNextWorkItem(String threadId) {
+        public virtual Async__c getNextWorkItem(Id threadId) {
             System.debug(threadId);
-            List<Async__c> workItems = (List<Async__c>) Query.records([
-                SELECT Apex__c, Thread__c, Record_Id__c, Priority__c
-                FROM Async__c
-                WHERE Thread__c = :threadId 
-                    AND Status__c = 'Pending'
-                ORDER BY Priority__c DESC, CreatedDate ASC
-                LIMIT 1
-            ]);
+            List<Async__c> workItems = (List<Async__c>) Query.records(Database.query(
+                'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
+                'FROM Async__c ' +
+                'WHERE Thread__c = :threadId ' +
+                    'AND Status__c = \'Pending\' ' +
+                'ORDER BY Priority__c DESC, CreatedDate ASC ' +
+                'LIMIT 1'
+            ));
             return workItems.isEmpty() ? null : workItems[0];
         }
 
-        public virtual List<Async__c> getMatchingWorkItems(String threadId, String apexClass, Integer batchSize) {
-            return (List<Async__c>) Query.records([
-                SELECT Apex__c, Thread__c, Record_Id__c, Priority__c
-                FROM Async__c
-                WHERE Thread__c = :threadId 
-                    AND Apex__c = :apexClass
-                    AND Status__c = 'Pending'
-                ORDER BY Priority__c DESC
-                LIMIT :batchSize
-            ]);
+        public virtual List<Async__c> getMatchingWorkItems(Id threadId, String apexClass, Integer batchSize) {
+            return (List<Async__c>) Query.records(Database.query(
+                'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
+                'FROM Async__c ' +
+                'WHERE Thread__c = :threadId ' +
+                    'AND Apex__c = :apexClass ' +
+                    'AND Status__c = \'Pending\' ' +
+                'ORDER BY Priority__c DESC ' +
+                'LIMIT :batchSize'
+            ));
+        }
+
+        public virtual Boolean hasPendingWork(Id threadId) {
+            return this.getNextWorkItem(threadId) != null;
         }
 
         public virtual List<Async__c> getWorkItemsById(Set<Id> workItemIds) {
-            List<Async__c> workItems = (List<Async__c>) Query.records([
-                SELECT Id, Apex__c, Thread__c, Record_Id__c, Priority__c, Retry_Count__c
-                FROM Async__c
-                WHERE Id IN :workItemIds
-            ]);
+            List<Async__c> workItems = (List<Async__c>) Query.records(Database.query(
+                'SELECT Id, Apex__c, Thread__c, Record_Id__c, Priority__c, Retry_Count__c ' +
+                'FROM Async__c ' +
+                'WHERE Id IN :workItemIds'
+            ));
             return workItems;
         }
 
@@ -409,6 +428,11 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     public virtual with sharing class SettingsService {
         @testVisible Async_Settings__c values;
 
+        public virtual Integer maxThreads() {
+            Decimal maxThreads = this.getSettings().Max_Threads__c;
+            return maxThreads == null || maxThreads < 1 ? 1 : maxThreads.intValue();
+        }
+
         public virtual Async_Settings__c getSettings() {
             if (this.values == null) {
                 this.values = this.loadSettings();
@@ -428,24 +452,25 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
     public with sharing class JobWatcher implements Finalizer {
         Set<Id> workItemIds;
-        String threadId;
+        Id threadId;
         Integer failures;
         Map<String, Set<Id>> deferredWork = new Map<String, Set<Id>>();
 
-        public JobWatcher(String threadId, Set<Id> workItemIds, Integer failures) {
+        public JobWatcher(Id threadId, Set<Id> workItemIds, Integer failures) {
             this.workItemIds = workItemIds;
             this.threadId = threadId;
             this.failures = failures == null ? 0 : failures;
         }
 
         public void execute(FinalizerContext context) {
-            Async.jobs.threadId = this.threadId; //set the thread context
+            Thread.setCurrent(this.threadId);
             Async.jobs.isFinalizer = true;
+            Thread.service.isFinalizer = true;
             try {
                 if (context.getResult() == ParentJobResult.SUCCESS) {
                     work.complete(this.workItemIds);
                     this.createDeferredWork();
-                    jobs.enqueueNextJob();
+                    Thread.continueCurrent();
                     return;
                 }
 
@@ -455,20 +480,16 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                     error == null ? String.valueOf(context.getResult()) : error.getMessage(),
                     error == null ? null : error.getStackTraceString()
                 );
-                this.continueAfterFailure();
+                Thread.continueCurrent(this.failures + 1);
             } finally {
                 Async.jobs.isFinalizer = false;
+                Thread.service.isFinalizer = false;
             }
         }
 
         @testVisible void continueAfterFailure() {
             Integer nextFailures = this.failures + 1;
-            if (jobs.shouldRestartThread(nextFailures)) {
-                jobs.startThread(0);
-                return;
-            }
-
-            jobs.enqueueNextJob(nextFailures);
+            Thread.continueCurrent(nextFailures);
         }
 
         void createDeferredWork() {

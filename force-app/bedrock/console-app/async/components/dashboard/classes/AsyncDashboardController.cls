@@ -18,16 +18,17 @@ public with sharing class AsyncDashboardController {
             WITH USER_MODE
         ];
 
+        metrics.runningThreads = [
+            SELECT COUNT()
+            FROM Thread__c
+            WHERE Status__c = 'Running'
+            WITH USER_MODE
+        ];
+
         metrics.errors = [
             SELECT COUNT()
             FROM Async__c
             WHERE Status__c = 'Error'
-            WITH USER_MODE
-        ];
-
-        metrics.totalJobs = [
-            SELECT COUNT()
-            FROM Async__c
             WITH USER_MODE
         ];
 
@@ -37,7 +38,7 @@ public with sharing class AsyncDashboardController {
     public class DashboardMetrics {
         @AuraEnabled public Integer jobsCompletedToday;
         @AuraEnabled public Integer backlogCount;
+        @AuraEnabled public Integer runningThreads;
         @AuraEnabled public Integer errors;
-        @AuraEnabled public Integer totalJobs;
     }
 }

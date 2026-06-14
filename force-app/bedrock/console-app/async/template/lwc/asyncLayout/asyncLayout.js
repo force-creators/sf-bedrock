@@ -5,9 +5,9 @@ const REFRESH_INTERVAL_MS = 15000;
 
 const METRIC_DEFINITIONS = [
     { id: 'backlogCount', label: 'Backlog', className: 'metric metric-backlog' },
+    { id: 'runningThreads', label: 'Running Threads', className: 'metric metric-thread' },
     { id: 'errors', label: 'Errors', className: 'metric metric-error' },
-    { id: 'jobsCompletedToday', label: 'Completed Today', className: 'metric metric-success' },
-    { id: 'totalJobs', label: 'Total Jobs', className: 'metric metric-muted' }
+    { id: 'jobsCompletedToday', label: 'Completed Today', className: 'metric metric-success' }
 ];
 
 export default class AsyncLayout extends LightningElement {
