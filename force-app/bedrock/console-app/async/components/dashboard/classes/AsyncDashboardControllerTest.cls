@@ -28,14 +28,14 @@ public with sharing class AsyncDashboardControllerTest {
             'The dashboard should count pending and running async jobs as backlog.'
         );
         Assert.areEqual(
+            2,
+            metrics.runningThreads,
+            'The dashboard should count running thread records.'
+        );
+        Assert.areEqual(
             1,
             metrics.errors,
             'The dashboard should count async jobs currently in error.'
-        );
-        Assert.areEqual(
-            4,
-            metrics.totalJobs,
-            'The dashboard should count every async job regardless of status.'
         );
     }
 

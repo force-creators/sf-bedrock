@@ -90,6 +90,10 @@ h1 {
     border-top: 0.25rem solid #0176d3;
 }
 
+.metric-thread {
+    border-top: 0.25rem solid #5867e8;
+}
+
 .metric-error {
     border-top: 0.25rem solid #ba0517;
 }
