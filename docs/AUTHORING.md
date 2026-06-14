@@ -44,7 +44,7 @@ reader always knows where they are.
 layout: ../layouts/DocsLayout.astro
 title: <ClassName> | sf-bedrock docs
 description: <one sentence, used for SEO/meta>
-eyebrow: <the nav group label: Foundation API | Dependency Injection | Automation | Async Services | Other>
+eyebrow: <the nav group label: Foundation API | Dependency Injection | Automation | Frameworks | Other>
 heading: <ClassName>
 lede: <1–2 sentences: what it is + the concrete win. No fluff.>
 sections:

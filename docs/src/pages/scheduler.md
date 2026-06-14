@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: Scheduler | sf-bedrock docs
 description: Run recurring Apex jobs from a fixed set of scheduled-job slots, with logical jobs configured in custom metadata.
-eyebrow: Async Services
+eyebrow: Frameworks
 heading: Scheduler
 lede: Salesforce scheduled Apex slots are shared across your org and installed packages. Scheduler gives you one Bedrock heartbeat every five minutes, then runs your logical jobs from metadata when they are due.
 sections:

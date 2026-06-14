@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: Async | sf-bedrock docs
 description: A tracked, configurable framework for record-driven Async Apex that drains high-volume work safely.
-eyebrow: Async Services
+eyebrow: Frameworks
 heading: Async
 lede: Async turns record-driven background work into a tracked, configurable pipeline. You write one execute method, enqueue record Ids, and Bedrock drains the work in safe batches with visible success, retry, and error state.
 sections:

@@ -24,12 +24,13 @@ export const navGroups: NavGroup[] = [
     ]
   },
   {
-    label: 'Async Services',
+    label: 'Frameworks',
     items: [
       { label: 'Async', href: '/async' },
-      { label: 'Thread', href: '/thread' },
       { label: 'Scheduler', href: '/scheduler' },
-      { label: 'Event', href: '#', status: 'Roadmap' }
+      { label: 'Event', href: '#', status: 'Roadmap' },
+      { label: 'Data', href: '#', status: 'Roadmap' },
+      { label: 'REST', href: '#', status: 'Roadmap' }
     ]
   },
   {
