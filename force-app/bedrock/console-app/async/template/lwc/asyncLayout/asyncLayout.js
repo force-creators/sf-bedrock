@@ -67,6 +67,10 @@ export default class AsyncLayout extends LightningElement {
         if (selectedTab === 'completed') {
             this.refreshPage('c-async-completed');
         }
+
+        if (selectedTab === 'archive') {
+            this.refreshPage('c-async-archive');
+        }
     }
 
     async loadMetrics() {

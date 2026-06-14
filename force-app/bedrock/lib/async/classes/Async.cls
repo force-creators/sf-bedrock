@@ -433,6 +433,20 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             return maxThreads == null || maxThreads < 1 ? 1 : maxThreads.intValue();
         }
 
+        public virtual Integer archiveThresholdHours() {
+            Decimal threshold = this.getSettings().Archive_Threshold_Hours__c;
+            return threshold == null || threshold < 0 ? 24 : threshold.intValue();
+        }
+
+        public virtual Boolean archiveCleanupEnabled() {
+            return this.getSettings().Enable_Archive_Cleanup__c == true;
+        }
+
+        public virtual Integer maxArchiveAgeDays() {
+            Decimal maxArchiveAge = this.getSettings().Max_Archive_Age__c;
+            return maxArchiveAge == null || maxArchiveAge < 0 ? 30 : maxArchiveAge.intValue();
+        }
+
         public virtual Async_Settings__c getSettings() {
             if (this.values == null) {
                 this.values = this.loadSettings();
