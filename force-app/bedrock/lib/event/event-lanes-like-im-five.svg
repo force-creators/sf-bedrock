@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">Event lanes explained simply</title>
+  <desc id="desc">A simple road-lane diagram showing that events in the same lane stay in order, while different lanes can run at the same time.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f4ed; }
+      .road { fill: #eef1f4; stroke: #c9d0d8; stroke-width: 3; }
+      .lane-line { stroke: #ffffff; stroke-width: 6; stroke-dasharray: 22 18; }
+      .tower { fill: #ffffff; stroke: #1f2937; stroke-width: 4; }
+      .tower-roof { fill: #25364c; }
+      .thread { fill: #ecfeff; stroke: #0891b2; stroke-width: 3; }
+      .publish { fill: #fef3c7; stroke: #d97706; stroke-width: 3; }
+      .consume { fill: #dcfce7; stroke: #16a34a; stroke-width: 3; }
+      .async { fill: #e0e7ff; stroke: #4f46e5; stroke-width: 3; }
+      .blocked { fill: #fee2e2; stroke: #dc2626; stroke-width: 3; }
+      .arrow { stroke: #25364c; stroke-width: 4; fill: none; marker-end: url(#arrowhead); }
+      .soft-arrow { stroke: #6b7280; stroke-width: 3; fill: none; marker-end: url(#small-arrowhead); }
+      .title { font: 700 36px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111827; }
+      .subtitle { font: 500 20px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #374151; }
+      .label { font: 700 20px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111827; }
+      .small { font: 500 16px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #374151; }
+      .tiny { font: 700 15px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111827; }
+      .car-text { font: 800 18px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111827; }
+      .note { fill: #ffffff; stroke: #d1d5db; stroke-width: 2; }
+    </style>
+    <marker id="arrowhead" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto">
+      <polygon points="0 0, 12 4, 0 8" fill="#25364c" />
+    </marker>
+    <marker id="small-arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1200" height="760" />
+
+  <text class="title" x="60" y="70">Event lanes, like a little road</text>
+  <text class="subtitle" x="60" y="105">Cars in one lane stay in order. Different lanes can move at the same time.</text>
+
+  <rect class="tower" x="60" y="160" width="205" height="205" rx="14" />
+  <polygon class="tower-roof" points="78,160 247,160 222,124 103,124" />
+  <text class="label" x="91" y="205">ThreadRunner</text>
+  <text class="small" x="91" y="237">looks for open</text>
+  <text class="small" x="91" y="260">lanes and starts</text>
+  <text class="small" x="91" y="283">one runner per lane</text>
+  <rect class="thread" x="91" y="310" width="142" height="34" rx="17" />
+  <text class="tiny" x="112" y="332">traffic helper</text>
+
+  <path class="arrow" d="M 280 222 C 345 205, 365 205, 430 205" />
+  <path class="arrow" d="M 280 262 C 345 295, 365 295, 430 330" />
+  <path class="arrow" d="M 280 304 C 345 420, 365 450, 430 472" />
+
+  <g transform="translate(430 160)">
+    <rect class="road" x="0" y="0" width="690" height="120" rx="18" />
+    <line class="lane-line" x1="28" y1="60" x2="662" y2="60" />
+    <text class="label" x="20" y="-16">Lane A: AccountChanged__e</text>
+    <text class="small" x="438" y="-16">same lane = no passing</text>
+
+    <rect class="consume" x="55" y="32" width="82" height="52" rx="16" />
+    <text class="car-text" x="83" y="64">1</text>
+    <rect class="consume" x="175" y="32" width="82" height="52" rx="16" />
+    <text class="car-text" x="203" y="64">2</text>
+    <rect class="consume" x="295" y="32" width="82" height="52" rx="16" />
+    <text class="car-text" x="323" y="64">3</text>
+    <path class="soft-arrow" d="M 405 58 L 610 58" />
+  </g>
+
+  <g transform="translate(430 310)">
+    <rect class="road" x="0" y="0" width="690" height="120" rx="18" />
+    <line class="lane-line" x1="28" y1="60" x2="662" y2="60" />
+    <text class="label" x="20" y="-16">Lane B: OrderChanged__e</text>
+    <text class="small" x="454" y="-16">moves beside Lane A</text>
+
+    <rect class="publish" x="55" y="32" width="82" height="52" rx="16" />
+    <text class="car-text" x="83" y="64">1</text>
+    <rect class="publish" x="175" y="32" width="82" height="52" rx="16" />
+    <text class="car-text" x="203" y="64">2</text>
+    <rect class="publish" x="295" y="32" width="82" height="52" rx="16" />
+    <text class="car-text" x="323" y="64">3</text>
+    <path class="soft-arrow" d="M 405 58 L 610 58" />
+  </g>
+
+  <g transform="translate(430 460)">
+    <rect class="road" x="0" y="0" width="690" height="120" rx="18" />
+    <line class="lane-line" x1="28" y1="60" x2="662" y2="60" />
+    <text class="label" x="20" y="-16">Lane C: EmailWebhook</text>
+    <text class="small" x="484" y="-16">custom publisher</text>
+
+    <rect class="publish" x="55" y="32" width="82" height="52" rx="16" />
+    <text class="car-text" x="83" y="64">1</text>
+    <rect class="blocked" x="175" y="32" width="82" height="52" rx="16" />
+    <text class="car-text" x="203" y="64">2</text>
+    <rect class="publish" x="295" y="32" width="82" height="52" rx="16" />
+    <text class="car-text" x="323" y="64">3</text>
+    <path class="soft-arrow" d="M 405 58 L 610 58" />
+  </g>
+
+  <rect class="note" x="80" y="440" width="285" height="178" rx="12" />
+  <text class="label" x="105" y="480">The rule</text>
+  <text class="small" x="105" y="512">If car 2 in Lane C is stuck,</text>
+  <text class="small" x="105" y="536">car 3 in Lane C waits.</text>
+  <text class="small" x="105" y="568">But Lane A and Lane B can</text>
+  <text class="small" x="105" y="592">keep moving.</text>
+
+  <rect class="note" x="430" y="625" width="690" height="94" rx="12" />
+  <text class="label" x="455" y="658">In Bedrock words</text>
+  <text class="small" x="455" y="686">Lane_Key__c protects order. ThreadRunner fills safe lanes.</text>
+  <text class="small" x="455" y="710">StrictContiguous batching only takes neighbors: 1, 2, 3.</text>
+</svg>
