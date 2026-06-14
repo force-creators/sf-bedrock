@@ -18,6 +18,8 @@ sections:
     href: "#staging-work"
   - label: Configuration
     href: "#configuration"
+  - label: Multithreading
+    href: "#multithreading"
   - label: Testing
     href: "#testing"
   - label: How It Works
@@ -49,7 +51,7 @@ what ran, what failed, or what is left to do.
 
 `Async` solves this. Instead of enqueuing a Queueable per record, you hand the
 framework a set of record Ids. It **saves them as work items** in a custom object,
-then runs a single managed background thread that drains those work items a
+then runs a managed background thread that drains those work items a
 **safe batch at a time**, chaining one job to the next until the queue is empty.
 Every work item is tracked through `Pending → Running → Done` (or `Error`), so
 nothing is silently lost.
@@ -97,9 +99,10 @@ List<Account> accounts = Query.records([
 Async.enqueue(RollupContactCountAsync.class, accounts);
 ```
 
-That is everything. The framework creates one work item per Account Id, starts a
-background thread, and drains the queue in batches — each calling your
-`execute` method with a small slice of Ids until every Account is recounted.
+That is everything. The framework creates one work item per Account Id, assigns
+the work to a `Thread__c`, starts a background chain when a thread slot is
+available, and drains the queue in batches — each calling your `execute` method
+with a small slice of Ids until every Account is recounted.
 
 ## Examples
 
@@ -160,7 +163,7 @@ transaction.
 This is the scaling win: whether you enqueue 5 records or 5,000, the calling
 transaction does the same small amount of work (insert the work items). You never
 approach the 50-job limit, because you are not enqueuing one job per record —
-you are recording intent, and a single thread drains it.
+you are recording intent, and a managed thread drains it.
 
 ### Why Ids, not SObjects
 
@@ -270,6 +273,37 @@ hiccup). It does not change manual recovery: flipping an `Error` item back to
 `Pending` yourself is still unbounded, always honored, and never touches
 `Retry_Count__c`.
 
+### Thread cap
+
+`Async_Settings__c.Max_Threads__c` controls how many `Thread__c` records may run
+for the current user at the same time. It is a hierarchical custom setting, so
+you can keep the org default conservative and raise the cap for service users or
+other high-volume identities.
+
+Blank, `0`, and negative values default to **1**. With a cap of 1, work drains
+serially: when one thread finishes, it hands off to the next pending thread.
+With a higher cap, separate enqueueing transactions can run in parallel up to
+that soft limit.
+
+## Multithreading
+
+Async multithreading is thread-based, not record-sharding-based.
+
+One enqueueing transaction creates or reuses one `Thread__c`, and all work
+created in that transaction is assigned to that thread. If five separate
+transactions enqueue work and the running user's `Max_Threads__c` is `5`, those
+five threads can drain in parallel. If the cap is `1`, only one thread runs at a
+time and the others stay `Pending` until handoff.
+
+When a thread drains, the finalizer marks its `Thread__c` `Done`, selects the
+oldest pending thread for the same user, locks that row, marks it `Running`, and
+starts the next chain. This keeps work on each thread linear while still letting
+high-volume users increase throughput with a higher thread cap.
+
+> A single large `Async.enqueue(...)` call does not split itself across several
+> threads. To use multiple threads, multiple synchronous transactions must create
+> separate thread backlogs.
+
 ## Testing
 
 The primary way to unit test an `Async` subscriber is to test only the job
@@ -362,7 +396,7 @@ public with sharing class FlagStaleContactsAsyncTest {
 What each piece does:
 
 - **`new AsyncMock().canEnqueue()`** turns on enqueuing inside a test. By default
-  the framework refuses to start its thread while a test is running (so you don't
+  the framework refuses to start threads while a test is running (so you don't
   accidentally fire real background work). `canEnqueue()` opts this test in so the
   chain runs and drains during `Test.stopTest()`. The mock caps Queueable stack
   depth at 5 in tests, which practically means up to 4 unique async jobs can be
@@ -389,16 +423,16 @@ Three ideas explain the parts you need as a user.
 record Id. The row names the Apex class to run, the record Id to process, the
 thread that owns the work, and the current status.
 
-**Two: work drains in batches.** Bedrock pulls pending rows for one async class,
-marks that batch `Running`, and calls your `execute(Set<Id> ids)` method. The
-batch size comes from `Async_Job__mdt`, or from the default of 5 when no
-metadata record exists.
+**Two: threads drain in batches.** Bedrock pulls pending rows from one
+`Thread__c` for one async class, marks that batch `Running`, and calls your
+`execute(Set<Id> ids)` method. The batch size comes from `Async_Job__mdt`, or
+from the default of 5 when no metadata record exists.
 
 **Three: every outcome is recorded.** Successful batches become `Done`. Failed
 batches become `Error`, unless bounded auto-retry is configured and the item is
 still under its retry cap. Follow-up work created inside an `Async` job is saved
-after the job finishes, which keeps setup-object-sensitive transactions out of
-your way.
+after the job finishes on the same thread, which keeps setup-object-sensitive
+transactions out of your way while preserving a straight-line chain of work.
 
 ## Public API
 
@@ -434,8 +468,8 @@ should call `execute(Set<Id>)` directly and mock `Query` / `DML` instead.
 
 ### Schema
 
-The framework relies on three schema artifacts in
-`force-app/bedrock/lib/async/objects`.
+The framework relies on four schema artifacts across `lib/async` and
+`lib/thread-service`.
 
 **`Async__c`** (custom object) — one row per work item:
 
@@ -444,7 +478,7 @@ The framework relies on three schema artifacts in
 | `Apex__c` | API name of the `Async` subclass to run. |
 | `Record_Id__c` | The Id of the record this work item represents. |
 | `Status__c` | Lifecycle status: `Pending`, `Running`, `Done`, `Error`. |
-| `Thread__c` | Request Id that groups work items enqueued in the same transaction. |
+| `Thread__c` | Lookup to the `Thread__c` record that owns this work item. |
 | `Priority__c` | Higher values are processed first within a thread. |
 | `Retry_Count__c` | Number of times the framework has re-run this item. Starts at `0`; incremented on each auto-retry. |
 | `Error_Message__c` | Truncated exception message on failure (max 32,768 chars). |
@@ -459,6 +493,18 @@ needs a non-default batch size or auto-retry:
 | `Batch_Size__c` | Number of work items per `execute` call. Defaults to 5 when no record exists. |
 | `Max_Retries__c` | Cap on framework auto-retries for failed items. Absent or `0` ⇒ auto-retry off. |
 | `Priority__c` | Higher values run first within the same thread. Blank values default to `0`. |
+
+**`Async_Settings__c`** (hierarchical custom setting) — framework settings:
+
+| Field | Purpose |
+| --- | --- |
+| `Max_Threads__c` | Maximum running `Thread__c` records for the current user. Blank or non-positive values default to 1. |
+
+**`Thread__c`** (custom object) — one row per logical thread:
+
+| Field | Purpose |
+| --- | --- |
+| `Status__c` | Thread lifecycle status: `Pending`, `Running`, `Done`. |
 
 ## Notes & Edge Cases
 
@@ -485,6 +531,13 @@ needs a non-default batch size or auto-retry:
   processing) need smaller batches to stay inside one Queueable's governor limits;
   light jobs can use larger batches to finish faster. Configure per class in
   `Async_Job__mdt`; the default is 5.
+- **Tune thread cap to the user.** `Max_Threads__c = 1` keeps one straight-line
+  chain running per user. Higher values let separate enqueueing transactions
+  drain in parallel for that user. The cap is intentionally soft because
+  concurrent transactions can briefly race.
+- **A pending thread waits for a slot.** If no slot is available, the `Thread__c`
+  stays `Pending` and its work items stay `Pending`. A draining thread hands off
+  to the oldest pending thread for that user.
 - **Errors are recorded, not hidden.** A failing batch marks its work items
   `Error` with the message and stack trace saved on the `Async__c` record. Check
   there when a background job does not produce the expected results.
@@ -497,3 +550,6 @@ needs a non-default batch size or auto-retry:
 - **`canEnqueue()` must be called to run the chain in tests.** Without
   `new AsyncMock().canEnqueue()`, `JobService.canEnqueue()` returns `false` and no
   thread starts — `enqueue` inserts work items but nothing processes them.
+- **There is no running-thread reaper yet.** If a platform incident, aborted job,
+  or finalizer failure leaves a `Thread__c` stuck in `Running`, recovery is a
+  future hardening item.

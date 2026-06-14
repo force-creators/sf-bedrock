@@ -96,7 +96,7 @@ field's storage limit:
 | `Apex__c` | Text(255) | Handler class name |
 | `Job_Type__c` | Picklist | `Publish` \| `Process` |
 | `Status__c` | Picklist | `Pending` \| `Running` \| `Paused` \| `Done` \| `Error` |
-| `Thread__c` | Text(255) | Request thread id (same concept as `Async__c.Thread__c`) |
+| `Thread__c` | Lookup(Thread__c) | Thread that owns this event work item. |
 | `Payload1__c` | LongTextArea | Serialized JSON chunk 1 |
 | `Payload2__c` | LongTextArea | Serialized JSON chunk 2 |
 | `Payload3__c` | LongTextArea | Serialized JSON chunk 3 |
