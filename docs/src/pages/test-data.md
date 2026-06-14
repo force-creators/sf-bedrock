@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: TestData | sf-bedrock docs
 description: A fluent builder that creates in-memory SObject records for Apex unit tests — including writing fields that are normally read-only — without touching the database.
-eyebrow: Foundation API
+eyebrow: Tools
 heading: TestData
 lede: A fluent builder that creates in-memory SObject records for Apex tests — including writing fields you normally cannot set, like formula fields, system audit fields, parent relationships, and Ids — without ever touching the database.
 sections:
@@ -25,7 +25,7 @@ sections:
   - label: Public API
     href: "#public-api"
   - label: Notes & Edge Cases
-    href: "#notes-and-edge-cases"
+    href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -334,11 +334,12 @@ record that already looks inserted and audited, with no DML required.
 
 Everything happens in memory. No `insert`, no SOQL, no DML rows consumed, no
 triggers fired. Tests stay fast and isolated. The flip side: these records are
-for mocking, not for inserting — see [Notes & Edge Cases](#notes-and-edge-cases).
+for mocking, not for inserting — see [Notes & Edge Cases](#notes--edge-cases).
 
 ## Public API
 
-`TestData` exposes a constructor, four fluent methods, and one inner class.
+`TestData` is declared `public with sharing`. It exposes a constructor, four
+fluent methods, and one inner class.
 
 > **A note on "properties":** `TestData` has no public properties. Its instance
 > state — `sObjectType`, `template`, `count`, and `mockids` — is **private**

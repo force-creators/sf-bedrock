@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: DML | sf-bedrock docs
 description: Write normal Apex DML through a tiny API so tests can capture intended database changes without committing records.
-eyebrow: Dependency Injection
+eyebrow: Tools
 heading: DML
 lede: DML lets production code commit records normally while tests capture the intended inserts, updates, upserts, deletes, and undeletes in memory.
 sections:
@@ -47,7 +47,7 @@ Replace bare DML statements with `DML` calls. The runtime behavior is identical,
 and your service now produces testable writes without any other change.
 
 ```apex
-public class AccountService {
+public inherited sharing class AccountService {
     public void onboard(List<Account> accounts) {
         for (Account a : accounts) {
             a.Type = 'Customer';

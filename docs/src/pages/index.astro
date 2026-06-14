@@ -2,8 +2,8 @@
 import DocsLayout from '../layouts/DocsLayout.astro';
 
 const sections = [
-  { label: 'Why Bedrock', href: '#why-bedrock' },
-  { label: 'Proven at Scale', href: '#proven-at-scale' },
+  { label: 'The Problem', href: '#the-problem' },
+  { label: 'Built From Scale Pressure', href: '#proven-at-scale' },
   { label: 'The Headliners', href: '#the-headliners' },
   { label: 'The Full Toolkit', href: '#the-full-toolkit' },
   { label: 'Designed in Layers', href: '#designed-in-layers' },
@@ -24,8 +24,7 @@ const sections = [
       sf-bedrock is a foundation for enterprise Apex: multithreaded background
       work, setup-object-safe async chaining, database-free unit tests, and
       dependency injection that keeps production code direct. It protects
-      high-volume orgs without making everyday work heavy. And it reads the way
-      the engineer who owns it would write it.
+      high-volume orgs without making everyday work heavy.
     </p>
     <div class="pill-row" style="margin-top: 1.25rem;">
       <span class="pill">Multithreaded Async Apex</span>
@@ -36,12 +35,12 @@ const sections = [
     </div>
     <div class="pill-row" style="margin-top: 1.5rem; gap: 0.6rem;">
       <a class="button button-primary" href="/getting-started">Get Started</a>
-      <a class="button button-secondary" href="/async">Explore the API</a>
+      <a class="button button-secondary" href="/async">Explore Reference</a>
     </div>
   </Fragment>
 
-  <section class="doc-section" id="why-bedrock">
-    <h2>Why Bedrock</h2>
+  <section class="doc-section" id="the-problem">
+    <h2>The Problem</h2>
     <p>
       Enterprise Salesforce usually forces a trade. On one side, heavy frameworks
       make code testable but obscure. On the other, lean code reads well until the
@@ -55,15 +54,15 @@ const sections = [
       <article class="doc-card">
         <h3>Tests without a database</h3>
         <p>
-          Mock DML, SOQL, and cache so unit tests never touch the database.
-          Suites that took minutes finish in seconds.
+          Mock DML, consumed query results, and cache so unit tests avoid
+          database setup. Suites that took minutes finish in seconds.
         </p>
       </article>
       <article class="doc-card">
-        <h3>Safe at real volume</h3>
+        <h3>Designed for volume</h3>
         <p>
-          Multithreaded background work that drains thousands of records in
-          governor-safe batches, grouped upserts, and recursion-minded triggers.
+          Tracked background work, configurable batches, grouped writes, and
+          recursion-minded triggers for orgs that live close to platform limits.
         </p>
       </article>
       <article class="doc-card">
@@ -84,7 +83,7 @@ const sections = [
   </section>
 
   <section class="doc-section" id="proven-at-scale">
-    <h2>Proven at Scale</h2>
+    <h2>Built From Scale Pressure</h2>
     <p>
       These patterns come from real enterprise Salesforce pressure: large data
       volume, busy automation, strict deploy windows, and teams that need tests
@@ -102,8 +101,8 @@ const sections = [
     </div>
     <ul class="token-list">
       <li>
-        <strong>Built for scale</strong>
-        <span>Shaped for orgs with large data volume and unforgiving daily automation.</span>
+        <strong>Shaped by scale</strong>
+        <span>Designed around large data volume, unforgiving automation, and platform limits.</span>
       </li>
       <li>
         <strong>Tests that mean something</strong>
@@ -210,7 +209,7 @@ const sections = [
       </li>
       <li>
         <strong>Selector</strong>
-        <span>Reusable, testable query logic built on Query.</span>
+        <span>Roadmap query encapsulation built on the same low-ceremony principles.</span>
       </li>
       <li>
         <strong>Service</strong>
@@ -227,14 +226,15 @@ const sections = [
     <h2>Built to Grow</h2>
     <p>
       The foundation ships today. The roadmap extends the same approach into
-      query encapsulation, events, and shared async services - delivered one
+      query encapsulation, events, REST patterns, data services, and shared async services - delivered one
       deliberate, inspectable piece at a time.
     </p>
     <div class="pill-row">
       <span class="pill">Selector</span>
       <span class="pill">Selector.Cached</span>
       <span class="pill">Event</span>
-      <span class="pill">Limiter</span>
+      <span class="pill">REST</span>
+      <span class="pill">Data</span>
     </div>
     <p style="margin-top: 1rem;">
       The direction is simple: keep work linear, make limits visible, and add

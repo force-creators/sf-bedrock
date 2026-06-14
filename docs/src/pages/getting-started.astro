@@ -8,7 +8,7 @@ const installConsole = `force-app/bedrock/console-app`;
 
 const sections = [
   { label: 'Start Small', href: '#start-small' },
-  { label: 'First Three Tools', href: '#first-three-tools' },
+  { label: 'First Tools', href: '#first-three-tools' },
   { label: 'Move Work Safely', href: '#move-work-safely' },
   { label: 'Operational Visibility', href: '#operational-visibility' },
   { label: 'Validation', href: '#validation' }
@@ -53,7 +53,7 @@ const sections = [
   </section>
 
   <section class="doc-section" id="first-three-tools">
-    <h2>First Three Tools</h2>
+    <h2>First Tools</h2>
     <div class="doc-grid">
       <article class="doc-card">
         <h3><a href="/test-data">TestData</a></h3>
@@ -83,6 +83,16 @@ const sections = [
           needs real assertions.
         </p>
       </article>
+    </div>
+    <div class="callout">
+      <strong>A note on Query</strong>
+      <p>
+        Apex evaluates method arguments before a framework method receives them.
+        If you pass inline SOQL into <code>Query.records(...)</code>, that query
+        still runs first. Use <code>Query</code> as a seam around records your
+        unit consumes; use a selector or service when query construction itself
+        needs a stronger boundary.
+      </p>
     </div>
   </section>
 

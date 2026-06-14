@@ -51,6 +51,10 @@ Bedrock heartbeat once.
 
 **Step 1** - extend `Scheduler` and override `execute()`.
 
+Use `with sharing` or `inherited sharing` for scheduled job classes unless the
+job has a deliberate system-mode responsibility. The job still owns its sharing,
+CRUD, and FLS boundary.
+
 ```apex
 public with sharing class ExpireStaleQuotes extends Scheduler {
     public override void execute() {
@@ -81,6 +85,9 @@ Scheduler.schedule();
 `Bedrock Scheduler 00`, `Bedrock Scheduler 05`, and so on through
 `Bedrock Scheduler 55`. Re-running it replaces existing Bedrock scheduler jobs
 before creating the current set.
+
+Run it as a post-deploy setup step from anonymous Apex or a setup script after
+the Scheduler source and metadata are deployed.
 
 ## Examples
 
@@ -243,6 +250,10 @@ Most app code touches one method: the `execute()` override in your `Scheduler`
 subclass. Setup code calls `Scheduler.schedule()` to install or refresh the
 heartbeat.
 
+Some framework-owned members are technically visible because Bedrock is
+source-first. Treat this section as the supported Scheduler surface for app
+teams unless another page explicitly says otherwise.
+
 ### Job contract
 
 | Member | Signature | Description |
@@ -313,4 +324,6 @@ heartbeat.
   a per-record loop.
 
 - **There is no concurrency cap yet.** Every enabled, due job is enqueued on each
-  heartbeat. Limits on how many jobs run at once are planned, not built.
+  heartbeat. Limits on how many jobs run at once are planned, not built. Keep
+  scheduled jobs small, monitor the Scheduler console after rollout, and split
+  heavy work into `Async` when records need batched processing.

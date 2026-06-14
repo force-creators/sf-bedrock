@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: TriggerHandler | sf-bedrock docs
 description: A lightweight base class that routes Apex trigger events to the right hook and wraps every dispatch in a RecordBuffer for automatic DML flushing.
-eyebrow: Automation
+eyebrow: Tools
 heading: TriggerHandler
 lede: A lightweight base class that reads the running trigger's context, routes it to the right before/after hook, and wraps the whole dispatch in a RecordBuffer so your handler can stage DML and have it flushed automatically.
 sections:
@@ -53,7 +53,7 @@ your trigger:
 
 ```apex
 // AccountTriggerHandler.cls
-public class AccountTriggerHandler extends TriggerHandler {
+public inherited sharing class AccountTriggerHandler extends TriggerHandler {
     protected override void beforeInsert(List<SObject> records) {
         for (Account account : (List<Account>) records) {
             if (String.isBlank(account.ShippingCountry)) {
@@ -86,7 +86,7 @@ cost nothing.
 needed; the platform persists your edits when the `before` phase finishes.
 
 ```apex
-public class LeadTriggerHandler extends TriggerHandler {
+public inherited sharing class LeadTriggerHandler extends TriggerHandler {
     protected override void beforeInsert(List<SObject> records) {
         for (Lead lead : (List<Lead>) records) {
             if (lead.LeadSource == null) {
@@ -103,7 +103,7 @@ public class LeadTriggerHandler extends TriggerHandler {
 can detect what actually changed instead of reacting to every save.
 
 ```apex
-public class OpportunityTriggerHandler extends TriggerHandler {
+public inherited sharing class OpportunityTriggerHandler extends TriggerHandler {
     protected override void afterUpdate(
         List<SObject> records,
         Map<Id, SObject> oldMap
@@ -126,7 +126,7 @@ Delete hooks receive the records being removed so you can run validation or
 cascade logic before the rows disappear.
 
 ```apex
-public class AccountTriggerHandler extends TriggerHandler {
+public inherited sharing class AccountTriggerHandler extends TriggerHandler {
     protected override void beforeDelete(
         List<SObject> oldRecords,
         Map<Id, SObject> oldMap
@@ -146,7 +146,7 @@ A single handler can cover as many events as the object needs. Only the
 overridden hooks do anything; the rest stay empty.
 
 ```apex
-public class CaseTriggerHandler extends TriggerHandler {
+public inherited sharing class CaseTriggerHandler extends TriggerHandler {
     protected override void beforeInsert(List<SObject> records) {
         // stamp defaults
     }
@@ -188,7 +188,7 @@ If you prefer a named public entry point on the subclass (for example, to call
 the handler from a test without going through the trigger), you can add one:
 
 ```apex
-public class AccountTriggerHandler extends TriggerHandler {
+public inherited sharing class AccountTriggerHandler extends TriggerHandler {
     public void execute() {
         this.run();
     }
@@ -208,7 +208,7 @@ let `flushBuffers()` write them after the hook returns. This keeps your DML
 bulk-safe and centralized.
 
 ```apex
-public class ContactTriggerHandler extends TriggerHandler {
+public inherited sharing class ContactTriggerHandler extends TriggerHandler {
     protected override void afterInsert(List<SObject> records) {
         List<Task> followUps = new List<Task>();
         for (Contact contact : (List<Contact>) records) {

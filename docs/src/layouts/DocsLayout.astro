@@ -151,7 +151,7 @@ for (const group of navGroups) {
       <div class="topbar-inner">
         <a class="brand" href="/">
           <img class="brand-logo" src="/icon.svg" alt="" />
-          <span class="brand-text">Bedrock Documentation</span>
+          <span class="brand-text">Bedrock Docs</span>
         </a>
         <div class="top-actions">
           <form class="search" role="search" aria-label="Documentation search" data-docs-search>
@@ -233,17 +233,23 @@ for (const group of navGroups) {
                   {
                     group.items.map((item) => (
                       <li>
-                        <a
-                          class:list={[
-                            'nav-link',
-                            item.href === '#' && 'nav-link-disabled'
-                          ]}
-                          href={item.href}
-                          aria-current={isActive(item.href) ? 'page' : undefined}
-                        >
-                          <span>{item.label}</span>
-                          {item.status && <span class="status">{item.status}</span>}
-                        </a>
+                        {
+                          item.href === '#' ? (
+                            <span class="nav-link nav-link-disabled" aria-disabled="true">
+                              <span>{item.label}</span>
+                              {item.status && <span class="status">{item.status}</span>}
+                            </span>
+                          ) : (
+                            <a
+                              class="nav-link"
+                              href={item.href}
+                              aria-current={isActive(item.href) ? 'page' : undefined}
+                            >
+                              <span>{item.label}</span>
+                              {item.status && <span class="status">{item.status}</span>}
+                            </a>
+                          )
+                        }
                         {isActive(item.href) && sections.length > 0 && (
                           <ul class="nav-sublist">
                             {sections.map((section) => (

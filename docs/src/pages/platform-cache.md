@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: PlatformCache | sf-bedrock docs
 description: Read and write Salesforce Platform Cache through a small API that can be tested with an in-memory mock.
-eyebrow: Foundation API
+eyebrow: Tools
 heading: PlatformCache
 lede: PlatformCache gives org and session cache the same get, put, and remove API, plus an in-memory mock for cache-backed unit tests.
 sections:
@@ -312,9 +312,10 @@ You choose org vs. session simply by which class you `new` up.
 
 ## Public API
 
-`PlatformCache` exposes two static members, three abstract instance methods,
-and a set of public inner classes you instantiate or subclass. The test double
-ships separately as `PlatformCacheMock`.
+`PlatformCache` is declared `public abstract inherited sharing`. It exposes two
+static members, three abstract instance methods, and a set of public inner
+classes you instantiate or subclass. The test double ships separately as
+`PlatformCacheMock`.
 
 > **A note on access modifiers:** in Apex, a member declared with **no access
 > modifier is private**. `PlatformCache` uses this deliberately. The mock-setter
@@ -323,6 +324,8 @@ ships separately as `PlatformCacheMock`.
 > marked `@TestVisible`. Likewise every method on `PartitionRegistry` (`org`,
 > `session`, `key`, etc.) is private and not a caller-facing API. The
 > `scope` field on `Partition` is also private; only `partitionName` is public.
+> Some framework helpers are technically visible because Bedrock is source-first;
+> treat this table as the supported cache surface for app teams.
 
 ### Static members on `PlatformCache`
 

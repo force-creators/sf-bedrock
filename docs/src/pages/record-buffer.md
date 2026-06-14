@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: RecordBuffer | sf-bedrock docs
 description: Technical documentation and usage examples for the sf-bedrock RecordBuffer Apex utility.
-eyebrow: Automation
+eyebrow: Tools
 heading: RecordBuffer
 lede: A static, transaction-scoped staging area that collects SObject records as your trigger logic runs and writes them to the database in one grouped upsert per object type when you flush — so each unit of work issues the fewest possible DML statements.
 sections:
@@ -23,7 +23,7 @@ sections:
   - label: Public API
     href: "#public-api"
   - label: Notes & Edge Cases
-    href: "#notes-and-edge-cases"
+    href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -353,8 +353,9 @@ creates** a context for you, so the simple "stage then flush" path just works.
 
 ## Public API
 
-`RecordBuffer` exposes only **static** methods. There are no public
-constructors and no instance entry points — you never instantiate it.
+`RecordBuffer` is declared `public inherited sharing` and exposes only
+**static** methods. There are no public constructors and no instance entry
+points — you never instantiate it.
 
 > **A note on "properties":** `RecordBuffer` has **no public properties**. Its
 > entire state — the `contexts` stack and the per-context `inserts`/`updates`

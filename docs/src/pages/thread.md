@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: Thread | sf-bedrock docs
 description: Shared thread records and per-user concurrency caps for Bedrock async work.
-eyebrow: Async Services
+eyebrow: Tools
 heading: Thread
 lede: Thread tracks logical background work chains with `Thread__c`, gates how many may run for a user, and hands off from one pending thread to the next.
 sections:
@@ -148,7 +148,9 @@ starts the next chain.
 > **A note on access modifiers.** In Apex, an omitted modifier means `private`.
 > Members listed here without an access modifier are private to the class and
 > not accessible from outside it. `@testVisible` members are private in
-> production but accessible in test classes.
+> production but accessible in test classes. `Thread` is framework-owned; these
+> methods are documented so the async runtime can be understood, not because app
+> teams should build business logic on them.
 
 ### Static Methods
 
@@ -160,6 +162,7 @@ starts the next chain.
 | `enqueue` | `public static void enqueue()` | Starts the current thread when the context and cap allow it. |
 | `continueCurrent` | `public static void continueCurrent()` | Continues, completes, or hands off the current thread. |
 | `continueCurrent` | `public static void continueCurrent(Integer failures)` | Same as `continueCurrent()`, carrying the current failure streak. |
+| `deleteDrained` | `public static void deleteDrained(Set<Id> threadIds)` | Framework cleanup helper for drained thread rows. Not a subscriber-facing entry point. |
 
 ### Schema
 
@@ -173,6 +176,10 @@ starts the next chain.
 
 **`Async_Settings__c.Max_Threads__c`** controls the current user's running
 thread cap. Blank or non-positive values default to `1`.
+
+Operators should usually inspect and recover runtime state through the Bedrock
+Console and Admin Setup & Operations guidance, not by editing `Thread__c` rows
+directly.
 
 ## Notes & Edge Cases
 

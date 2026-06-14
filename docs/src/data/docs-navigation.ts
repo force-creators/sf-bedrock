@@ -16,10 +16,25 @@ export interface SectionLink {
 
 export const navGroups: NavGroup[] = [
   {
-    label: 'Start',
+    label: 'Start Here',
     items: [
       { label: 'Overview', href: '/' },
-      { label: 'Getting Started', href: '/getting-started' },
+      { label: 'Getting Started', href: '/getting-started' }
+    ]
+  },
+  {
+    label: 'Adoption',
+    items: [
+      { label: 'Why Bedrock', href: '/why-bedrock' },
+      { label: 'Adoption Playbook', href: '/adoption-playbook' },
+      { label: 'Enterprise Readiness', href: '/enterprise-readiness' },
+      { label: 'Common Apex Patterns', href: '/compare-architecture-patterns' }
+    ]
+  },
+  {
+    label: 'Operations',
+    items: [
+      { label: 'Admin Setup & Operations', href: '/admin-setup-operations' },
       { label: 'Bedrock Console', href: '/console' }
     ]
   },
@@ -27,38 +42,25 @@ export const navGroups: NavGroup[] = [
     label: 'Frameworks',
     items: [
       { label: 'Async', href: '/async' },
-      { label: 'Scheduler', href: '/scheduler' },
       { label: 'Event', href: '#', status: 'Roadmap' },
-      { label: 'Data', href: '#', status: 'Roadmap' },
-      { label: 'REST', href: '#', status: 'Roadmap' }
+      { label: 'Scheduler', href: '/scheduler' },
+      { label: 'REST', href: '#', status: 'Roadmap' },
+      { label: 'Data', href: '#', status: 'Roadmap' }
     ]
   },
   {
-    label: 'Foundation',
+    label: 'Tools',
     items: [
       { label: 'TestData', href: '/test-data' },
+      { label: 'DML', href: '/dml' },
+      { label: 'Query', href: '/query' },
+      { label: 'Selector', href: '#', status: 'Roadmap' },
+      { label: 'TriggerHandler', href: '/trigger-handler' },
+      { label: 'RecordBuffer', href: '/record-buffer' },
+      { label: 'Thread', href: '/thread' },
       { label: 'Generic', href: '/generic' },
       { label: 'FeatureFlag', href: '/feature-flag' },
-      { label: 'PlatformCache', href: '/platform-cache' }
-    ]
-  },
-  {
-    label: 'Automation',
-    items: [
-      { label: 'TriggerHandler', href: '/trigger-handler' },
-      { label: 'RecordBuffer', href: '/record-buffer' }
-    ]
-  },
-  {
-    label: 'Dependency Injection',
-    items: [
-      { label: 'DML', href: '/dml' },
-      { label: 'Query', href: '/query' }
-    ]
-  },
-  {
-    label: 'Other',
-    items: [
+      { label: 'PlatformCache', href: '/platform-cache' },
       { label: 'Limiter', href: '/limiter' },
       { label: 'Pluck', href: '/pluck' }
     ]

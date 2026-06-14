@@ -47,8 +47,8 @@ The public model is intentionally small:
   batch size, retry, priority, and per-user concurrency.
 
 Use `Async` when you need background work that is tracked, retryable,
-configurable, and safe to run across thousands of records without enqueueing one
-Queueable per record.
+configurable, and able to drain record backlogs in tuned batches without
+enqueueing one Queueable per record.
 
 Use one async strategy consistently. Mixing ad hoc Queueables into trigger and
 service code makes the org harder to reason about, especially when automation
@@ -67,6 +67,10 @@ edge cases in every trigger path.
 ## Quickstart
 
 Using `Async` as a subscriber is two steps.
+
+Use `with sharing` or `inherited sharing` for subscriber classes unless the job
+has a deliberate system-mode responsibility. `Async` coordinates background
+work; your subscriber still owns its sharing, CRUD, and FLS boundary.
 
 **Step 1** - extend `Async` and override `execute(Set<Id> ids)`. That method
 receives one batch of record Ids. Query the current records, do the work, and use
@@ -402,7 +406,9 @@ business code.
 > **A note on access modifiers.** In Apex, an omitted modifier means `private`.
 > Members listed here are the intended subscriber-facing surface. Framework
 > services, mocks, triggers, filters, and thread internals are not part of the
-> public Async contract.
+> public Async contract. Some framework-owned members are technically visible
+> because Bedrock is source-first, but they are unsupported for app teams unless
+> this page documents them as subscriber-facing.
 
 ### Job contract
 
@@ -457,9 +463,9 @@ business code.
 - **Errors are recorded, not hidden.** A failing batch marks its work items
   `Error` with the exception message and stack trace saved for review.
 - **Failed items can be retried two ways.** Configure bounded auto-retry with
-  `Async_Job__mdt.Max_Retries__c`, or manually move an errored work item back to
-  `Pending` for framework-managed retry. Manual recovery is not limited by the
-  metadata retry cap.
+  `Async_Job__mdt.Max_Retries__c`, or use the Console/operator recovery path
+  where retry actions are available and permissions allow them. Manual recovery
+  is an operational workflow, not a direct object-editing recipe.
 - **There is no stuck-running recovery yet.** If a platform incident, aborted
   job, or finalizer failure leaves work stuck as running, recovery is a future
   hardening item.

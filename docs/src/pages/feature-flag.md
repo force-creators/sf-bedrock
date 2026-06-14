@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: FeatureFlag | sf-bedrock docs
 description: A tiny, cached gateway for turning Apex behavior on and off at runtime using Feature_Flag__mdt custom metadata.
-eyebrow: Foundation API
+eyebrow: Tools
 heading: FeatureFlag
 lede: A tiny, cached gateway for turning Apex behavior on and off at runtime. It reads boolean toggles from Feature_Flag__mdt custom metadata, fails closed when a flag is missing, and lets tests override any flag in memory — no DML required.
 sections:

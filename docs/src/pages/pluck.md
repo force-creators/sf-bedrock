@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: Pluck | sf-bedrock docs
 description: A tiny static utility that turns a list of SObject records into a deduped Set<Id> — either from each record's own Id or from a lookup field on each record.
-eyebrow: Other
+eyebrow: Tools
 heading: Pluck
 lede: Pluck turns a list of SObject records into a deduped `Set<Id>` in one call — either from each record's own Id, or from a lookup field on each record. It is what `Async.enqueue` uses internally to build its work-item payload.
 sections:
@@ -60,7 +60,11 @@ Set<Id> accountIds = Pluck.ids(Contact.AccountId, contacts);
 The simplest call: pass a list of records and get back the non-null Ids.
 
 ```apex
-List<Account> accounts = Query.records([SELECT Id, Name FROM Account WHERE ...]);
+List<Account> accounts = [
+    SELECT Id, Name
+    FROM Account
+    WHERE Industry = 'Technology'
+];
 Set<Id> accountIds = Pluck.ids(accounts);
 ```
 
@@ -71,7 +75,11 @@ The second overload reads the value of any `SObjectField` that holds an Id
 `AccountId` field is collected into a set of parent Account Ids:
 
 ```apex
-List<Contact> contacts = Query.records([SELECT Id, AccountId FROM Contact WHERE ...]);
+List<Contact> contacts = [
+    SELECT Id, AccountId
+    FROM Contact
+    WHERE MailingCountry = 'USA'
+];
 Set<Id> parentAccountIds = Pluck.ids(Contact.AccountId, contacts);
 ```
 

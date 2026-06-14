@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: Generic | sf-bedrock docs
 description: Technical documentation and usage examples for the sf-bedrock Generic Apex utility.
-eyebrow: Foundation API
+eyebrow: Tools
 heading: Generic
 lede: A dynamic, schema-less data container that reads and writes nested values by dotted/bracketed path, coerces them to the type you ask for, and converts cleanly to JSON or to a strongly-typed SObject — ideal for taming untyped JSON and integration payloads.
 sections:
@@ -23,7 +23,7 @@ sections:
   - label: Public API
     href: "#public-api"
   - label: Notes & Edge Cases
-    href: "#notes-and-edge-cases"
+    href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -375,7 +375,7 @@ map:
 - `new Generic(String json)` runs `JSON.deserializeUntyped` and casts the result
   to `Map<String, Object>`.
 - `new Generic(Map<String, Object> source)` **copies** the entries of `source`
-  into a fresh map (a defensive copy — see [Notes & Edge Cases](#notes-and-edge-cases)).
+  into a fresh map (a defensive copy — see [Notes & Edge Cases](#notes--edge-cases)).
 
 Everything else operates on that one map.
 
@@ -406,8 +406,9 @@ the map can become an `Account`.
 
 ## Public API
 
-`Generic` exposes three constructors, path `get`/`put` methods, conversion
-helpers, and two `virtual` extension methods.
+`Generic` is declared `public virtual with sharing`. It exposes three
+constructors, path `get`/`put` methods, conversion helpers, and two `virtual`
+extension methods.
 
 > **A note on "properties":** `Generic` has **no public properties**. Its only
 > instance state is the `generic` field, which is **`protected`** — visible to

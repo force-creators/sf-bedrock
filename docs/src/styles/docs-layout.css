@@ -554,7 +554,7 @@ h2::after {
   right: -0.4rem;
   bottom: -0.28rem;
   left: 0;
-  height: 0.14rem;
+  height: 0.1rem;
   border-radius: 999px;
   content: "";
   background: var(--brand);
@@ -581,7 +581,7 @@ p {
 
 .content img {
   display: block;
-  width: 100%;
+  width: min(100%, 56rem);
   height: auto;
   margin: 1.2rem 0 1.35rem;
   border: 1px solid var(--line);
@@ -1245,12 +1245,15 @@ p {
   }
 
   .brand-text {
-    position: absolute;
+    position: static;
     overflow: hidden;
-    width: 1px;
-    height: 1px;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+    width: auto;
+    max-width: 5rem;
+    height: auto;
+    clip: auto;
+    font-size: 0.86rem;
+    line-height: 1.1;
+    white-space: normal;
   }
 
   .topbar-inner {
@@ -1259,7 +1262,7 @@ p {
   }
 
   .brand-logo {
-    width: 2.25rem;
+    width: 2rem;
   }
 
   .menu-toggle-text {

@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: Limiter | sf-bedrock docs
 description: A small org-health utility that exposes current transaction and platform limits, then checks specific limits against a threshold.
-eyebrow: Other
+eyebrow: Tools
 heading: Limiter
 lede: Limiter reports current transaction and org/platform limit usage in one place. Use it in subscriber Apex before starting work that should wait when the org is near a limit.
 sections:

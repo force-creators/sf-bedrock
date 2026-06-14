@@ -2,7 +2,7 @@
 layout: ../layouts/DocsLayout.astro
 title: Query | sf-bedrock docs
 description: Route record lists through Query so tests can control what a service reads without inserting org data.
-eyebrow: Dependency Injection
+eyebrow: Tools
 heading: Query
 lede: Query lets production code use real SOQL results while tests supply the records a service should read, with no database setup and no SeeAllData.
 sections:
@@ -49,7 +49,7 @@ is a no-op. In a test, inject a `QueryMock` before calling the unit:
 
 ```apex
 // Production code: route records through Query.records(...)
-public class AccountTierService {
+public inherited sharing class AccountTierService {
     public Map<Id, String> assignTiers(List<Account> accounts) {
         Map<Id, String> tiers = new Map<Id, String>();
         for (Account a : (List<Account>) Query.records(accounts)) {
@@ -295,14 +295,14 @@ Production code can never accidentally swap the instance.
 ### 3. Nothing touches the database
 
 `Query` performs no DML and no SOQL. The default path returns its argument; the
-mock path returns a list you handed it. No rows consumed, no triggers fired, no
-org data dependency. That is what makes a unit built around `Query` fast and
-isolated.
+mock path returns a list you handed it. The seam itself consumes no rows, fires
+no triggers, and creates no org data dependency. That is what makes a unit built
+around `Query` fast and isolated.
 
 ## Public API
 
-The DI facade lives in two classes: `Query` (the seam) and `QueryMock` (the test
-double, with a nested `Multiple` variant).
+The DI facade lives in two `public virtual inherited sharing` classes: `Query`
+(the seam) and `QueryMock` (the test double, with a nested `Multiple` variant).
 
 > **A note on "properties":** Neither `Query` nor `QueryMock` exposes any public
 > properties. In Apex, a member declared with **no access modifier is private.**
@@ -383,8 +383,10 @@ not a silent `null`.
   matters.
 
 - **`Query` does not query.** It runs no SOQL or DML. It is purely an injection
-  seam. Real querying — filters, ordering, relationships, bulk-safe chunking —
-  belongs in a selector or service layer, not here.
+  seam. Apex still evaluates method arguments first, so inline SOQL passed to
+  `Query.records([SELECT ...])` runs before `Query` receives the list. Real
+  querying — filters, ordering, relationships, bulk-safe chunking — belongs in a
+  selector or service layer, not here.
 
 - **Cast at the point of use.** `records(...)` and the mocks return
   `List<SObject>`. Cast to the concrete type where you read the records so the seam
