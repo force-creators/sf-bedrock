@@ -246,6 +246,31 @@ public with sharing class AsyncTest {
         Assert.areEqual(1, settings.maxThreads(), 'Expected non-positive Max Threads to default to one active thread.');
     }
 
+    @istest static void testSettingsService_archiveThresholdHoursDefaultsToOneDay() {
+        Async.SettingsService settings = new Async.SettingsService();
+
+        settings.setSettings(new Async_Settings__c());
+        Assert.areEqual(24, settings.archiveThresholdHours(), 'Expected blank Archive Threshold Hours to default to one day.');
+
+        settings.setSettings(new Async_Settings__c(Archive_Threshold_Hours__c = 0));
+        Assert.areEqual(0, settings.archiveThresholdHours(), 'Expected zero Archive Threshold Hours to archive completed work immediately.');
+
+        settings.setSettings(new Async_Settings__c(Archive_Threshold_Hours__c = 6));
+        Assert.areEqual(6, settings.archiveThresholdHours(), 'Expected configured Archive Threshold Hours to be returned as whole hours.');
+    }
+
+    @istest static void testSettingsService_archiveCleanupDefaultsToDisabled() {
+        Async.SettingsService settings = new Async.SettingsService();
+
+        settings.setSettings(new Async_Settings__c());
+        Assert.isFalse(settings.archiveCleanupEnabled(), 'Expected archive cleanup to default off.');
+        Assert.areEqual(30, settings.maxArchiveAgeDays(), 'Expected blank Max Archive Age to default to 30 days.');
+
+        settings.setSettings(new Async_Settings__c(Enable_Archive_Cleanup__c = true, Max_Archive_Age__c = 0));
+        Assert.isTrue(settings.archiveCleanupEnabled(), 'Expected enabled archive cleanup setting to be honored.');
+        Assert.areEqual(0, settings.maxArchiveAgeDays(), 'Expected zero Max Archive Age to clean archived rows immediately.');
+    }
+
     @istest static void testShouldAutoRetry_respectsConfiguredCap() {
         AsyncMock mock = new AsyncMock()
             .config(MyTestAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Max_Retries__c = 3));

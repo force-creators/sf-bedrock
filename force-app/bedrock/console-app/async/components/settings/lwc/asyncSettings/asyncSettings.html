@@ -2,6 +2,9 @@
     <lightning-card title="Thread Settings" icon-name="utility:settings">
         <div slot="actions" class="card-actions">
             <template lwc:if={hasSettings}>
+                <lightning-badge label={archiveCleanupStatusLabel}></lightning-badge>
+                <lightning-badge label={effectiveMaxArchiveAgeLabel}></lightning-badge>
+                <lightning-badge label={effectiveArchiveThresholdLabel}></lightning-badge>
                 <lightning-badge label={effectiveMaxThreadsLabel}></lightning-badge>
             </template>
 
@@ -52,9 +55,56 @@
                                 <strong>{organizationMaxThreadsDisplay}</strong>
                             </template>
                         </div>
-                        <div class="setting-cell future-cell">
-                            <span>Reserved</span>
-                            <strong>--</strong>
+                        <div class="setting-cell">
+                            <span>Archive Threshold Hours</span>
+                            <template lwc:if={isEditingOrganization}>
+                                <lightning-input
+                                    type="number"
+                                    label="Global archive threshold hours"
+                                    variant="label-hidden"
+                                    min="0"
+                                    max="99999"
+                                    step="1"
+                                    value={organizationArchiveThresholdHours}
+                                    onchange={handleOrganizationArchiveThresholdChange}
+                                ></lightning-input>
+                            </template>
+                            <template lwc:else>
+                                <strong>{organizationArchiveThresholdDisplay}</strong>
+                            </template>
+                        </div>
+                        <div class="setting-cell">
+                            <span>Max Archive Age Days</span>
+                            <template lwc:if={isEditingOrganization}>
+                                <lightning-input
+                                    type="number"
+                                    label="Global max archive age days"
+                                    variant="label-hidden"
+                                    min="0"
+                                    max="99999"
+                                    step="1"
+                                    value={organizationMaxArchiveAgeDays}
+                                    onchange={handleOrganizationMaxArchiveAgeChange}
+                                ></lightning-input>
+                            </template>
+                            <template lwc:else>
+                                <strong>{organizationMaxArchiveAgeDisplay}</strong>
+                            </template>
+                        </div>
+                        <div class="setting-cell">
+                            <span>Archive Cleanup</span>
+                            <template lwc:if={isEditingOrganization}>
+                                <lightning-input
+                                    type="toggle"
+                                    label="Enable global archive cleanup"
+                                    variant="label-hidden"
+                                    checked={organizationArchiveCleanupEnabled}
+                                    onchange={handleOrganizationArchiveCleanupChange}
+                                ></lightning-input>
+                            </template>
+                            <template lwc:else>
+                                <strong>{organizationArchiveCleanupDisplay}</strong>
+                            </template>
                         </div>
                     </div>
                     <div class="row-actions">
@@ -178,9 +228,59 @@
                                                 <strong>{row.maxThreadsDisplay}</strong>
                                             </template>
                                         </div>
-                                        <div class="setting-cell future-cell">
-                                            <span>Reserved</span>
-                                            <strong>--</strong>
+                                        <div class="setting-cell">
+                                            <span>Archive Threshold Hours</span>
+                                            <template lwc:if={row.isEditing}>
+                                                <lightning-input
+                                                    type="number"
+                                                    label="User archive threshold hours"
+                                                    variant="label-hidden"
+                                                    min="0"
+                                                    max="99999"
+                                                    step="1"
+                                                    value={row.draftArchiveThresholdHours}
+                                                    data-user-id={row.userId}
+                                                    onchange={handleOverrideArchiveThresholdChange}
+                                                ></lightning-input>
+                                            </template>
+                                            <template lwc:else>
+                                                <strong>{row.archiveThresholdDisplay}</strong>
+                                            </template>
+                                        </div>
+                                        <div class="setting-cell">
+                                            <span>Max Archive Age Days</span>
+                                            <template lwc:if={row.isEditing}>
+                                                <lightning-input
+                                                    type="number"
+                                                    label="User max archive age days"
+                                                    variant="label-hidden"
+                                                    min="0"
+                                                    max="99999"
+                                                    step="1"
+                                                    value={row.draftMaxArchiveAgeDays}
+                                                    data-user-id={row.userId}
+                                                    onchange={handleOverrideMaxArchiveAgeChange}
+                                                ></lightning-input>
+                                            </template>
+                                            <template lwc:else>
+                                                <strong>{row.maxArchiveAgeDisplay}</strong>
+                                            </template>
+                                        </div>
+                                        <div class="setting-cell">
+                                            <span>Archive Cleanup</span>
+                                            <template lwc:if={row.isEditing}>
+                                                <lightning-input
+                                                    type="toggle"
+                                                    label="Enable user archive cleanup"
+                                                    variant="label-hidden"
+                                                    checked={row.draftArchiveCleanupEnabled}
+                                                    data-user-id={row.userId}
+                                                    onchange={handleOverrideArchiveCleanupChange}
+                                                ></lightning-input>
+                                            </template>
+                                            <template lwc:else>
+                                                <strong>{row.archiveCleanupDisplay}</strong>
+                                            </template>
                                         </div>
                                     </div>
                                 </article>
@@ -263,6 +363,45 @@
                                         step="1"
                                         value={newUserMaxThreads}
                                         onchange={handleNewUserMaxThreadsChange}
+                                    ></lightning-input>
+                                </div>
+
+                                <div class="setting-cell">
+                                    <span>Archive Threshold Hours</span>
+                                    <lightning-input
+                                        type="number"
+                                        label="New user archive threshold hours"
+                                        variant="label-hidden"
+                                        min="0"
+                                        max="99999"
+                                        step="1"
+                                        value={newUserArchiveThresholdHours}
+                                        onchange={handleNewUserArchiveThresholdChange}
+                                    ></lightning-input>
+                                </div>
+
+                                <div class="setting-cell">
+                                    <span>Max Archive Age Days</span>
+                                    <lightning-input
+                                        type="number"
+                                        label="New user max archive age days"
+                                        variant="label-hidden"
+                                        min="0"
+                                        max="99999"
+                                        step="1"
+                                        value={newUserMaxArchiveAgeDays}
+                                        onchange={handleNewUserMaxArchiveAgeChange}
+                                    ></lightning-input>
+                                </div>
+
+                                <div class="setting-cell">
+                                    <span>Archive Cleanup</span>
+                                    <lightning-input
+                                        type="toggle"
+                                        label="Enable new user archive cleanup"
+                                        variant="label-hidden"
+                                        checked={newUserArchiveCleanupEnabled}
+                                        onchange={handleNewUserArchiveCleanupChange}
                                     ></lightning-input>
                                 </div>
                             </div>

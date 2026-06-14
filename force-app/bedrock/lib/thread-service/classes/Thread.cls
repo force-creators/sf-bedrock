@@ -41,6 +41,10 @@ public virtual with sharing class Thread {
         service.continueCurrent(failures);
     }
 
+    public static void deleteDrained(Set<Id> threadIds) {
+        service.deleteDrained(threadIds);
+    }
+
     public virtual with sharing class Service {
         public Id threadId;
         public Boolean hasEnqueued = false;
@@ -154,6 +158,24 @@ public virtual with sharing class Thread {
             return !Test.isRunningTest();
         }
 
+        public virtual void deleteDrained(Set<Id> threadIds) {
+            if (threadIds == null || threadIds.isEmpty()) return;
+
+            Set<Id> drainedThreadIds = new Set<Id>(threadIds);
+            drainedThreadIds.remove(null);
+            if (drainedThreadIds.isEmpty()) return;
+
+            drainedThreadIds.removeAll(queries.getThreadIdsWithAsyncWork(drainedThreadIds));
+            if (drainedThreadIds.isEmpty()) return;
+
+            List<SObject> threads = new List<SObject>();
+            for (Id threadId : drainedThreadIds) {
+                threads.add(new Thread__c(Id = threadId));
+            }
+
+            DML.deleteRecords(threads);
+        }
+
         void updateStatus(Id threadId, String status) {
             if (threadId == null || String.isBlank(status)) return;
 
@@ -196,6 +218,21 @@ public virtual with sharing class Thread {
                 WHERE Status__c = 'Running'
                     AND CreatedById = :userId
             ];
+        }
+
+        public virtual Set<Id> getThreadIdsWithAsyncWork(Set<Id> threadIds) {
+            if (threadIds == null || threadIds.isEmpty()) return new Set<Id>();
+
+            Set<Id> activeThreadIds = new Set<Id>();
+            for (AggregateResult result : [
+                SELECT Thread__c threadId
+                FROM Async__c
+                WHERE Thread__c IN :threadIds
+                GROUP BY Thread__c
+            ]) {
+                activeThreadIds.add((Id) result.get('threadId'));
+            }
+            return activeThreadIds;
         }
     }
 }

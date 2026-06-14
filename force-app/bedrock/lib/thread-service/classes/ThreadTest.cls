@@ -99,6 +99,26 @@ public with sharing class ThreadTest {
         Assert.areNotEqual(nextThread.Id, Thread.currentId(), 'Expected Thread to leave the pending thread unclaimed when no slot is available.');
     }
 
+    @istest static void testDeleteDrained_deletesOnlyThreadsWithoutAsyncWork() {
+        Thread__c drainedThread = new Thread__c(Status__c = Thread.DONE);
+        Thread__c activeThread = new Thread__c(Status__c = Thread.DONE);
+        insert new List<Thread__c> { drainedThread, activeThread };
+
+        DML.insertRecords(new List<SObject> {
+            workItem(String.valueOf(ThreadTest.class), UserInfo.getUserId(), 'Done', activeThread.Id)
+        });
+
+        Thread.deleteDrained(new Set<Id> { drainedThread.Id, activeThread.Id });
+
+        Map<Id, Thread__c> remainingThreads = new Map<Id, Thread__c>([
+            SELECT Id
+            FROM Thread__c
+            WHERE Id IN :new Set<Id> { drainedThread.Id, activeThread.Id }
+        ]);
+        Assert.isFalse(remainingThreads.containsKey(drainedThread.Id), 'Expected Thread.deleteDrained to delete threads with no remaining async work.');
+        Assert.isTrue(remainingThreads.containsKey(activeThread.Id), 'Expected Thread.deleteDrained to keep threads that still have async work.');
+    }
+
     public with sharing class EmptyWorkQueryService extends Async.QueryService {
         public override Boolean hasPendingWork(Id threadId) {
             return false;
@@ -119,5 +139,15 @@ public with sharing class ThreadTest {
             this.lastThreadId = threadId;
             this.lastFailures = failures;
         }
+    }
+
+    static Async__c workItem(String apexClass, Id recordId, String status, Id threadId) {
+        Async__c workItem = new Async__c(
+            Apex__c = apexClass,
+            Record_Id__c = String.valueOf(recordId),
+            Status__c = status
+        );
+        workItem.put('Thread__c', threadId);
+        return workItem;
     }
 }
