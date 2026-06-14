@@ -14,7 +14,6 @@ export default class AsyncCompleted extends LightningElement {
     rows = [];
     isLoading = false;
     errorMessage;
-    lastRefreshedAt;
     searchTerm = '';
     sortBy = 'createdDate';
     sortDirection = 'desc';
@@ -36,12 +35,8 @@ export default class AsyncCompleted extends LightningElement {
         return `${count} ${count === 1 ? 'record' : 'records'}`;
     }
 
-    get lastRefreshedLabel() {
-        if (!this.lastRefreshedAt) {
-            return 'Last refreshed: Not yet';
-        }
-
-        return `Last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
+    get refreshButtonClass() {
+        return this.isLoading ? 'refresh-button is-refreshing' : 'refresh-button';
     }
 
     get hasRows() {
@@ -57,7 +52,7 @@ export default class AsyncCompleted extends LightningElement {
     }
 
     @api
-    refreshCount() {
+    refresh() {
         this.loadCompleted();
     }
 
@@ -93,7 +88,6 @@ export default class AsyncCompleted extends LightningElement {
             this.rows = [];
             this.errorMessage = this.reduceErrors(error);
         } finally {
-            this.lastRefreshedAt = new Date();
             this.isLoading = false;
             this.dispatchCountChange();
         }

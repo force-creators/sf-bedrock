@@ -14,6 +14,20 @@
     width: 16rem;
 }
 
+.refresh-button.is-refreshing {
+    animation: async-refresh-spin 1s linear infinite;
+}
+
+@keyframes async-refresh-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .empty-state {
     min-height: 12rem;
     padding: var(--lwc-spacingXLarge, 2rem);

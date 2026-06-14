@@ -13,25 +13,12 @@ const COLUMNS = [
     { label: 'Error Stack Trace', fieldName: 'errorStackTrace', wrapText: true }
 ];
 
-const AUTO_REFRESH_OPTIONS = [
-    { label: 'Auto-Refresh Off', value: 'off' },
-    { label: '5 seconds', value: '5' },
-    { label: '10 seconds', value: '10' },
-    { label: '15 seconds', value: '15' },
-    { label: '30 seconds', value: '30' },
-    { label: '60 seconds', value: '60' }
-];
-
 export default class AsyncErrors extends LightningElement {
     columns = COLUMNS;
-    autoRefreshOptions = AUTO_REFRESH_OPTIONS;
-    autoRefreshInterval = 'off';
     treeRows = [];
     expandedRows = [];
     isLoading = false;
     errorMessage;
-    lastRefreshedAt;
-    autoRefreshTimer;
     selectedRowIds = [];
     selectedWorkItemIds = [];
 
@@ -39,21 +26,13 @@ export default class AsyncErrors extends LightningElement {
         this.loadErrors();
     }
 
-    disconnectedCallback() {
-        this.stopAutoRefresh();
-    }
-
     get recordCountLabel() {
         const count = this.treeRows.reduce((total, group) => total + group._children.length, 0);
         return `${count} ${count === 1 ? 'record' : 'records'}`;
     }
 
-    get lastRefreshedLabel() {
-        if (!this.lastRefreshedAt) {
-            return 'Last refreshed: Not yet';
-        }
-
-        return `Last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
+    get refreshButtonClass() {
+        return this.isLoading ? 'refresh-button is-refreshing' : 'refresh-button';
     }
 
     get hasRows() {
@@ -78,7 +57,7 @@ export default class AsyncErrors extends LightningElement {
     }
 
     @api
-    refreshCount() {
+    refresh() {
         this.loadErrors();
     }
 
@@ -150,21 +129,6 @@ export default class AsyncErrors extends LightningElement {
         );
     }
 
-    handleAutoRefreshChange(event) {
-        this.autoRefreshInterval = event.detail.value;
-        this.stopAutoRefresh();
-
-        if (this.autoRefreshInterval === 'off') {
-            return;
-        }
-
-        this.autoRefreshTimer = setInterval(() => {
-            if (!this.isLoading) {
-                this.loadErrors();
-            }
-        }, Number(this.autoRefreshInterval) * 1000);
-    }
-
     async loadErrors() {
         this.isLoading = true;
         this.errorMessage = undefined;
@@ -190,7 +154,6 @@ export default class AsyncErrors extends LightningElement {
             this.selectedWorkItemIds = [];
             this.errorMessage = this.reduceErrors(error);
         } finally {
-            this.lastRefreshedAt = new Date();
             this.isLoading = false;
             this.dispatchCountChange();
         }
@@ -223,13 +186,6 @@ export default class AsyncErrors extends LightningElement {
             this.errorMessage = this.reduceErrors(error);
         } finally {
             this.isLoading = false;
-        }
-    }
-
-    stopAutoRefresh() {
-        if (this.autoRefreshTimer) {
-            clearInterval(this.autoRefreshTimer);
-            this.autoRefreshTimer = undefined;
         }
     }
 
