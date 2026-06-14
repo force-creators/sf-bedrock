@@ -1,0 +1,123 @@
+@istest(testFor='ApexClass:Thread')
+public with sharing class ThreadTest {
+    @istest static void testCurrentOrCreate_returnsCreatedThreadId() {
+        ThreadMock mock = new ThreadMock();
+        Thread.setMock(mock);
+
+        Id threadId = Thread.currentOrCreate();
+
+        Assert.areEqual(threadId, Thread.currentId(), 'Expected Thread.currentOrCreate to cache the created thread id.');
+        Assert.isNotNull(threadId, 'Expected Thread.currentOrCreate to return a usable thread id.');
+    }
+
+    @istest static void testContinueCurrent_restartsCurrentThreadAtFailureThreshold() {
+        ThreadMock mock = new ThreadMock();
+        Thread.setMock(mock);
+        Id threadId = Thread.currentOrCreate();
+        Async.queries = new PendingWorkQueryService();
+
+        Thread.continueCurrent(4);
+
+        Assert.areEqual(1, mock.service.startCalls, 'Expected Thread to restart the current thread at the failure threshold.');
+        Assert.areEqual(threadId, mock.service.startedThreads[0], 'Expected Thread to restart the same current thread.');
+        Assert.areEqual(0, mock.service.lastFailures, 'Expected Thread to reset failures when restarting a thread.');
+    }
+
+    @istest static void testContinueCurrent_continuesCurrentWorkBelowFailureThreshold() {
+        ThreadMock mock = new ThreadMock();
+        Thread.setMock(mock);
+        Id threadId = Thread.currentOrCreate();
+        Async.queries = new PendingWorkQueryService();
+        Async.jobs = new SpyJobService();
+
+        Thread.continueCurrent(2);
+
+        Assert.areEqual(1, mock.service.continueWorkCalls, 'Expected Thread to continue current work below the failure threshold.');
+        Assert.areEqual(0, mock.service.startCalls, 'Expected Thread not to restart below the failure threshold.');
+        Assert.areEqual(threadId, ((SpyJobService) Async.jobs).lastThreadId, 'Expected Thread to continue work on the current thread.');
+        Assert.areEqual(2, ((SpyJobService) Async.jobs).lastFailures, 'Expected Thread to carry the failure count into current work.');
+    }
+
+    @istest static void testContinueCurrent_claimsNextThreadWhenCurrentIsDrained() {
+        ThreadMock mock = new ThreadMock();
+        Thread.setMock(mock);
+        Thread.currentOrCreate();
+        Thread__c nextThread = new Thread__c(Status__c = Thread.PENDING);
+        insert nextThread;
+        mock.queries.pendingThreads.add(nextThread);
+        Async.queries = new EmptyWorkQueryService();
+
+        Thread.continueCurrent();
+
+        Assert.areEqual(nextThread.Id, Thread.currentId(), 'Expected Thread to adopt the next pending thread when current work is drained.');
+        Assert.areEqual(1, mock.service.startCalls, 'Expected Thread to start the claimed pending thread.');
+        Assert.areEqual(nextThread.Id, mock.service.startedThreads[0], 'Expected Thread to start the claimed pending thread id.');
+    }
+
+    @istest static void testEnqueue_startsThreadWhenSlotIsAvailable() {
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .mockThreadIds()
+            .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
+        Async.setMock(mock);
+        mock.threads.runningThreads(1);
+
+        Thread.enqueue();
+
+        Assert.areEqual(1, mock.threads.service.startCalls, 'Expected Thread.enqueue to start work when the user is below the thread cap.');
+        Assert.isNotNull(Thread.currentId(), 'Expected Thread.enqueue to create and cache a thread id before starting work.');
+    }
+
+    @istest static void testEnqueue_doesNotStartThreadWhenCapIsFull() {
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .mockThreadIds()
+            .seedSettings(new Async_Settings__c(Max_Threads__c = 1));
+        Async.setMock(mock);
+        mock.threads.runningThreads(1);
+
+        Thread.enqueue();
+
+        Assert.areEqual(0, mock.threads.service.startCalls, 'Expected Thread.enqueue to leave pending work alone when the user is at the thread cap.');
+        Assert.areEqual(null, Thread.currentId(), 'Expected Thread.enqueue not to create a new thread when no slot is available.');
+    }
+
+    @istest static void testContinueCurrent_doesNotClaimNextThreadWhenCapIsFull() {
+        ThreadMock mock = new ThreadMock()
+            .runningThreads(1);
+        Thread.setMock(mock);
+        Thread.currentOrCreate();
+        Thread__c nextThread = new Thread__c(Status__c = Thread.PENDING);
+        insert nextThread;
+        mock.queries.pendingThreads.add(nextThread);
+        Async.queries = new EmptyWorkQueryService();
+        Async.settings.setSettings(new Async_Settings__c(Max_Threads__c = 1));
+
+        Thread.continueCurrent();
+
+        Assert.areEqual(0, mock.service.startCalls, 'Expected Thread not to claim another pending thread while the cap is full.');
+        Assert.areNotEqual(nextThread.Id, Thread.currentId(), 'Expected Thread to leave the pending thread unclaimed when no slot is available.');
+    }
+
+    public with sharing class EmptyWorkQueryService extends Async.QueryService {
+        public override Boolean hasPendingWork(Id threadId) {
+            return false;
+        }
+    }
+
+    public with sharing class PendingWorkQueryService extends Async.QueryService {
+        public override Boolean hasPendingWork(Id threadId) {
+            return true;
+        }
+    }
+
+    public with sharing class SpyJobService extends Async.JobService {
+        public Id lastThreadId;
+        public Integer lastFailures;
+
+        public override void enqueueNextJob(Id threadId, Integer failures) {
+            this.lastThreadId = threadId;
+            this.lastFailures = failures;
+        }
+    }
+}

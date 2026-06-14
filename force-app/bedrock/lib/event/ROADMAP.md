@@ -12,8 +12,8 @@ names, schemas, metadata objects, or behavior that does not exist yet.
 ## Event
 
 Status: future. Depends on `Limiter` (`../limiter/ROADMAP.md`) and
-the shared `ThreadService` / `Thread_Context__c` (`../thread-service/ROADMAP.md`
-— its threads are `Thread_Context__c` rows tagged with the `Event` pool). Shares
+the shared `Thread` / `Thread__c` service (`../thread-service/ROADMAP.md`
+— its threads are expected to be `Thread__c` rows tagged with the `Event` pool). Shares
 `Async`'s Queueable thread model but is a **sibling framework**, not a subclass —
 its payload model, table, and lack of priority make it look like a stripped-down
 Async rather than an extension of it.

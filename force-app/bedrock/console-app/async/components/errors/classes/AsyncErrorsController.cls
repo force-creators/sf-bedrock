@@ -1,31 +1,21 @@
 public with sharing class AsyncErrorsController {
     @AuraEnabled
     public static List<ThreadGroup> getErrors() {
-        List<Async__c> workItems = [
-            SELECT
-                Id,
-                Name,
-                Apex__c,
-                CreatedBy.Name,
-                CreatedDate,
-                Priority__c,
-                Record_Id__c,
-                Status__c,
-                Thread__c,
-                Error_Message__c,
-                Error_Stack_Trace__c
-            FROM Async__c
-            WHERE Status__c = 'Error'
-            WITH USER_MODE
-            ORDER BY Thread__c ASC, Priority__c DESC NULLS LAST, CreatedDate ASC
-            LIMIT 500
-        ];
+        List<Async__c> workItems = Database.query(
+            'SELECT Id, Name, Apex__c, CreatedBy.Name, CreatedDate, Priority__c, Record_Id__c, Status__c, Thread__c, Error_Message__c, Error_Stack_Trace__c ' +
+            'FROM Async__c ' +
+            'WHERE Status__c = \'Error\' ' +
+            'WITH USER_MODE ' +
+            'ORDER BY Thread__c ASC, Priority__c DESC NULLS LAST, CreatedDate ASC ' +
+            'LIMIT 500'
+        );
+        Map<Id, Thread__c> threadsById = threadsById(workItems);
 
         Map<String, ThreadGroup> groupsByThread = new Map<String, ThreadGroup>();
         List<ThreadGroup> groups = new List<ThreadGroup>();
 
         for (Async__c workItem : workItems) {
-            String thread = String.isBlank(workItem.Thread__c) ? 'Unassigned' : workItem.Thread__c;
+            String thread = threadLabel(workItem, threadsById);
 
             if (!groupsByThread.containsKey(thread)) {
                 ThreadGroup groupRecord = new ThreadGroup(thread);
@@ -84,7 +74,7 @@ public with sharing class AsyncErrorsController {
         if (
             !Schema.sObjectType.Async__c.isUpdateable() ||
             !Async__c.Status__c.getDescribe().isUpdateable() ||
-            !Async__c.Thread__c.getDescribe().isUpdateable()
+            !Schema.sObjectType.Async__c.fields.getMap().get('Thread__c').getDescribe().isUpdateable()
         ) {
             throw new AuraHandledException('You do not have permission to retry async errors.');
         }
@@ -108,6 +98,26 @@ public with sharing class AsyncErrorsController {
             this.status = '0 jobs';
             this.rows = new List<ErrorRow>();
         }
+    }
+
+    static Map<Id, Thread__c> threadsById(List<Async__c> workItems) {
+        Set<Id> threadIds = new Set<Id>();
+        for (Async__c workItem : workItems) {
+            if (workItem.get('Thread__c') != null) {
+                threadIds.add((Id) workItem.get('Thread__c'));
+            }
+        }
+        return threadIds.isEmpty() ? new Map<Id, Thread__c>() : new Map<Id, Thread__c>([
+            SELECT Id, Name
+            FROM Thread__c
+            WHERE Id IN :threadIds
+        ]);
+    }
+
+    static String threadLabel(Async__c workItem, Map<Id, Thread__c> threadsById) {
+        Id threadId = (Id) workItem.get('Thread__c');
+        if (threadId == null || !threadsById.containsKey(threadId)) return 'Unassigned';
+        return threadsById.get(threadId).Name;
     }
 
     public class ErrorRow {

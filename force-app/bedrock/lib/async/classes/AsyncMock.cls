@@ -5,6 +5,7 @@ public with sharing class AsyncMock {
     public QueryService queries;
     public MetadataService metadata;
     public SettingsService settings;
+    public ThreadMock threads;
 
     public AsyncMock() {
         this.work = new WorkService();
@@ -12,10 +13,12 @@ public with sharing class AsyncMock {
         this.queries = new QueryService();
         this.metadata = new MetadataService();
         this.settings = new SettingsService();
+        this.threads = new ThreadMock();
     }
 
     public AsyncMock canEnqueue() {
         this.jobs.canEnqueue = true;
+        this.threads.canEnqueue();
         return this;
     }
 
@@ -26,6 +29,11 @@ public with sharing class AsyncMock {
 
     public AsyncMock seedSettings(Async_Settings__c settings) {
         this.settings.setSettings(settings);
+        return this;
+    }
+
+    public AsyncMock mockThreadIds() {
+        this.threads.mockIds();
         return this;
     }
 
@@ -42,9 +50,7 @@ public with sharing class AsyncMock {
         }
 
         public override void startThread(Integer failures) {
-            AsyncOptions options = new AsyncOptions();
-            options.maximumQueueableStackDepth = 5;
-            System.enqueueJob(new AsyncThread(this.threadId, failures), options);
+            Thread.service.start(Thread.currentId(), failures);
         }
 
     }
