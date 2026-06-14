@@ -95,7 +95,7 @@ Split into two buckets:
 | `Archive_After_Days__c` (Number, default 30) | Job Archiving |
 | `Default_Batch_Size__c` (Number) | MetadataService (fallback batch size) |
 | `Track_Performance__c` (Checkbox, default true) | Performance Tracking |
-| `Max_Threads__c` (Number, default 1) | Multithreading (per-user, per-pool cap) |
+| `Max_Threads__c` (Number, default 1) | Multithreading (per-user thread cap) |
 
 > `Max_Threads__c` is read by the multithreading layer in
 > `../thread-service/ROADMAP.md`; `Limits_Threshold_Pct__c` is read by

@@ -1,15 +1,15 @@
 # ThreadService & Multithreading — Roadmap
 
-Shared concurrency infrastructure beneath the separate work pools (`Async`,
-`Event`). The current implementation is described in `./AGENTS.md`; this file
-tracks remaining proposed work. Cross-cutting roadmap principles and feature
-sequencing live in the repo root `ROADMAP.md`.
+Shared concurrency infrastructure beneath thread-based work (`Async` today,
+future `Event`). The current implementation is described in `./AGENTS.md`; this
+file tracks remaining proposed work. Cross-cutting roadmap principles and
+feature sequencing live in the repo root `ROADMAP.md`.
 
 `Thread` and `Thread__c` are deliberately *shared* infrastructure
-(like `Limiter` in `../limiter/ROADMAP.md`): sharing a mechanism is
-not collapsing the pools. `Async` (`../async/ROADMAP.md`) and the future `Event`
-framework (`../event/ROADMAP.md`) are both consumers; their work pools stay
-separate while the concurrency mechanism lives here in one place.
+(like `Limiter` in `../limiter/ROADMAP.md`). `Async`
+(`../async/ROADMAP.md`) and the future `Event` framework
+(`../event/ROADMAP.md`) are both consumers; their work items can share a thread
+so chained work stays linear and understandable.
 
 These are intended designs, not finalized public APIs. Ask before locking
 names, schemas, metadata objects, or behavior that does not exist yet.
@@ -18,8 +18,8 @@ names, schemas, metadata objects, or behavior that does not exist yet.
 
 Status: core cap + handoff is implemented for `Async` through `Thread__c`.
 Backlog starvation recovery is **blocked by Scheduler MVP1**
-(`../scheduler/ROADMAP.md` — the 15-minute monitor). Event consumption,
-pool discrimination, and Limiter integration remain future work.
+(`../scheduler/ROADMAP.md` — the 15-minute monitor). Event integration and
+Limiter integration remain future work.
 
 Today the framework runs effectively one logical thread per originating
 transaction: work is tagged with a `threadId` (`Thread__c`) and a single
@@ -41,10 +41,10 @@ it mints the `threadId`, creates and queries `Thread__c` records, and owns
 thread `Status__c` transitions. Because **Event also needs thread records**,
 this is a standalone injectable service like `Limiter` — *not* an `Async`
 inner class. Async and Event are both consumers; the concurrency mechanism (soft
-cap, `FOR UPDATE` spin-up coordination, backlog handoff) lives in one place
-while the work pools stay separate. It sits beside `WorkService` (which owns
-`Async__c` work-item lifecycle): a thread groups work, so the concepts overlap,
-but thread lifecycle warrants its own shared service.
+cap, `FOR UPDATE` spin-up coordination, backlog handoff) lives in one place.
+It sits beside `WorkService` (which owns `Async__c` work-item lifecycle): a
+thread groups work, so the concepts overlap, but thread lifecycle warrants its
+own shared service.
 
 **Why work items never race:** every processing chain starts from `AsyncThread`
 with an explicit `threadId` passed down the entire chain. `Async__c` work items
@@ -58,13 +58,11 @@ accurately, and without collisions.
 
 - New per-user setting `Max_Threads__c` (`Async_Settings__c`) suggests the
   concurrency cap for a user, scoped by `CreatedById` — the framework runs in
-  the user's context, so no separate owner field is needed. **Caps are counted
-  per pool:** Async and Event each cap their own threads independently so neither
-  starves the other, with `Limiter` as the cross-pool org-health backstop.
-  The **recommended org default is `1`** — no multithreading unless deliberately
-  opted into. Heavy automation and service identities (`AutomatedProcessUser`,
-  integration/service accounts) are the intended place to raise it via per-user
-  overrides — let those rip.
+  the user's context, so no separate owner field is needed. The cap counts
+  running `Thread__c` records for that user. The **recommended org default is
+  `1`** — no multithreading unless deliberately opted into. Heavy automation
+  and service identities (`AutomatedProcessUser`, integration/service accounts)
+  are the intended place to raise it via per-user overrides — let those rip.
 - **On enqueue (synchronous transaction):** stage the work under a
   `Thread__c`, then spin up the thread when the current user has a free slot.
   A synchronous Apex
@@ -94,12 +92,14 @@ thread. The link
 from work item to thread is a **plain lookup, not master-detail**: master-detail
 would let a `FOR UPDATE` on a `Thread__c` lock its child work-item rows,
 risking exactly the kind of claim contention this design avoids.
-Future Event support may add a pool/framework discriminator (e.g. `Pool__c`:
-`Async` | `Event`) so cap counting and dispatch can tell the two pools apart.
+Future Event support should preserve the same thread container. If Async work
+creates Event work, the Event work should stay on the same thread and may run
+ahead of lower-urgency Async work on that thread.
 
 **Open design questions:**
 
-- Whether `Thread__c` needs a pool discriminator before Event lands.
+- How Event work is prioritized ahead of Async work while preserving the linear
+  thread model.
 - Whether the 15-minute starvation-recovery monitor is the same job as the
   Limiter resume monitor or a sibling. **Deferred until Scheduler MVP1** —
   the answer isn't needed before then, and could land either way.

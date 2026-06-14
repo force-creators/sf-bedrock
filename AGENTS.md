@@ -328,7 +328,7 @@ tool's detail up front.
 ## Roadmap
 
 Planned and future work is split the same way. `ROADMAP.md` at the repo root
-holds the cross-cutting sequencing and the shared "keep the pools separate"
+holds the cross-cutting sequencing and the shared "keep threads linear"
 principle; each framework's detailed roadmap lives in
 `force-app/bedrock/lib/<component>/ROADMAP.md` (Async features + Console UI,
 Thread/Multithreading, Limiter, Scheduler, Event, Selector). Treat

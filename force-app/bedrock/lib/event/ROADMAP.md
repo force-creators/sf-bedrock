@@ -2,9 +2,8 @@
 
 A future Bedrock framework. This folder has no implemented code yet — it is
 proposed work. Cross-cutting roadmap principles and feature sequencing live in
-the repo root `ROADMAP.md`. Keep this framework's logical execution pool
-separate from Async and Scheduler — do not collapse their queues, job tracking,
-or policy without an explicit plan.
+the repo root `ROADMAP.md`. Event should use the same `Thread__c` container as
+Async so chained work remains linear and understandable.
 
 These are intended designs, not finalized public APIs. Ask before locking
 names, schemas, metadata objects, or behavior that does not exist yet.
@@ -13,15 +12,16 @@ names, schemas, metadata objects, or behavior that does not exist yet.
 
 Status: future. Depends on `Limiter` (`../limiter/ROADMAP.md`) and
 the shared `Thread` / `Thread__c` service (`../thread-service/ROADMAP.md`
-— its threads are expected to be `Thread__c` rows tagged with the `Event` pool). Shares
+— Event work is expected to stay on the current `Thread__c`). Shares
 `Async`'s Queueable thread model but is a **sibling framework**, not a subclass —
 its payload model, table, and lack of priority make it look like a stripped-down
 Async rather than an extension of it.
 
 Event is the **stateful** answer to Async. Where Async refuses stateful payloads
 and re-fetches records by Id inside `execute(Set<Id> ids)`, Event serializes the
-payload itself and carries it through the work item. It is also simpler: strict
-FIFO, no priority, a straight-line processing chain.
+payload itself and carries it through the work item. It should interrupt lower-
+urgency Async work on the same thread when reliable publication is needed, while
+preserving the straight-line processing model of the thread.
 
 Event solves **two halves of the same coin** — reliable publish and reliable
 consume — which is why it is separate from Async. Both halves address the same

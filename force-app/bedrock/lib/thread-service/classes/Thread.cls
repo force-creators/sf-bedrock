@@ -169,12 +169,21 @@ public virtual with sharing class Thread {
     public virtual with sharing class QueryService {
         public virtual Thread__c getNextPendingThread() {
             Id userId = UserInfo.getUserId();
-            List<Thread__c> threads = (List<Thread__c>) Query.records([
-                SELECT Id, Status__c
+            List<Thread__c> candidates = (List<Thread__c>) Query.records([
+                SELECT Id
                 FROM Thread__c
                 WHERE Status__c = 'Pending'
                     AND CreatedById = :userId
+                ORDER BY CreatedDate ASC
                 LIMIT 1
+            ]);
+            if (candidates.isEmpty()) return null;
+
+            List<Thread__c> threads = (List<Thread__c>) Query.records([
+                SELECT Id, Status__c
+                FROM Thread__c
+                WHERE Id = :candidates[0].Id
+                    AND Status__c = 'Pending'
                 FOR UPDATE
             ]);
             return threads.isEmpty() ? null : threads[0];

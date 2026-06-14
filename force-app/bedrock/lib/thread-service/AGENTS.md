@@ -23,8 +23,9 @@ next pending thread.
 - `Thread.continueCurrent()` is called from the `Async.JobWatcher` finalizer.
   If the current thread still has pending `Async__c` work it continues or
   restarts the same chain based on the failure threshold. If the current thread
-  is drained, it marks that `Thread__c` `Done`, claims the next current-user
-  pending thread with `FOR UPDATE`, and starts it when a slot is available.
+  is drained, it marks that `Thread__c` `Done`, selects the oldest current-user
+  pending thread, locks that row with a second `FOR UPDATE` query, and starts it
+  when a slot is available.
 - `Thread.QueryService` owns `Thread__c` reads: pending-thread claim and running
   thread count. Running counts are scoped to `CreatedById = UserInfo.getUserId()`.
 - `ThreadMock` provides test seams for `canEnqueue`, mock thread ids, pending
@@ -35,5 +36,5 @@ next pending thread.
 The implemented schema is `Thread__c` with `Status__c` values `Pending`,
 `Running`, and `Done`. `Async__c.Thread__c` is a lookup to `Thread__c`.
 
-The roadmap still tracks future shared-pool details such as Event consumption,
-pool discrimination, Limiter integration, and starvation recovery.
+The roadmap still tracks future details such as Event consumption, Event-over-
+Async priority on the same thread, Limiter integration, and starvation recovery.
