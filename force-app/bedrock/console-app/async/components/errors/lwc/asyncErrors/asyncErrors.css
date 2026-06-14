@@ -19,8 +19,18 @@
     margin-bottom: var(--lwc-spacingSmall, 0.75rem);
 }
 
-.refresh-interval {
-    width: 9rem;
+.refresh-button.is-refreshing {
+    animation: async-refresh-spin 1s linear infinite;
+}
+
+@keyframes async-refresh-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .empty-state {

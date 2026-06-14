@@ -1,18 +1,8 @@
 <template>
     <lightning-card title="Backlog" icon-name="utility:list">
         <div slot="actions" class="card-actions">
-            <span class="slds-text-body_small slds-text-color_weak">{lastRefreshedLabel}</span>
-
-            <lightning-combobox
-                class="refresh-interval"
-                label="Auto-refresh interval"
-                variant="label-hidden"
-                value={autoRefreshInterval}
-                options={autoRefreshOptions}
-                onchange={handleAutoRefreshChange}
-            ></lightning-combobox>
-
             <lightning-button-icon
+                class={refreshButtonClass}
                 icon-name="utility:refresh"
                 alternative-text="Refresh backlog"
                 title="Refresh backlog"

@@ -1,7 +1,16 @@
 import { LightningElement } from 'lwc';
 import getMetrics from '@salesforce/apex/AsyncDashboardController.getMetrics';
 
-const REFRESH_INTERVAL_MS = 15000;
+const PAGE_SELECTORS = ['c-async-backlog', 'c-async-errors', 'c-async-completed'];
+
+const AUTO_REFRESH_OPTIONS = [
+    { label: 'Auto-Refresh Off', value: 'off' },
+    { label: '5 seconds', value: '5' },
+    { label: '10 seconds', value: '10' },
+    { label: '15 seconds', value: '15' },
+    { label: '30 seconds', value: '30' },
+    { label: '60 seconds', value: '60' }
+];
 
 const METRIC_DEFINITIONS = [
     { id: 'backlogCount', label: 'Backlog', className: 'metric metric-backlog' },
@@ -11,19 +20,21 @@ const METRIC_DEFINITIONS = [
 ];
 
 export default class AsyncLayout extends LightningElement {
+    autoRefreshOptions = AUTO_REFRESH_OPTIONS;
+    autoRefreshInterval = '15';
     metrics = {};
-    isLoadingMetrics = false;
+    isRefreshing = false;
     metricsErrorMessage;
     lastRefreshedAt;
     refreshTimer;
 
     connectedCallback() {
-        this.loadMetrics();
-        this.startMetricsRefresh();
+        this.refreshAll();
+        this.startAutoRefresh();
     }
 
     disconnectedCallback() {
-        this.stopMetricsRefresh();
+        this.stopAutoRefresh();
     }
 
     get metricCards() {
@@ -39,18 +50,28 @@ export default class AsyncLayout extends LightningElement {
 
     get lastRefreshedLabel() {
         if (!this.lastRefreshedAt) {
-            return 'Counts last refreshed: Not yet';
+            return 'Last refreshed: Not yet';
         }
 
-        return `Counts last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
+        return `Last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
     }
 
-    handleRefreshCounts() {
-        this.loadMetrics();
+    get refreshButtonLabel() {
+        return this.isRefreshing ? 'Refreshing…' : 'Refresh';
+    }
+
+    handleRefresh() {
+        this.refreshAll();
     }
 
     handlePageCountChange() {
+        // A page's record count changed (e.g. retry/delete) — resync the counts only.
         this.loadMetrics();
+    }
+
+    handleAutoRefreshChange(event) {
+        this.autoRefreshInterval = event.detail.value;
+        this.startAutoRefresh();
     }
 
     handleTabActive(event) {
@@ -73,8 +94,18 @@ export default class AsyncLayout extends LightningElement {
         }
     }
 
+    async refreshAll() {
+        if (this.isRefreshing) {
+            return;
+        }
+
+        // Tell every rendered page it's time to refresh alongside the counts.
+        this.refreshPages();
+        await this.loadMetrics();
+    }
+
     async loadMetrics() {
-        this.isLoadingMetrics = true;
+        this.isRefreshing = true;
         this.metricsErrorMessage = undefined;
 
         try {
@@ -84,32 +115,41 @@ export default class AsyncLayout extends LightningElement {
             this.metricsErrorMessage = this.reduceErrors(error);
         } finally {
             this.lastRefreshedAt = new Date();
-            this.isLoadingMetrics = false;
+            this.isRefreshing = false;
         }
     }
 
-    startMetricsRefresh() {
-        this.stopMetricsRefresh();
+    startAutoRefresh() {
+        this.stopAutoRefresh();
+
+        if (this.autoRefreshInterval === 'off') {
+            return;
+        }
+
         this.refreshTimer = setInterval(() => {
-            if (!this.isLoadingMetrics) {
-                this.loadMetrics();
+            if (!this.isRefreshing) {
+                this.refreshAll();
             }
-        }, REFRESH_INTERVAL_MS);
+        }, Number(this.autoRefreshInterval) * 1000);
     }
 
-    stopMetricsRefresh() {
+    stopAutoRefresh() {
         if (this.refreshTimer) {
             clearInterval(this.refreshTimer);
             this.refreshTimer = undefined;
         }
     }
 
+    refreshPages() {
+        PAGE_SELECTORS.forEach((selector) => this.refreshPage(selector));
+    }
+
     refreshPage(selector) {
         Promise.resolve().then(() => {
             const page = this.template.querySelector(selector);
 
-            if (page?.refreshCount) {
-                page.refreshCount();
+            if (page?.refresh) {
+                page.refresh();
             }
         });
     }

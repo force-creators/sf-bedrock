@@ -1,8 +1,6 @@
 <template>
     <lightning-card title="Completed" icon-name="utility:success">
         <div slot="actions" class="card-actions">
-            <span class="slds-text-body_small slds-text-color_weak">{lastRefreshedLabel}</span>
-
             <lightning-input
                 class="filter-input"
                 type="search"
@@ -14,6 +12,7 @@
             ></lightning-input>
 
             <lightning-button-icon
+                class={refreshButtonClass}
                 icon-name="utility:refresh"
                 alternative-text="Refresh completed jobs"
                 title="Refresh completed jobs"

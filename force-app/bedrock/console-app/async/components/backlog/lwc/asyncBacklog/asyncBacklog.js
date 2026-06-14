@@ -11,32 +11,15 @@ const COLUMNS = [
     { label: 'Created Date', fieldName: 'createdDate', type: 'date', initialWidth: 180 }
 ];
 
-const AUTO_REFRESH_OPTIONS = [
-    { label: 'Auto-Refresh Off', value: 'off' },
-    { label: '5 seconds', value: '5' },
-    { label: '10 seconds', value: '10' },
-    { label: '15 seconds', value: '15' },
-    { label: '30 seconds', value: '30' },
-    { label: '60 seconds', value: '60' }
-];
-
 export default class AsyncBacklog extends LightningElement {
     columns = COLUMNS;
-    autoRefreshOptions = AUTO_REFRESH_OPTIONS;
-    autoRefreshInterval = 'off';
     treeRows = [];
     expandedRows = [];
     isLoading = false;
     errorMessage;
-    lastRefreshedAt;
-    autoRefreshTimer;
 
     connectedCallback() {
         this.loadBacklog();
-    }
-
-    disconnectedCallback() {
-        this.stopAutoRefresh();
     }
 
     get recordCountLabel() {
@@ -44,12 +27,8 @@ export default class AsyncBacklog extends LightningElement {
         return `${count} ${count === 1 ? 'record' : 'records'}`;
     }
 
-    get lastRefreshedLabel() {
-        if (!this.lastRefreshedAt) {
-            return 'Last refreshed: Not yet';
-        }
-
-        return `Last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
+    get refreshButtonClass() {
+        return this.isLoading ? 'refresh-button is-refreshing' : 'refresh-button';
     }
 
     get hasRows() {
@@ -65,23 +44,8 @@ export default class AsyncBacklog extends LightningElement {
     }
 
     @api
-    refreshCount() {
+    refresh() {
         this.loadBacklog();
-    }
-
-    handleAutoRefreshChange(event) {
-        this.autoRefreshInterval = event.detail.value;
-        this.stopAutoRefresh();
-
-        if (this.autoRefreshInterval === 'off') {
-            return;
-        }
-
-        this.autoRefreshTimer = setInterval(() => {
-            if (!this.isLoading) {
-                this.loadBacklog();
-            }
-        }, Number(this.autoRefreshInterval) * 1000);
     }
 
     async loadBacklog() {
@@ -105,7 +69,6 @@ export default class AsyncBacklog extends LightningElement {
             this.expandedRows = [];
             this.errorMessage = this.reduceErrors(error);
         } finally {
-            this.lastRefreshedAt = new Date();
             this.isLoading = false;
             this.dispatchCountChange();
         }
@@ -118,13 +81,6 @@ export default class AsyncBacklog extends LightningElement {
                 detail: { count }
             })
         );
-    }
-
-    stopAutoRefresh() {
-        if (this.autoRefreshTimer) {
-            clearInterval(this.autoRefreshTimer);
-            this.autoRefreshTimer = undefined;
-        }
     }
 
     reduceErrors(error) {
