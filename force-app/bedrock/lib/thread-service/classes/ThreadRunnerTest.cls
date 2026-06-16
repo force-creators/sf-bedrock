@@ -5,7 +5,8 @@ public with sharing class ThreadRunnerTest {
             Status__c = Thread.RUNNING,
             Pool__c = 'TestPool',
             Thread_Key__c = 'TestLane',
-            Unique_Key__c = 'TestPoolTestLane000000000000000000000000000000000000000000000000'
+            Unique_Key__c = 'TestPoolTestLane000000000000000000000000000000000000000000000000',
+            Run_Key__c = 'active-run-key'
         );
         insert threadRecord;
 
@@ -14,7 +15,7 @@ public with sharing class ThreadRunnerTest {
         runner.register('TestPool', dispatcher);
         ThreadRunner.setMock(runner);
 
-        new ThreadRunner(threadRecord.Id, 2).execute(null);
+        new ThreadRunner(threadRecord.Id, 2, 'active-run-key').execute(null);
 
         Assert.areEqual(threadRecord.Id, Thread.currentId(), 'Expected ThreadRunner to adopt the thread before dispatching work.');
         Assert.areEqual(1, dispatcher.dispatchCalls, 'Expected ThreadRunner to dispatch work through the registered pool dispatcher.');

@@ -38,8 +38,9 @@ today; inspect the code before depending on exact behavior.
   `Pending`.
 - `ThreadRunner` is the shared Queueable dispatcher. `Async.ThreadDispatcher`
   adapts the shared runner to Async by checking `Async__c` pending work,
-  honoring `Async.settings.maxThreads()`, and calling `jobs.enqueueNextJob(...)`
-  for the next batch. `AsyncThread` remains as a compatibility wrapper around
+  honoring `Async.settings.maxThreads()`, carrying the authorized thread run
+  key into Async jobs/finalizers, and calling `jobs.enqueueNextJob(...)` for
+  the next batch. `AsyncThread` remains as a compatibility wrapper around
   `ThreadRunner`.
 - `JobService.enqueueNextJob()` selects the next pending work item by lowest
   assigned priority first (`ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC`),
@@ -76,6 +77,11 @@ today; inspect the code before depending on exact behavior.
   `complete`, `fail`, `retry`, `autoRetry`) through `DML`. `QueryService` owns
   the `Async__c` reads through `Query`; `Async_Job__mdt` reads live in
   `MetadataService`.
+- For Thread recovery, `Async.ThreadDispatcher.hasRecoverableWork(threadId)`
+  treats both `Pending` and stranded `Running` `Async__c` rows as recoverable,
+  and `prepareRecovery(threadId)` resets stranded `Running` rows back to
+  `Pending`. Thread remains the recovery orchestrator; Async only owns the
+  work-item reset.
 - `AsyncMock` provides test subclasses of the five services, including a
   `canEnqueue()` toggle, a bounded `maximumQueueableStackDepth` thread start, a
   `config(Type, Async_Job__mdt)` seam that injects job-type config into the

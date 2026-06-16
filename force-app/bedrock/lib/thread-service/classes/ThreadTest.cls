@@ -55,9 +55,10 @@ public with sharing class ThreadTest {
         ThreadMock mock = new ThreadMock();
         Thread.setMock(mock);
         Id threadId = Thread.currentOrCreate();
+        String runKey = Thread.service.startRun(threadId);
         Async.queries = new PendingWorkQueryService();
 
-        Thread.continueCurrent(4);
+        Thread.continueCurrent(4, runKey);
 
         Assert.areEqual(1, mock.service.startCalls, 'Expected Thread to restart the current thread at the failure threshold.');
         Assert.areEqual(threadId, mock.service.startedThreads[0], 'Expected Thread to restart the same current thread.');
@@ -68,10 +69,11 @@ public with sharing class ThreadTest {
         ThreadMock mock = new ThreadMock();
         Thread.setMock(mock);
         Id threadId = Thread.currentOrCreate();
+        String runKey = Thread.service.startRun(threadId);
         Async.queries = new PendingWorkQueryService();
         Async.jobs = new SpyJobService();
 
-        Thread.continueCurrent(2);
+        Thread.continueCurrent(2, runKey);
 
         Assert.areEqual(1, mock.service.continueWorkCalls, 'Expected Thread to continue current work below the failure threshold.');
         Assert.areEqual(0, mock.service.startCalls, 'Expected Thread not to restart below the failure threshold.');
@@ -82,13 +84,14 @@ public with sharing class ThreadTest {
     @istest static void testContinueCurrent_claimsNextThreadWhenCurrentIsDrained() {
         ThreadMock mock = new ThreadMock();
         Thread.setMock(mock);
-        Thread.currentOrCreate();
+        Id threadId = Thread.currentOrCreate();
+        String runKey = Thread.service.startRun(threadId);
         Thread__c nextThread = new Thread__c(Status__c = Thread.PENDING);
         insert nextThread;
         mock.queries.pendingThreads.add(nextThread);
         Async.queries = new EmptyWorkQueryService();
 
-        Thread.continueCurrent();
+        Thread.continueCurrent(runKey);
 
         Assert.areEqual(nextThread.Id, Thread.currentId(), 'Expected Thread to adopt the next pending thread when current work is drained.');
         Assert.areEqual(1, mock.service.startCalls, 'Expected Thread to start the claimed pending thread.');
@@ -100,6 +103,7 @@ public with sharing class ThreadTest {
             .canEnqueue()
             .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
         Async.setMock(mock);
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
         mock.threads.runningThreads(1);
         Id threadId = Thread.currentOrCreate();
         mock.threads.queries.pendingThreads.add(new Thread__c(Id = threadId, Status__c = Thread.PENDING));
@@ -115,6 +119,7 @@ public with sharing class ThreadTest {
             .canEnqueue()
             .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
         Async.setMock(mock);
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
         mock.threads.runningThreads(1);
         Thread__c olderPendingThread = new Thread__c(Status__c = Thread.PENDING);
         insert olderPendingThread;
@@ -137,6 +142,7 @@ public with sharing class ThreadTest {
             .canEnqueue()
             .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
         Async.setMock(mock);
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 3));
         mock.threads.runningThreads(0);
         Thread__c oldestPendingThread = new Thread__c(Status__c = Thread.PENDING);
         Thread__c nextPendingThread = new Thread__c(Status__c = Thread.PENDING);
@@ -161,6 +167,7 @@ public with sharing class ThreadTest {
             .canEnqueue()
             .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
         Async.setMock(mock);
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
         mock.threads.runningThreads(1);
         Thread__c firstPendingThread = new Thread__c(Status__c = Thread.PENDING);
         Thread__c secondPendingThread = new Thread__c(Status__c = Thread.PENDING);
@@ -183,6 +190,7 @@ public with sharing class ThreadTest {
             .canEnqueue()
             .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
         Async.setMock(mock);
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 3));
         mock.threads.runningThreads(0);
         Thread__c firstPendingThread = new Thread__c(Status__c = Thread.PENDING);
         Thread__c secondPendingThread = new Thread__c(Status__c = Thread.PENDING);
@@ -208,6 +216,7 @@ public with sharing class ThreadTest {
             .canEnqueue()
             .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
         Async.setMock(mock);
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 3));
         mock.threads.runningThreads(0);
         Thread__c olderPendingThread = new Thread__c(Status__c = Thread.PENDING);
         Thread__c newerPendingThread = new Thread__c(Status__c = Thread.PENDING);
@@ -281,14 +290,15 @@ public with sharing class ThreadTest {
         ThreadMock mock = new ThreadMock()
             .runningThreads(1);
         Thread.setMock(mock);
-        Thread.currentOrCreate();
+        Id threadId = Thread.currentOrCreate();
+        String runKey = Thread.service.startRun(threadId);
         Thread__c nextThread = new Thread__c(Status__c = Thread.PENDING);
         insert nextThread;
         mock.queries.pendingThreads.add(nextThread);
         Async.queries = new EmptyWorkQueryService();
         Async.settings.setSettings(new Async_Settings__c(Max_Threads__c = 1));
 
-        Thread.continueCurrent();
+        Thread.continueCurrent(runKey);
 
         Assert.areEqual(0, mock.service.startCalls, 'Expected Thread not to claim another pending thread while the cap is full.');
         Assert.areNotEqual(nextThread.Id, Thread.currentId(), 'Expected Thread to leave the pending thread unclaimed when no slot is available.');
@@ -314,6 +324,163 @@ public with sharing class ThreadTest {
         Assert.isTrue(remainingThreads.containsKey(activeThread.Id), 'Expected Thread.deleteDrained to keep threads that still have async work.');
     }
 
+    @istest static void testSettingsService_defaultsThreadRecoveryValues() {
+        Thread.SettingsService settings = new Thread.SettingsService();
+        settings.setSettings(new Thread_Settings__c());
+
+        Assert.areEqual(1, settings.maxThreads(), 'Expected Thread max threads to default to one global slot.');
+        Assert.areEqual(10, settings.recoveryThresholdMinutes(), 'Expected recovery threshold to default to ten minutes.');
+        Assert.areEqual(10, settings.recoveryBatchSize(), 'Expected recovery batch size to default to ten stale threads.');
+        Assert.areEqual(90, settings.recoveryLimitThresholdPct(), 'Expected recovery limiter threshold to default to ninety percent.');
+        Assert.isTrue(settings.recoveryEnabled(), 'Expected Thread recovery to default on.');
+    }
+
+    @istest static void testCreate_stampsInitialHeartbeat() {
+        Thread.setMock(new ThreadMock());
+
+        Id threadId = Thread.currentOrCreate();
+
+        Thread__c threadRecord = [
+            SELECT Heartbeat__c
+            FROM Thread__c
+            WHERE Id = :threadId
+        ];
+        Assert.isNotNull(threadRecord.Heartbeat__c, 'Expected new threads to have an initial heartbeat for recovery age checks.');
+    }
+
+    @istest static void testStartRun_stampsLifecycleAndRunKey() {
+        Thread__c threadRecord = thread(Thread.ASYNC_POOL, 'request:start');
+        insert threadRecord;
+
+        String runKey = Thread.service.startRun(threadRecord.Id);
+
+        Thread__c storedThread = [
+            SELECT Status__c, Started__c, Completed__c, Heartbeat__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :threadRecord.Id
+        ];
+        Assert.areEqual(Thread.RUNNING, storedThread.Status__c, 'Expected starting a thread run to mark it Running.');
+        Assert.isNotNull(storedThread.Started__c, 'Expected starting a thread run to stamp Started.');
+        Assert.isNotNull(storedThread.Heartbeat__c, 'Expected starting a thread run to refresh Heartbeat.');
+        Assert.areEqual(null, storedThread.Completed__c, 'Expected starting a thread run to clear Completed.');
+        Assert.areEqual(runKey, storedThread.Run_Key__c, 'Expected starting a thread run to persist the generated run key.');
+    }
+
+    @istest static void testContinueCurrent_staleRunKeyDoesNotAdvanceThread() {
+        ThreadMock mock = new ThreadMock();
+        Thread.setMock(mock);
+        Thread__c threadRecord = thread(Thread.ASYNC_POOL, 'request:stale');
+        insert threadRecord;
+        Thread.setCurrent(threadRecord.Id);
+        Thread.service.startRun(threadRecord.Id);
+        Async.queries = new PendingWorkQueryService();
+
+        Thread.continueCurrent('stale-run-key');
+
+        Assert.areEqual(0, mock.service.continueWorkCalls, 'Expected a stale run key not to continue current work.');
+        Assert.areEqual(0, mock.service.startCalls, 'Expected a stale run key not to restart the thread.');
+    }
+
+    @istest static void testRecover_restartsRecoverableThreadWithAdvancedRunKey() {
+        Limiter.setMock(new LimiterMock().setLimit(Limiter.types.QUEUEABLE_JOBS, 0, 50));
+        ThreadMock mock = new ThreadMock()
+            .seedSettings(new Thread_Settings__c(Max_Threads__c = 2));
+        Thread.setMock(mock);
+        Thread__c staleThread = staleThread('recoverable');
+        insert staleThread;
+        mock.queries.recoverableThreads.add(staleThread);
+        SpyDispatcher dispatcher = new SpyDispatcher();
+        dispatcher.hasRecoverableWork = true;
+        SpyRunnerService runner = new SpyRunnerService(dispatcher);
+        ThreadRunner.setMock(runner);
+
+        Thread.recover();
+
+        Thread__c recoveredThread = [
+            SELECT Status__c, Run_Key__c, Heartbeat__c
+            FROM Thread__c
+            WHERE Id = :staleThread.Id
+        ];
+        Assert.areEqual(Thread.RUNNING, recoveredThread.Status__c, 'Expected recovery to leave recoverable work Running for the replacement chain.');
+        Assert.areNotEqual('old-run-key', recoveredThread.Run_Key__c, 'Expected recovery to advance the run key before restart.');
+        Assert.isNotNull(recoveredThread.Heartbeat__c, 'Expected recovery to refresh the stale heartbeat.');
+        Assert.areEqual(1, dispatcher.prepareRecoveryCalls, 'Expected recovery to let the dispatcher prepare stranded work.');
+        Assert.areEqual(1, runner.startCalls, 'Expected recovery to restart recoverable work through ThreadRunner.');
+        Assert.areEqual(recoveredThread.Run_Key__c, runner.lastRunKey, 'Expected the replacement runner to carry the newly authorized run key.');
+    }
+
+    @istest static void testRecover_completesStaleThreadWithNoRecoverableWork() {
+        Limiter.setMock(new LimiterMock().setLimit(Limiter.types.QUEUEABLE_JOBS, 0, 50));
+        ThreadMock mock = new ThreadMock()
+            .seedSettings(new Thread_Settings__c(Max_Threads__c = 2));
+        Thread.setMock(mock);
+        Thread__c staleThread = staleThread('empty');
+        insert staleThread;
+        mock.queries.recoverableThreads.add(staleThread);
+        SpyRunnerService runner = new SpyRunnerService(new SpyDispatcher());
+        ThreadRunner.setMock(runner);
+
+        Thread.recover();
+
+        Thread__c completedThread = [
+            SELECT Status__c, Completed__c
+            FROM Thread__c
+            WHERE Id = :staleThread.Id
+        ];
+        Assert.areEqual(Thread.DONE, completedThread.Status__c, 'Expected recovery to complete stale threads with no recoverable work.');
+        Assert.isNotNull(completedThread.Completed__c, 'Expected recovery completion to stamp Completed.');
+        Assert.areEqual(0, runner.startCalls, 'Expected recovery not to start a replacement chain when no work remains.');
+    }
+
+    @istest static void testRecover_doesNothingWhenRecoveryDisabled() {
+        Limiter.setMock(new LimiterMock().setLimit(Limiter.types.QUEUEABLE_JOBS, 0, 50));
+        ThreadMock mock = new ThreadMock()
+            .seedSettings(new Thread_Settings__c(Enable_Recovery__c = false, Max_Threads__c = 2));
+        Thread.setMock(mock);
+        Thread__c staleThread = staleThread('disabled');
+        insert staleThread;
+        mock.queries.recoverableThreads.add(staleThread);
+        SpyDispatcher dispatcher = new SpyDispatcher();
+        dispatcher.hasRecoverableWork = true;
+        SpyRunnerService runner = new SpyRunnerService(dispatcher);
+        ThreadRunner.setMock(runner);
+
+        Thread.recover();
+
+        Thread__c untouchedThread = [
+            SELECT Status__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :staleThread.Id
+        ];
+        Assert.areEqual(Thread.RUNNING, untouchedThread.Status__c, 'Expected disabled recovery to leave stale threads untouched.');
+        Assert.areEqual('old-run-key', untouchedThread.Run_Key__c, 'Expected disabled recovery not to fence the existing run key.');
+        Assert.areEqual(0, runner.startCalls, 'Expected disabled recovery not to start a replacement chain.');
+    }
+
+    @istest static void testRecover_doesNothingWhenLimiterIsUnsafe() {
+        Limiter.setMock(new LimiterMock().setLimit(Limiter.types.QUEUEABLE_JOBS, 90, 100));
+        ThreadMock mock = new ThreadMock()
+            .seedSettings(new Thread_Settings__c(Max_Threads__c = 2, Recovery_Limit_Threshold_Pct__c = 90));
+        Thread.setMock(mock);
+        Thread__c staleThread = staleThread('unsafe');
+        insert staleThread;
+        mock.queries.recoverableThreads.add(staleThread);
+        SpyDispatcher dispatcher = new SpyDispatcher();
+        dispatcher.hasRecoverableWork = true;
+        SpyRunnerService runner = new SpyRunnerService(dispatcher);
+        ThreadRunner.setMock(runner);
+
+        Thread.recover();
+
+        Thread__c untouchedThread = [
+            SELECT Run_Key__c
+            FROM Thread__c
+            WHERE Id = :staleThread.Id
+        ];
+        Assert.areEqual('old-run-key', untouchedThread.Run_Key__c, 'Expected unsafe limiter state not to advance the stale run key.');
+        Assert.areEqual(0, runner.startCalls, 'Expected unsafe limiter state not to start a replacement chain.');
+    }
+
     public with sharing class EmptyWorkQueryService extends Async.QueryService {
         public override Boolean hasPendingWork(Id threadId) {
             return false;
@@ -334,6 +501,47 @@ public with sharing class ThreadTest {
             this.lastThreadId = threadId;
             this.lastFailures = failures;
         }
+
+        public override void enqueueNextJob(Id threadId, Integer failures, String runKey) {
+            this.lastThreadId = threadId;
+            this.lastFailures = failures;
+        }
+    }
+
+    public with sharing class SpyRunnerService extends ThreadRunner.Service {
+        public SpyDispatcher dispatcher;
+        public Integer startCalls = 0;
+        public Id lastThreadId;
+        public Integer lastFailures;
+        public String lastRunKey;
+
+        public SpyRunnerService(SpyDispatcher dispatcher) {
+            this.dispatcher = dispatcher;
+        }
+
+        public override void start(Id threadId, Integer failures, String runKey) {
+            this.startCalls++;
+            this.lastThreadId = threadId;
+            this.lastFailures = failures;
+            this.lastRunKey = runKey;
+        }
+
+        public override ThreadRunner.Dispatcher dispatcherForPool(String pool) {
+            return this.dispatcher;
+        }
+    }
+
+    public with sharing class SpyDispatcher extends ThreadRunner.Dispatcher {
+        public Boolean hasRecoverableWork = false;
+        public Integer prepareRecoveryCalls = 0;
+
+        public override Boolean hasRecoverableWork(Id threadId) {
+            return this.hasRecoverableWork;
+        }
+
+        public override void prepareRecovery(Id threadId) {
+            this.prepareRecoveryCalls++;
+        }
     }
 
     static Async__c workItem(String apexClass, Id recordId, String status, Id threadId) {
@@ -353,6 +561,14 @@ public with sharing class ThreadTest {
             Thread_Key__c = threadKey,
             Unique_Key__c = EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(pool + ':' + threadKey)))
         );
+    }
+
+    static Thread__c staleThread(String threadKey) {
+        Thread__c threadRecord = thread(Thread.ASYNC_POOL, threadKey);
+        threadRecord.Status__c = Thread.RUNNING;
+        threadRecord.Heartbeat__c = System.now().addMinutes(-30);
+        threadRecord.Run_Key__c = 'old-run-key';
+        return threadRecord;
     }
 
     public class NoOpQueueable implements Queueable {

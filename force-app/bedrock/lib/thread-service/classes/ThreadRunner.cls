@@ -1,12 +1,18 @@
 public virtual with sharing class ThreadRunner implements Queueable {
     public Id threadId;
     public Integer failures;
+    public String runKey;
 
     public static Service service = new Service();
 
     public ThreadRunner(Id threadId, Integer failures) {
+        this(threadId, failures, null);
+    }
+
+    public ThreadRunner(Id threadId, Integer failures, String runKey) {
         this.threadId = threadId;
         this.failures = failures == null ? 0 : failures;
+        this.runKey = String.isBlank(runKey) ? Thread.service.currentRunKey(threadId) : runKey;
     }
 
     @testVisible public static void setMock(Service mock) {
@@ -19,7 +25,10 @@ public virtual with sharing class ThreadRunner implements Queueable {
 
     public void execute(QueueableContext context) {
         Thread.setCurrent(this.threadId);
-        service.dispatch(this.threadId, this.failures);
+        if (!service.isRunAuthorized(this.threadId, this.runKey)) return;
+
+        Thread.service.heartbeat(this.threadId);
+        service.dispatch(this.threadId, this.failures, this.runKey);
     }
 
     public virtual with sharing class Service {
@@ -33,12 +42,21 @@ public virtual with sharing class ThreadRunner implements Queueable {
         public virtual void start(Id threadId, Integer failures) {
             if (threadId == null) return;
 
-            Thread.service.running(threadId);
-            System.enqueueJob(new ThreadRunner(threadId, failures));
+            start(threadId, failures, Thread.service.startRun(threadId));
+        }
+
+        public virtual void start(Id threadId, Integer failures, String runKey) {
+            if (threadId == null || String.isBlank(runKey)) return;
+
+            System.enqueueJob(new ThreadRunner(threadId, failures, runKey));
         }
 
         public virtual void dispatch(Id threadId, Integer failures) {
-            dispatcherFor(threadId).dispatch(threadId, failures);
+            dispatch(threadId, failures, Thread.service.currentRunKey(threadId));
+        }
+
+        public virtual void dispatch(Id threadId, Integer failures, String runKey) {
+            dispatcherFor(threadId).dispatch(threadId, failures, runKey);
         }
 
         public virtual Boolean hasPendingWork(Id threadId) {
@@ -47,6 +65,10 @@ public virtual with sharing class ThreadRunner implements Queueable {
 
         public virtual Integer maxThreads(String pool) {
             return dispatcherForPool(pool).maxThreads();
+        }
+
+        public virtual Boolean isRunAuthorized(Id threadId, String runKey) {
+            return Thread.service.isRunAuthorized(threadId, runKey);
         }
 
         public virtual Dispatcher dispatcherFor(Id threadId) {
@@ -72,8 +94,19 @@ public virtual with sharing class ThreadRunner implements Queueable {
             throw new ThreadRunnerException('ThreadRunner dispatchers must implement dispatch(Id, Integer).');
         }
 
+        public virtual void dispatch(Id threadId, Integer failures, String runKey) {
+            dispatch(threadId, failures);
+        }
+
         public virtual Boolean hasPendingWork(Id threadId) {
             return false;
+        }
+
+        public virtual Boolean hasRecoverableWork(Id threadId) {
+            return hasPendingWork(threadId);
+        }
+
+        public virtual void prepareRecovery(Id threadId) {
         }
 
         public virtual Integer maxThreads() {
