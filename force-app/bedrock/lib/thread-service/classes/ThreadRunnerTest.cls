@@ -5,7 +5,7 @@ public with sharing class ThreadRunnerTest {
             Status__c = Thread.RUNNING,
             Pool__c = 'TestPool',
             Thread_Key__c = 'TestLane',
-            Lane_Key__c = 'TestPool:TestLane'
+            Unique_Key__c = 'TestPoolTestLane000000000000000000000000000000000000000000000000'
         );
         insert threadRecord;
 
@@ -27,7 +27,7 @@ public with sharing class ThreadRunnerTest {
             Status__c = Thread.RUNNING,
             Pool__c = 'TestPool',
             Thread_Key__c = 'PendingLane',
-            Lane_Key__c = 'TestPool:PendingLane'
+            Unique_Key__c = 'TestPoolPendingLane00000000000000000000000000000000000000000000'
         );
         insert threadRecord;
 

@@ -16,7 +16,8 @@ that starts a thread and routes work to the pool-specific dispatcher.
 
 - `Thread.currentOrCreate()` creates an `Async` pool `Thread__c` in `Pending`
   status through `DML` and caches its Id for the transaction. New threads store
-  `Pool__c`, a request-scoped `Thread_Key__c`, and a unique `Lane_Key__c`.
+  `Pool__c`, a request-scoped `Thread_Key__c`, and a generated unique
+  `Unique_Key__c`.
 - `Thread.enqueue()` starts the current thread only from a synchronous,
   non-finalizer context, only once per transaction, and only when the current
   user is below `Async.settings.maxThreads()`.
@@ -26,8 +27,8 @@ that starts a thread and routes work to the pool-specific dispatcher.
   If the current thread still has pending pool work it continues or restarts
   the same chain based on the failure threshold. If the current thread is
   drained, it marks that `Thread__c` `Done`, selects the oldest current-user
-  pending thread, locks that row with a second `FOR UPDATE` query, and starts it
-  when a slot is available.
+  pending thread in the same pool, locks that row with a second `FOR UPDATE`
+  query, and starts it when a slot is available.
 - `ThreadRunner` owns the queueable entry point. It reads the thread pool and
   dispatches through the matching `ThreadRunner.Dispatcher`; the current
   implemented dispatcher is `Async.ThreadDispatcher`.
@@ -40,8 +41,9 @@ that starts a thread and routes work to the pool-specific dispatcher.
 
 The implemented schema is `Thread__c` with `Status__c` values `Pending`,
 `Running`, and `Done`. `Pool__c` identifies the owning work pool,
-`Thread_Key__c` identifies the lane within that pool, and `Lane_Key__c` stores
-the unique combined key. `Async__c.Thread__c` is a lookup to `Thread__c`.
+`Thread_Key__c` identifies the lane within that pool, and `Unique_Key__c` stores
+a generated hash for the unique `Pool__c + Thread_Key__c` identity.
+`Async__c.Thread__c` is a lookup to `Thread__c`.
 
 The roadmap still tracks future details such as Event consumption, Event-over-
 Async priority on the same thread, Limiter integration, and starvation recovery.

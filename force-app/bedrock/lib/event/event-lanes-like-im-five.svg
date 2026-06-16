@@ -103,6 +103,6 @@
 
   <rect class="note" x="430" y="625" width="690" height="94" rx="12" />
   <text class="label" x="455" y="658">In Bedrock words</text>
-  <text class="small" x="455" y="686">Lane_Key__c protects order. ThreadRunner fills safe lanes.</text>
+  <text class="small" x="455" y="686">Thread_Key__c protects order. ThreadRunner fills safe lanes.</text>
   <text class="small" x="455" y="710">StrictContiguous batching only takes neighbors: 1, 2, 3.</text>
 </svg>

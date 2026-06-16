@@ -3,7 +3,6 @@ public virtual with sharing class Thread {
     public static final String DONE = 'Done';
     public static final String PENDING = 'Pending';
     public static final String RUNNING = 'Running';
-    public static final Integer LANE_KEY_MAX_LENGTH = 255;
 
     public static Service service = new Service();
     public static QueryService queries = new QueryService();
@@ -24,6 +23,10 @@ public virtual with sharing class Thread {
 
     public static Id currentOrCreate() {
         return service.currentOrCreate();
+    }
+
+    public static Id currentOrCreate(String pool, String threadKey) {
+        return service.currentOrCreate(pool, threadKey);
     }
 
     public static void setCurrent(Id threadId) {
@@ -51,6 +54,8 @@ public virtual with sharing class Thread {
         public Boolean hasEnqueued = false;
         public Boolean isFinalizer = false;
         public Integer restartLimit = 4;
+        Map<String, Id> threadIdsByUniqueKey = new Map<String, Id>();
+        String defaultThreadKey;
 
         public virtual Id currentId() {
             return threadId;
@@ -61,9 +66,18 @@ public virtual with sharing class Thread {
         }
 
         public virtual Id currentOrCreate(String pool, String threadKey) {
-            if (threadId == null) {
-                threadId = create(pool, threadKey);
+            String normalizedPool = normalizePool(pool);
+            String normalizedThreadKey = normalizeThreadKey(threadKey);
+            String uniqueKey = uniqueKey(normalizedPool, normalizedThreadKey);
+
+            if (!threadIdsByUniqueKey.containsKey(uniqueKey)) {
+                Thread__c existingThread = queries.getThreadByUniqueKey(uniqueKey);
+                threadIdsByUniqueKey.put(
+                    uniqueKey,
+                    existingThread == null ? create(normalizedPool, normalizedThreadKey, uniqueKey) : existingThread.Id
+                );
             }
+            threadId = threadIdsByUniqueKey.get(uniqueKey);
             return threadId;
         }
 
@@ -74,11 +88,15 @@ public virtual with sharing class Thread {
         public virtual Id create(String pool, String threadKey) {
             String normalizedPool = normalizePool(pool);
             String normalizedThreadKey = normalizeThreadKey(threadKey);
+            return create(normalizedPool, normalizedThreadKey, uniqueKey(normalizedPool, normalizedThreadKey));
+        }
+
+        Id create(String pool, String threadKey, String uniqueKey) {
             Thread__c thread = new Thread__c(
                 Status__c = PENDING,
-                Pool__c = normalizedPool,
-                Thread_Key__c = normalizedThreadKey,
-                Lane_Key__c = laneKey(normalizedPool, normalizedThreadKey)
+                Pool__c = pool,
+                Thread_Key__c = threadKey,
+                Unique_Key__c = uniqueKey
             );
             DML.insertRecords(new List<SObject> { thread });
             return thread.Id;
@@ -113,7 +131,7 @@ public virtual with sharing class Thread {
             }
 
             complete(currentId());
-            Id nextThreadId = claimNext();
+            Id nextThreadId = claimNext(currentPool());
             if (nextThreadId == null) return;
 
             setCurrent(nextThreadId);
@@ -133,9 +151,13 @@ public virtual with sharing class Thread {
         }
 
         public virtual Id claimNext() {
-            if (!hasAvailableSlot()) return null;
+            return claimNext(ASYNC_POOL);
+        }
 
-            Thread__c thread = queries.getNextPendingThread();
+        public virtual Id claimNext(String pool) {
+            if (!hasAvailableSlot(pool)) return null;
+
+            Thread__c thread = queries.getNextPendingThread(pool);
             if (thread == null) return null;
 
             running(thread.Id);
@@ -156,15 +178,27 @@ public virtual with sharing class Thread {
         }
 
         public virtual Boolean hasAvailableSlot() {
-            return runningThreadCount() < maxThreads();
+            return hasAvailableSlot(ASYNC_POOL);
+        }
+
+        public virtual Boolean hasAvailableSlot(String pool) {
+            return runningThreadCount(pool) < maxThreads(pool);
         }
 
         public virtual Integer runningThreadCount() {
-            return queries.countRunningThreads(UserInfo.getUserId());
+            return runningThreadCount(ASYNC_POOL);
+        }
+
+        public virtual Integer runningThreadCount(String pool) {
+            return queries.countRunningThreads(UserInfo.getUserId(), pool);
         }
 
         public virtual Integer maxThreads() {
-            return ThreadRunner.service.maxThreads(ASYNC_POOL);
+            return maxThreads(ASYNC_POOL);
+        }
+
+        public virtual Integer maxThreads(String pool) {
+            return ThreadRunner.service.maxThreads(pool);
         }
 
         public virtual Boolean canEnqueue() {
@@ -201,11 +235,13 @@ public virtual with sharing class Thread {
         }
 
         String requestThreadKey() {
+            if (defaultThreadKey != null) return defaultThreadKey;
             try {
-                return 'request:' + Request.getCurrent().getRequestId();
+                defaultThreadKey = 'request:' + Request.getCurrent().getRequestId();
             } catch (Exception error) {
-                return 'generated:' + String.valueOf(Crypto.getRandomInteger());
+                defaultThreadKey = 'generated:' + String.valueOf(Crypto.getRandomInteger());
             }
+            return defaultThreadKey;
         }
 
         String normalizePool(String pool) {
@@ -216,9 +252,19 @@ public virtual with sharing class Thread {
             return String.isBlank(threadKey) ? requestThreadKey() : threadKey.trim();
         }
 
-        String laneKey(String pool, String threadKey) {
-            String value = normalizePool(pool) + ':' + normalizeThreadKey(threadKey);
-            return value.length() <= LANE_KEY_MAX_LENGTH ? value : value.substring(0, LANE_KEY_MAX_LENGTH);
+        String currentPool() {
+            Thread__c threadRecord = queries.getThread(currentId());
+            return threadRecord == null || String.isBlank(threadRecord.Pool__c)
+                ? ASYNC_POOL
+                : threadRecord.Pool__c;
+        }
+
+        String uniqueKey(String pool, String threadKey) {
+            Blob digest = Crypto.generateDigest(
+                'SHA-256',
+                Blob.valueOf(normalizePool(pool) + ':' + normalizeThreadKey(threadKey))
+            );
+            return EncodingUtil.convertToHex(digest);
         }
     }
 
@@ -227,7 +273,7 @@ public virtual with sharing class Thread {
             if (threadId == null) return null;
 
             List<Thread__c> threads = (List<Thread__c>) Query.records([
-                SELECT Id, Pool__c, Thread_Key__c, Lane_Key__c, Status__c
+                SELECT Id, Pool__c, Thread_Key__c, Unique_Key__c, Status__c
                 FROM Thread__c
                 WHERE Id = :threadId
                 LIMIT 1
@@ -235,20 +281,52 @@ public virtual with sharing class Thread {
             return threads.isEmpty() ? null : threads[0];
         }
 
-        public virtual Thread__c getNextPendingThread() {
-            Id userId = UserInfo.getUserId();
-            List<Thread__c> candidates = (List<Thread__c>) Query.records([
-                SELECT Id
+        public virtual Thread__c getThreadByUniqueKey(String uniqueKey) {
+            if (String.isBlank(uniqueKey)) return null;
+
+            List<Thread__c> threads = (List<Thread__c>) Query.records([
+                SELECT Id, Pool__c, Thread_Key__c, Unique_Key__c, Status__c
                 FROM Thread__c
-                WHERE Status__c = 'Pending'
-                    AND CreatedById = :userId
-                ORDER BY CreatedDate ASC
+                WHERE Unique_Key__c = :uniqueKey
                 LIMIT 1
+                FOR UPDATE
             ]);
+            return threads.isEmpty() ? null : threads[0];
+        }
+
+        public virtual Thread__c getNextPendingThread() {
+            return getNextPendingThread(ASYNC_POOL);
+        }
+
+        public virtual Thread__c getNextPendingThread(String pool) {
+            String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
+            Id userId = UserInfo.getUserId();
+            List<Thread__c> candidates;
+            if (normalizedPool == ASYNC_POOL) {
+                candidates = (List<Thread__c>) Query.records([
+                    SELECT Id
+                    FROM Thread__c
+                    WHERE Status__c = 'Pending'
+                        AND CreatedById = :userId
+                        AND (Pool__c = :normalizedPool OR Pool__c = null)
+                    ORDER BY CreatedDate ASC
+                    LIMIT 1
+                ]);
+            } else {
+                candidates = (List<Thread__c>) Query.records([
+                    SELECT Id
+                    FROM Thread__c
+                    WHERE Status__c = 'Pending'
+                        AND CreatedById = :userId
+                        AND Pool__c = :normalizedPool
+                    ORDER BY CreatedDate ASC
+                    LIMIT 1
+                ]);
+            }
             if (candidates.isEmpty()) return null;
 
             List<Thread__c> threads = (List<Thread__c>) Query.records([
-                SELECT Id, Status__c
+                SELECT Id, Pool__c, Status__c
                 FROM Thread__c
                 WHERE Id = :candidates[0].Id
                     AND Status__c = 'Pending'
@@ -258,11 +336,27 @@ public virtual with sharing class Thread {
         }
 
         public virtual Integer countRunningThreads(Id userId) {
+            return countRunningThreads(userId, ASYNC_POOL);
+        }
+
+        public virtual Integer countRunningThreads(Id userId, String pool) {
+            String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
+            if (normalizedPool == ASYNC_POOL) {
+                return [
+                    SELECT COUNT()
+                    FROM Thread__c
+                    WHERE Status__c = 'Running'
+                        AND CreatedById = :userId
+                        AND (Pool__c = :normalizedPool OR Pool__c = null)
+                ];
+            }
+
             return [
                 SELECT COUNT()
                 FROM Thread__c
                 WHERE Status__c = 'Running'
                     AND CreatedById = :userId
+                    AND Pool__c = :normalizedPool
             ];
         }
 

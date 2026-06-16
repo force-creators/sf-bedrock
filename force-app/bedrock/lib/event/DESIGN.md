@@ -59,7 +59,7 @@ This keeps one shared primitive for Async, Event, and future threaded pools.
 | `Status__c` | Existing lifecycle: `Pending`, `Running`, `Done`. |
 | `Pool__c` | Proposed owner pool: `Async`, `EventPublish`, `EventConsume`, future pools. |
 | `Thread_Key__c` | Unique pool-specific lane key, such as `Async:<requestId>` or `EventConsume:AccountChanged__e`. |
-| `Lane_Key__c` | Optional human-readable partition key when different from `Thread_Key__c`. |
+| `Unique_Key__c` | Internal generated uniqueness key for `Pool__c + Thread_Key__c`. |
 | `Origin_Request_Id__c` | Optional request id that created the thread/work. Useful for Async and synchronous Event entrypoints. |
 | `Last_Started_At__c` | Optional operational visibility. |
 | `Last_Drained_At__c` | Optional operational visibility. |
@@ -102,7 +102,7 @@ publication attempt.
 | `Job_Type__c` | `Publish` or `Process`. |
 | `Status__c` | `Pending`, `Running`, `Paused`, `Done`, `Skipped`, `Error`. |
 | `Thread__c` | Lookup to the thread that owns this work item. |
-| `Lane_Key__c` | FIFO boundary for this job. |
+| `Thread_Key__c` | FIFO boundary for this job, matching the owning `Thread__c.Thread_Key__c`. |
 | `Order__c` | Framework-assigned ordering value inside a creation batch/lane. |
 | `Sequence__c` | Optional source-provided ordering value. |
 | `Idempotency_Key__c` | Optional duplicate detection key. |

@@ -230,8 +230,8 @@ shape it. The framework should still preserve the important hooks early:
 
 - `Idempotency_Key__c` for duplicate protection when a publisher or source can
   provide a stable key.
-- `Lane_Key__c` / partition key semantics for grouping events that describe the
-  same business stream or destination.
+- `Thread_Key__c` / partition key semantics for grouping events that describe
+  the same business stream or destination.
 - `Occurred_At__c` for payload event time.
 - `Expires_At__c` or config-driven max age for TTL-style stale handling.
 - `Sequence__c` or `Version__c` when the publisher can provide real ordering.
@@ -254,7 +254,7 @@ field's storage limit:
 | `Job_Type__c` | Picklist | `Publish` \| `Process` |
 | `Status__c` | Picklist | `Pending` \| `Running` \| `Paused` \| `Done` \| `Error` |
 | `Thread__c` | Lookup(Thread__c) | Thread that owns this event work item. |
-| `Lane_Key__c` | Text(255) | Optional partition key used to preserve FIFO within a lane. |
+| `Thread_Key__c` | Text(255) | Optional partition key used to preserve FIFO within a lane. |
 | `Sequence__c` | Number | Optional source-provided ordering value. |
 | `Idempotency_Key__c` | Text(255) | Optional source-provided duplicate detection key. |
 | `Occurred_At__c` | DateTime | Time the source says the event occurred. |

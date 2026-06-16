@@ -6,7 +6,7 @@ public with sharing class ThreadTest {
 
         Id threadId = Thread.currentOrCreate();
         Thread__c threadRecord = [
-            SELECT Pool__c, Thread_Key__c, Lane_Key__c
+            SELECT Pool__c, Thread_Key__c, Unique_Key__c
             FROM Thread__c
             WHERE Id = :threadId
         ];
@@ -15,8 +15,40 @@ public with sharing class ThreadTest {
         Assert.isNotNull(threadId, 'Expected Thread.currentOrCreate to return a usable thread id.');
         Assert.areEqual(Thread.ASYNC_POOL, threadRecord.Pool__c, 'Expected Thread.currentOrCreate to tag new threads with the Async pool by default.');
         Assert.isTrue(threadRecord.Thread_Key__c.startsWith('request:'), 'Expected Thread.currentOrCreate to store a request-scoped thread key by default.');
-        Assert.areEqual(Thread.ASYNC_POOL + ':' + threadRecord.Thread_Key__c, threadRecord.Lane_Key__c,
-            'Expected Thread.currentOrCreate to store a unique lane key from the pool and thread key.');
+        Assert.areEqual(64, threadRecord.Unique_Key__c.length(),
+            'Expected Thread.currentOrCreate to store a generated hash key for uniqueness.');
+    }
+
+    @istest static void testCurrentOrCreate_cachesByPoolAndThreadKey() {
+        Thread.setMock(new ThreadMock());
+
+        Id asyncThreadId = Thread.currentOrCreate();
+        Id eventThreadId = Thread.currentOrCreate('EventConsume', 'AccountChanged');
+        Id sameEventThreadId = Thread.currentOrCreate('EventConsume', 'AccountChanged');
+        List<Thread__c> threads = [
+            SELECT Pool__c, Thread_Key__c, Unique_Key__c
+            FROM Thread__c
+            WHERE Id IN :new Set<Id> { asyncThreadId, eventThreadId }
+        ];
+
+        Assert.areNotEqual(asyncThreadId, eventThreadId,
+            'Expected distinct pool/thread keys to resolve to distinct Thread__c rows in the same transaction.');
+        Assert.areEqual(eventThreadId, sameEventThreadId,
+            'Expected repeated calls for the same pool/thread key to reuse the cached Thread__c row.');
+        Assert.areEqual(eventThreadId, Thread.currentId(),
+            'Expected Thread.currentId to track the most recently resolved thread.');
+        Assert.areEqual(2, threads.size(), 'Expected exactly one thread per distinct pool/thread key.');
+    }
+
+    @istest static void testQueryService_getNextPendingThreadFiltersByPool() {
+        Thread__c asyncThread = thread(Thread.ASYNC_POOL, 'request:oldest');
+        Thread__c eventThread = thread('EventConsume', 'AccountChanged');
+        insert new List<Thread__c> { asyncThread, eventThread };
+
+        Thread__c nextEventThread = new Thread.QueryService().getNextPendingThread('EventConsume');
+
+        Assert.areEqual(eventThread.Id, nextEventThread.Id,
+            'Expected pending-thread claims to select work from the requested pool.');
     }
 
     @istest static void testContinueCurrent_restartsCurrentThreadAtFailureThreshold() {
@@ -158,5 +190,14 @@ public with sharing class ThreadTest {
         );
         workItem.put('Thread__c', threadId);
         return workItem;
+    }
+
+    static Thread__c thread(String pool, String threadKey) {
+        return new Thread__c(
+            Status__c = Thread.PENDING,
+            Pool__c = pool,
+            Thread_Key__c = threadKey,
+            Unique_Key__c = EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(pool + ':' + threadKey)))
+        );
     }
 }
