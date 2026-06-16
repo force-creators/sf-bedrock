@@ -132,6 +132,28 @@ public with sharing class ThreadTest {
             'Expected the newly-created current thread to remain pending behind older backlog.');
     }
 
+    @istest static void testClaimNextLeavesPendingThreadWhenSlotFillsBeforeStatusUpdate() {
+        AsyncMock mock = new AsyncMock()
+            .seedSettings(new Async_Settings__c(Max_Threads__c = 1));
+        Async.setMock(mock);
+        mock.threads.runningThreadCounts(new List<Integer> { 0, 1 });
+        Thread__c pendingThread = new Thread__c(Status__c = Thread.PENDING);
+        insert pendingThread;
+        mock.threads.queries.pendingThreads.add(pendingThread);
+
+        Id claimedThreadId = Thread.service.claimNext();
+
+        Thread__c storedThread = [
+            SELECT Status__c
+            FROM Thread__c
+            WHERE Id = :pendingThread.Id
+        ];
+        Assert.areEqual(null, claimedThreadId,
+            'Expected Thread.claimNext to stop when thread capacity is no longer available after selecting a pending thread.');
+        Assert.areEqual(Thread.PENDING, storedThread.Status__c,
+            'Expected Thread.claimNext to leave the selected thread pending when no slot remains.');
+    }
+
     @istest static void testEnqueue_doesNotStartThreadWhenCapIsFull() {
         AsyncMock mock = new AsyncMock()
             .canEnqueue()

@@ -164,6 +164,7 @@ public virtual with sharing class Thread {
 
             Thread__c thread = queries.getNextPendingThread(pool);
             if (thread == null) return null;
+            if (!hasAvailableSlot(pool)) return null;
 
             running(thread.Id);
             return thread.Id;

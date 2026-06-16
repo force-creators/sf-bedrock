@@ -27,6 +27,11 @@ public with sharing class ThreadMock {
         return this;
     }
 
+    public ThreadMock runningThreadCounts(List<Integer> counts) {
+        queries.runningThreadCounts = counts == null ? new List<Integer>() : counts;
+        return this;
+    }
+
     public with sharing class Service extends Thread.Service {
         public Boolean canEnqueue = false;
         public Boolean mockIds = false;
@@ -74,6 +79,7 @@ public with sharing class ThreadMock {
     public with sharing class QueryService extends Thread.QueryService {
         public List<Thread__c> pendingThreads = new List<Thread__c>();
         public Integer runningThreadCount = 0;
+        public List<Integer> runningThreadCounts = new List<Integer>();
 
         public override Thread__c getNextPendingThread() {
             return pendingThreads.isEmpty() ? super.getNextPendingThread() : pendingThreads.remove(0);
@@ -84,11 +90,15 @@ public with sharing class ThreadMock {
         }
 
         public override Integer countRunningThreads(Id userId) {
-            return runningThreadCount;
+            return nextRunningThreadCount();
         }
 
         public override Integer countRunningThreads(Id userId, String pool) {
-            return runningThreadCount;
+            return nextRunningThreadCount();
+        }
+
+        Integer nextRunningThreadCount() {
+            return runningThreadCounts.isEmpty() ? runningThreadCount : runningThreadCounts.remove(0);
         }
     }
 }
