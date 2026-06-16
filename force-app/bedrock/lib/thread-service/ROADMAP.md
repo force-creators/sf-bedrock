@@ -86,9 +86,12 @@ accurately, and without collisions.
   Limiter is org health. (Limiter is itself blocked by Scheduler
   MVP1, so the cap can ship first and gain the safety gate later.)
 
-**Schema:** `Thread__c` (`Status__c`; `CreatedById` scopes per-user caps).
-The existing `Async__c.Thread__c` lookup associates work items with their
-thread. The link
+**Schema:** `Thread__c` (`Status__c`, `Pool__c`, `Thread_Key__c`, unique
+`Lane_Key__c`; `CreatedById` scopes per-user caps). `Lane_Key__c` is the
+implemented uniqueness decision for `Pool__c + Thread_Key__c`: callers store a
+readable combined key in one unique text field because Salesforce does not
+offer compound uniqueness for two custom text fields. The existing
+`Async__c.Thread__c` lookup associates work items with their thread. The link
 from work item to thread is a **plain lookup, not master-detail**: master-detail
 would let a `FOR UPDATE` on a `Thread__c` lock its child work-item rows,
 risking exactly the kind of claim contention this design avoids.

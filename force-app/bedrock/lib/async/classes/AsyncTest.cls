@@ -75,8 +75,9 @@ public with sharing class AsyncTest {
         Async.stage(SetupSafeChildAsync.class, contactIds);
         Async.flush();
 
-        Assert.areEqual(1, dmlMock.inserts.size(), 'Expected flush() to create all staged work in one DML insert call.');
-        Assert.areEqual(4, dmlMock.inserts[0].size(), 'Expected flush() to merge duplicate staged ids by Apex class before creating work items.');
+        List<List<SObject>> asyncInsertBatches = insertBatchesFor(dmlMock, Async__c.sObjectType);
+        Assert.areEqual(1, asyncInsertBatches.size(), 'Expected flush() to create all staged async work in one DML insert call.');
+        Assert.areEqual(4, asyncInsertBatches[0].size(), 'Expected flush() to merge duplicate staged ids by Apex class before creating work items.');
     }
 
     @istest static void testStageAndFlushFromAsync_defersChildWorkUntilFinalizer() {
@@ -146,8 +147,9 @@ public with sharing class AsyncTest {
 
         Async.enqueue(MyPriorityAsync.class, Pluck.ids(contacts));
 
-        Assert.areEqual(1, dmlMock.inserts.size(), 'Expected one insert batch when enqueuing seeded work items.');
-        for (Async__c workItem : (List<Async__c>) dmlMock.inserts[0]) {
+        List<List<SObject>> asyncInsertBatches = insertBatchesFor(dmlMock, Async__c.sObjectType);
+        Assert.areEqual(1, asyncInsertBatches.size(), 'Expected one async insert batch when enqueuing seeded work items.');
+        for (Async__c workItem : (List<Async__c>) asyncInsertBatches[0]) {
             Assert.areEqual(42, workItem.Priority__c, 'Expected each enqueued work item to inherit the configured priority for its job type.');
         }
     }
@@ -168,7 +170,7 @@ public with sharing class AsyncTest {
         Async.enqueue(MyBlankPriorityAsync.class, new Set<Id> { contacts[1].Id });
 
         List<Async__c> inserted = new List<Async__c>();
-        for (List<SObject> batch : dmlMock.inserts) {
+        for (List<SObject> batch : insertBatchesFor(dmlMock, Async__c.sObjectType)) {
             inserted.addAll((List<Async__c>) batch);
         }
 
@@ -386,7 +388,7 @@ public with sharing class AsyncTest {
 
         Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch below the threshold to continue the current worker chain.');
         Assert.areEqual(3, jobs.lastEnqueueFailures, 'Expected failure-path dispatch below the threshold to increment the failure streak for the next worker batch.');
-        Assert.areEqual(0, threads.service.startCalls, 'Expected failure-path dispatch below the threshold not to restart through AsyncThread yet.');
+        Assert.areEqual(0, threads.service.startCalls, 'Expected failure-path dispatch below the threshold not to restart through ThreadRunner yet.');
     }
 
     @istest static void testJobWatcher_continueAfterFailure_atThreshold_restartsThroughAsyncThread() {
@@ -400,7 +402,7 @@ public with sharing class AsyncTest {
         new Async.JobWatcher(threadId, new Set<Id>(), 3).continueAfterFailure();
 
         Assert.areEqual(0, jobs.enqueueNextJobCalls, 'Expected failure-path dispatch at the threshold not to chain another worker directly from the finalizer.');
-        Assert.areEqual(1, threads.service.startCalls, 'Expected failure-path dispatch to restart the backlog through AsyncThread.');
+        Assert.areEqual(1, threads.service.startCalls, 'Expected failure-path dispatch to restart the backlog through ThreadRunner.');
         Assert.areEqual(0, threads.service.lastFailures, 'Expected failure-path dispatch at the threshold to reset the failure streak on the restarted thread.');
     }
 
@@ -473,6 +475,16 @@ public with sharing class AsyncTest {
         );
         workItem.put('Thread__c', threadId);
         return workItem;
+    }
+
+    static List<List<SObject>> insertBatchesFor(DMLMock dmlMock, Schema.SObjectType sObjectType) {
+        List<List<SObject>> matchingBatches = new List<List<SObject>>();
+        for (List<SObject> batch : dmlMock.inserts) {
+            if (!batch.isEmpty() && batch[0].getSObjectType() == sObjectType) {
+                matchingBatches.add(batch);
+            }
+        }
+        return matchingBatches;
     }
 
     public with sharing class SpyJobService extends Async.JobService {

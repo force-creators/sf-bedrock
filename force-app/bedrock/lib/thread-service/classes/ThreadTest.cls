@@ -5,9 +5,18 @@ public with sharing class ThreadTest {
         Thread.setMock(mock);
 
         Id threadId = Thread.currentOrCreate();
+        Thread__c threadRecord = [
+            SELECT Pool__c, Thread_Key__c, Lane_Key__c
+            FROM Thread__c
+            WHERE Id = :threadId
+        ];
 
         Assert.areEqual(threadId, Thread.currentId(), 'Expected Thread.currentOrCreate to cache the created thread id.');
         Assert.isNotNull(threadId, 'Expected Thread.currentOrCreate to return a usable thread id.');
+        Assert.areEqual(Thread.ASYNC_POOL, threadRecord.Pool__c, 'Expected Thread.currentOrCreate to tag new threads with the Async pool by default.');
+        Assert.isTrue(threadRecord.Thread_Key__c.startsWith('request:'), 'Expected Thread.currentOrCreate to store a request-scoped thread key by default.');
+        Assert.areEqual(Thread.ASYNC_POOL + ':' + threadRecord.Thread_Key__c, threadRecord.Lane_Key__c,
+            'Expected Thread.currentOrCreate to store a unique lane key from the pool and thread key.');
     }
 
     @istest static void testContinueCurrent_restartsCurrentThreadAtFailureThreshold() {

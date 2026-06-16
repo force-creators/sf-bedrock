@@ -9,23 +9,28 @@ roadmap notes as intended direction, not implemented contract.
 `Thread` is shared concurrency infrastructure used by `Async` today. It creates
 and tracks `Thread__c` records, stores the current transaction's thread id in a
 static service, and controls when a Queueable chain may start or hand off to the
-next pending thread.
+next pending thread. `ThreadRunner` is the shared Queueable/dispatcher layer
+that starts a thread and routes work to the pool-specific dispatcher.
 
 ## Current shape
 
-- `Thread.currentOrCreate()` creates a `Thread__c` in `Pending` status through
-  `DML` and caches its Id for the transaction.
+- `Thread.currentOrCreate()` creates an `Async` pool `Thread__c` in `Pending`
+  status through `DML` and caches its Id for the transaction. New threads store
+  `Pool__c`, a request-scoped `Thread_Key__c`, and a unique `Lane_Key__c`.
 - `Thread.enqueue()` starts the current thread only from a synchronous,
   non-finalizer context, only once per transaction, and only when the current
   user is below `Async.settings.maxThreads()`.
 - `Async.SettingsService.maxThreads()` reads `Async_Settings__c.Max_Threads__c`
   and defaults blank or non-positive values to `1`.
 - `Thread.continueCurrent()` is called from the `Async.JobWatcher` finalizer.
-  If the current thread still has pending `Async__c` work it continues or
-  restarts the same chain based on the failure threshold. If the current thread
-  is drained, it marks that `Thread__c` `Done`, selects the oldest current-user
+  If the current thread still has pending pool work it continues or restarts
+  the same chain based on the failure threshold. If the current thread is
+  drained, it marks that `Thread__c` `Done`, selects the oldest current-user
   pending thread, locks that row with a second `FOR UPDATE` query, and starts it
   when a slot is available.
+- `ThreadRunner` owns the queueable entry point. It reads the thread pool and
+  dispatches through the matching `ThreadRunner.Dispatcher`; the current
+  implemented dispatcher is `Async.ThreadDispatcher`.
 - `Thread.QueryService` owns `Thread__c` reads: pending-thread claim and running
   thread count. Running counts are scoped to `CreatedById = UserInfo.getUserId()`.
 - `ThreadMock` provides test seams for `canEnqueue`, mock thread ids, pending
@@ -34,7 +39,9 @@ next pending thread.
 ## Schema
 
 The implemented schema is `Thread__c` with `Status__c` values `Pending`,
-`Running`, and `Done`. `Async__c.Thread__c` is a lookup to `Thread__c`.
+`Running`, and `Done`. `Pool__c` identifies the owning work pool,
+`Thread_Key__c` identifies the lane within that pool, and `Lane_Key__c` stores
+the unique combined key. `Async__c.Thread__c` is a lookup to `Thread__c`.
 
 The roadmap still tracks future details such as Event consumption, Event-over-
 Async priority on the same thread, Limiter integration, and starvation recovery.

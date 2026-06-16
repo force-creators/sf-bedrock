@@ -3,6 +3,7 @@ public virtual with sharing class Thread {
     public static final String DONE = 'Done';
     public static final String PENDING = 'Pending';
     public static final String RUNNING = 'Running';
+    public static final Integer LANE_KEY_MAX_LENGTH = 255;
 
     public static Service service = new Service();
     public static QueryService queries = new QueryService();
@@ -56,14 +57,29 @@ public virtual with sharing class Thread {
         }
 
         public virtual Id currentOrCreate() {
+            return currentOrCreate(ASYNC_POOL, requestThreadKey());
+        }
+
+        public virtual Id currentOrCreate(String pool, String threadKey) {
             if (threadId == null) {
-                threadId = create();
+                threadId = create(pool, threadKey);
             }
             return threadId;
         }
 
         public virtual Id create() {
-            Thread__c thread = new Thread__c(Status__c = PENDING);
+            return create(ASYNC_POOL, requestThreadKey());
+        }
+
+        public virtual Id create(String pool, String threadKey) {
+            String normalizedPool = normalizePool(pool);
+            String normalizedThreadKey = normalizeThreadKey(threadKey);
+            Thread__c thread = new Thread__c(
+                Status__c = PENDING,
+                Pool__c = normalizedPool,
+                Thread_Key__c = normalizedThreadKey,
+                Lane_Key__c = laneKey(normalizedPool, normalizedThreadKey)
+            );
             DML.insertRecords(new List<SObject> { thread });
             return thread.Id;
         }
@@ -105,18 +121,15 @@ public virtual with sharing class Thread {
         }
 
         public virtual void continueWork(Id threadId, Integer failures) {
-            Async.jobs.enqueueNextJob(threadId, failures);
+            ThreadRunner.service.dispatch(threadId, failures);
         }
 
         public virtual void start(Id threadId, Integer failures) {
-            if (threadId == null) return;
-
-            running(threadId);
-            System.enqueueJob(new AsyncThread(threadId, failures));
+            ThreadRunner.service.start(threadId, failures);
         }
 
         public virtual Boolean hasCurrentWork() {
-            return currentId() != null && Async.queries.hasPendingWork(currentId());
+            return currentId() != null && ThreadRunner.service.hasPendingWork(currentId());
         }
 
         public virtual Id claimNext() {
@@ -151,7 +164,7 @@ public virtual with sharing class Thread {
         }
 
         public virtual Integer maxThreads() {
-            return Async.settings.maxThreads();
+            return ThreadRunner.service.maxThreads(ASYNC_POOL);
         }
 
         public virtual Boolean canEnqueue() {
@@ -186,9 +199,42 @@ public virtual with sharing class Thread {
                 )
             });
         }
+
+        String requestThreadKey() {
+            try {
+                return 'request:' + Request.getCurrent().getRequestId();
+            } catch (Exception error) {
+                return 'generated:' + String.valueOf(Crypto.getRandomInteger());
+            }
+        }
+
+        String normalizePool(String pool) {
+            return String.isBlank(pool) ? ASYNC_POOL : pool.trim();
+        }
+
+        String normalizeThreadKey(String threadKey) {
+            return String.isBlank(threadKey) ? requestThreadKey() : threadKey.trim();
+        }
+
+        String laneKey(String pool, String threadKey) {
+            String value = normalizePool(pool) + ':' + normalizeThreadKey(threadKey);
+            return value.length() <= LANE_KEY_MAX_LENGTH ? value : value.substring(0, LANE_KEY_MAX_LENGTH);
+        }
     }
 
     public virtual with sharing class QueryService {
+        public virtual Thread__c getThread(Id threadId) {
+            if (threadId == null) return null;
+
+            List<Thread__c> threads = (List<Thread__c>) Query.records([
+                SELECT Id, Pool__c, Thread_Key__c, Lane_Key__c, Status__c
+                FROM Thread__c
+                WHERE Id = :threadId
+                LIMIT 1
+            ]);
+            return threads.isEmpty() ? null : threads[0];
+        }
+
         public virtual Thread__c getNextPendingThread() {
             Id userId = UserInfo.getUserId();
             List<Thread__c> candidates = (List<Thread__c>) Query.records([

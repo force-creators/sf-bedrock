@@ -49,7 +49,7 @@ public with sharing class ThreadMock {
         public override void continueWork(Id threadId, Integer failures) {
             continueWorkCalls++;
             lastFailures = failures;
-            Async.jobs.enqueueNextJob(threadId, failures);
+            ThreadRunner.service.dispatch(threadId, failures);
         }
 
         public override void start(Id threadId, Integer failures) {
@@ -59,7 +59,7 @@ public with sharing class ThreadMock {
 
             AsyncOptions options = new AsyncOptions();
             options.maximumQueueableStackDepth = 5;
-            System.enqueueJob(new AsyncThread(threadId, failures), options);
+            System.enqueueJob(new ThreadRunner(threadId, failures), options);
         }
 
         public override Boolean canEnqueue() {
