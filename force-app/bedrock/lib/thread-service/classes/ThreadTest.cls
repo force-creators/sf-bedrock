@@ -100,8 +100,7 @@ public with sharing class ThreadTest {
 
     @istest static void testEnqueue_startsThreadWhenSlotIsAvailable() {
         AsyncMock mock = new AsyncMock()
-            .canEnqueue()
-            .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
+            .canEnqueue();
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
         mock.threads.runningThreads(1);
@@ -116,8 +115,7 @@ public with sharing class ThreadTest {
 
     @istest static void testEnqueue_claimsOlderPendingThreadBeforeCurrentThread() {
         AsyncMock mock = new AsyncMock()
-            .canEnqueue()
-            .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
+            .canEnqueue();
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
         mock.threads.runningThreads(1);
@@ -139,8 +137,7 @@ public with sharing class ThreadTest {
 
     @istest static void testEnqueue_fillsMultipleAvailableSlots() {
         AsyncMock mock = new AsyncMock()
-            .canEnqueue()
-            .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
+            .canEnqueue();
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 3));
         mock.threads.runningThreads(0);
@@ -164,8 +161,7 @@ public with sharing class ThreadTest {
 
     @istest static void testEnqueue_stopsAtMaxThreadCapacity() {
         AsyncMock mock = new AsyncMock()
-            .canEnqueue()
-            .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
+            .canEnqueue();
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
         mock.threads.runningThreads(1);
@@ -187,8 +183,7 @@ public with sharing class ThreadTest {
 
     @istest static void testEnqueue_stopsAtRemainingQueueableCapacity() {
         AsyncMock mock = new AsyncMock()
-            .canEnqueue()
-            .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
+            .canEnqueue();
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 3));
         mock.threads.runningThreads(0);
@@ -213,8 +208,7 @@ public with sharing class ThreadTest {
 
     @istest static void testEnqueue_fillsAvailableSlotsFromTriggerContext() {
         AsyncMock mock = new AsyncMock()
-            .canEnqueue()
-            .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
+            .canEnqueue();
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 3));
         mock.threads.runningThreads(0);
@@ -238,8 +232,7 @@ public with sharing class ThreadTest {
 
     @istest static void testEnqueue_doesNotStartThreadFromFinalizerContext() {
         AsyncMock mock = new AsyncMock()
-            .canEnqueue()
-            .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
+            .canEnqueue();
         Async.setMock(mock);
         mock.threads.service.isFinalizer = true;
         mock.threads.queries.pendingThreads.add(new Thread__c(Status__c = Thread.PENDING));
@@ -251,9 +244,9 @@ public with sharing class ThreadTest {
     }
 
     @istest static void testClaimNextLeavesPendingThreadWhenSlotFillsBeforeStatusUpdate() {
-        AsyncMock mock = new AsyncMock()
-            .seedSettings(new Async_Settings__c(Max_Threads__c = 1));
+        AsyncMock mock = new AsyncMock();
         Async.setMock(mock);
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 1));
         mock.threads.runningThreadCounts(new List<Integer> { 0, 1 });
         Thread__c pendingThread = new Thread__c(Status__c = Thread.PENDING);
         insert pendingThread;
@@ -275,9 +268,9 @@ public with sharing class ThreadTest {
     @istest static void testEnqueue_doesNotStartThreadWhenCapIsFull() {
         AsyncMock mock = new AsyncMock()
             .canEnqueue()
-            .mockThreadIds()
-            .seedSettings(new Async_Settings__c(Max_Threads__c = 1));
+            .mockThreadIds();
         Async.setMock(mock);
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 1));
         mock.threads.runningThreads(1);
 
         Thread.enqueue();
@@ -296,7 +289,7 @@ public with sharing class ThreadTest {
         insert nextThread;
         mock.queries.pendingThreads.add(nextThread);
         Async.queries = new EmptyWorkQueryService();
-        Async.settings.setSettings(new Async_Settings__c(Max_Threads__c = 1));
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 1));
 
         Thread.continueCurrent(runKey);
 

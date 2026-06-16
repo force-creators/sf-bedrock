@@ -277,8 +277,9 @@ public virtual with sharing class Thread {
 
         public virtual Integer availableSpawnCount(String pool) {
             Integer availableThreadSlots = maxThreads(pool) - runningThreadCount(pool);
+            Integer availableGlobalSlots = Thread.settings.maxThreads() - globalRunningThreadCount();
             Integer availableQueueableSlots = Limits.getLimitQueueableJobs() - Limits.getQueueableJobs();
-            return Math.max(0, Math.min(availableThreadSlots, availableQueueableSlots));
+            return Math.max(0, Math.min(Math.min(availableThreadSlots, availableGlobalSlots), availableQueueableSlots));
         }
 
         public virtual Integer runningThreadCount() {

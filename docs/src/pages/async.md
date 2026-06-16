@@ -302,12 +302,12 @@ Manual recovery still works separately: changing an errored work item back to
 `Pending` is recognized by the framework and is not limited by
 `Max_Retries__c`.
 
-### User-level concurrency
+### Thread concurrency
 
-`Async_Settings__c.Max_Threads__c` controls how many framework-managed chains may
-run for the current user at the same time. It is a hierarchical custom setting,
-so you can keep the org default conservative and raise the cap for service users
-or other high-volume identities.
+`Thread_Settings__c.Max_Threads__c` controls how many framework-managed thread
+chains may run at the same time. It is a hierarchical custom setting, so you can
+keep the org default conservative and raise the cap for service users or other
+high-volume identities.
 
 Blank, `0`, and negative values default to **1**. A value of 1 keeps work
 straight-line for that user. Higher values let separate enqueueing transactions
@@ -324,9 +324,9 @@ calls `execute(Set<Id> ids)`, records the outcome, then chains to the next batch
 until that backlog is empty.
 
 Branching happens between backlogs. If several synchronous transactions create
-work for the same user and that user's `Max_Threads__c` allows more than one
-chain, those backlogs can drain side by side. If the cap is `1`, one backlog
-drains while the others wait.
+work and `Thread_Settings__c.Max_Threads__c` allows more than one chain, those
+backlogs can drain side by side. If the cap is `1`, one backlog drains while the
+others wait.
 
 ![Diagram showing four synchronous transactions becoming four Async backlogs, three running in parallel under Max_Threads__c = 3 and one waiting for a slot.](/images/async-threading-model.png)
 
@@ -439,7 +439,7 @@ business code.
 | `Async_Job__mdt` | `Batch_Size__c` | Number of work items per `execute` call. Defaults to 5 when no record exists. |
 | `Async_Job__mdt` | `Max_Retries__c` | Cap on framework auto-retries. Blank or `0` means auto-retry is off. |
 | `Async_Job__mdt` | `Priority__c` | Assigned priorities run lowest to highest within the same backlog. Blank values leave work unprioritized and sort last. |
-| `Async_Settings__c` | `Max_Threads__c` | Maximum concurrent framework-managed chains for the current user. Blank or non-positive values default to 1. |
+| `Thread_Settings__c` | `Max_Threads__c` | Maximum concurrent framework-managed thread chains. Blank or non-positive values default to 1. |
 
 ## Notes & Edge Cases
 
@@ -462,9 +462,9 @@ business code.
 - **Tune batch size to the work.** Heavy jobs need smaller batches; light jobs
   can use larger batches to finish faster. Configure per class in
   `Async_Job__mdt`.
-- **Tune concurrency to the user.** `Max_Threads__c = 1` keeps one chain running
-  per user. Higher values let separate enqueueing transactions drain in parallel
-  for that user.
+- **Tune concurrency with Thread settings.** `Max_Threads__c = 1` keeps one
+  chain running. Higher values let separate enqueueing transactions drain in
+  parallel.
 - **Errors are recorded, not hidden.** A failing batch marks its work items
   `Error` with the exception message and stack trace saved for review.
 - **Failed items can be retried two ways.** Configure bounded auto-retry with

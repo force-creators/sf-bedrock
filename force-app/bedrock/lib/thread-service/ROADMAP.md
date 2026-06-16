@@ -14,7 +14,7 @@ so chained work stays linear and understandable.
 These are intended designs, not finalized public APIs. Ask before locking
 names, schemas, metadata objects, or behavior that does not exist yet.
 
-## Multithreading — per-user thread cap + backlog handoff
+## Multithreading — Thread-owned cap + backlog handoff
 
 Status: core cap + handoff is implemented for `Async` through `Thread__c`.
 Backlog starvation recovery is **blocked by Scheduler MVP1**

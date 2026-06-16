@@ -104,7 +104,7 @@ Start with the symptom, then route to the owner.
 
 | Symptom | First check | Likely owner |
 | --- | --- | --- |
-| Async backlog is growing | Running thread count, pending work age, user thread cap | Platform operations |
+| Async backlog is growing | Running thread count, pending work age, `Thread_Settings__c.Max_Threads__c` | Platform operations |
 | Async errors are growing | Error message, stack trace, subscriber class | Application development team |
 | Work is stuck as `Running` | Recent platform incidents, aborted jobs, finalizer behavior | Platform engineering |
 | Scheduler job did not run | Heartbeat installed, job enabled, next run time, error message | Admin and platform engineering |

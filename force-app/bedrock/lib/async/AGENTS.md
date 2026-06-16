@@ -38,7 +38,7 @@ today; inspect the code before depending on exact behavior.
   `Pending`.
 - `ThreadRunner` is the shared Queueable dispatcher. `Async.ThreadDispatcher`
   adapts the shared runner to Async by checking `Async__c` pending work,
-  honoring `Async.settings.maxThreads()`, carrying the authorized thread run
+  honoring `Thread_Settings__c.Max_Threads__c`, carrying the authorized thread run
   key into Async jobs/finalizers, and calling `jobs.enqueueNextJob(...)` for
   the next batch. `AsyncThread` remains as a compatibility wrapper around
   `ThreadRunner`.
@@ -68,11 +68,11 @@ today; inspect the code before depending on exact behavior.
   remains in `QueryService`. When no config row exists for a job type it returns
   a default with `Batch_Size__c = 5` and no priority assignment (the
   `SettingsService` `Default_Batch_Size__c` fallback is still roadmap).
+- `Thread_Settings__c.Max_Threads__c` owns running Thread capacity. Async is a
+  Thread consumer and no longer reads `Async_Settings__c.Max_Threads__c` to
+  decide how many chains may run.
 - `Async.SettingsService` owns the transaction-scoped cached read of the
-  hierarchical `Async_Settings__c` custom setting. In this Bucket 1
-  implementation it exposes only a narrow test seam for seeding the backing
-  value; consumer-specific accessors land with the settings fields that need
-  them.
+  hierarchical `Async_Settings__c` custom setting for Async-specific behavior.
 - `WorkService` owns the `Async__c` status transitions (`create`, `running`,
   `complete`, `fail`, `retry`, `autoRetry`) through `DML`. `QueryService` owns
   the `Async__c` reads through `Query`; `Async_Job__mdt` reads live in
@@ -94,9 +94,9 @@ today; inspect the code before depending on exact behavior.
 This framework relies on the `Async__c` object (fields `Apex__c`,
 `Record_Id__c`, `Status__c`, `Thread__c`, `Priority__c`, `Retry_Count__c`,
 `Error_Message__c`, `Error_Stack_Trace__c`) and the `Async_Job__mdt` type
-(`Apex__c`, `Batch_Size__c`, `Max_Retries__c`, `Priority__c`), plus the
-hierarchical custom setting `Async_Settings__c`, all under
-`force-app/bedrock/lib/async/objects`. `Retry_Count__c` (default `0`) tracks how
+(`Apex__c`, `Batch_Size__c`, `Max_Retries__c`, `Priority__c`), plus Async
+settings under `force-app/bedrock/lib/async/objects` and Thread capacity under
+`force-app/bedrock/lib/thread-service/objects`. `Retry_Count__c` (default `0`) tracks how
 many times the framework has re-run an item; `Max_Retries__c` (absent/`0` ⇒
 auto-retry off) caps framework auto-retries per job type. `Priority__c` sorts
 from lowest assigned value to highest assigned value, with null/unassigned

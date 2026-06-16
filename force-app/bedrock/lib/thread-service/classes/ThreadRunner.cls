@@ -64,7 +64,7 @@ public virtual with sharing class ThreadRunner implements Queueable {
         }
 
         public virtual Integer maxThreads(String pool) {
-            return dispatcherForPool(pool).maxThreads();
+            return Thread.settings.maxThreads();
         }
 
         public virtual Boolean isRunAuthorized(Id threadId, String runKey) {

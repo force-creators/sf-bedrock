@@ -43,13 +43,13 @@ the public record-driven background job API.
 
 ## Quickstart
 
-Set the concurrency cap with `Async_Settings__c.Max_Threads__c`. Blank, `0`, and
+Set the concurrency cap with `Thread_Settings__c.Max_Threads__c`. Blank, `0`, and
 negative values default to `1`.
 
 | Setting | Effect |
 | --- | --- |
-| `Max_Threads__c = 1` | One running thread per user. Pending threads drain one after another. |
-| `Max_Threads__c = 5` | Up to five running threads per user. Separate enqueueing transactions can drain in parallel. |
+| `Max_Threads__c = 1` | One running thread chain. Pending threads drain one after another. |
+| `Max_Threads__c = 5` | Up to five running thread chains. Separate enqueueing transactions can drain in parallel. |
 
 Then enqueue work normally:
 
@@ -71,7 +71,7 @@ for the same user, and starts it.
 
 ### Increase throughput for a service user
 
-Set a per-user custom setting override for an integration or automation user:
+Set an org default or per-user custom setting override for an integration or automation user:
 
 | Field | Value |
 | --- | --- |
@@ -108,9 +108,9 @@ test the `Async` job directly or use `AsyncMock`.
 @istest static void threadStartsWhenSlotIsAvailable() {
     AsyncMock mock = new AsyncMock()
         .canEnqueue()
-        .mockThreadIds()
-        .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
+        .mockThreadIds();
     Async.setMock(mock);
+    Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
     mock.threads.runningThreads(1);
 
     Thread.enqueue();
@@ -174,8 +174,8 @@ starts the next chain.
 
 **`Async__c.Thread__c`** is a lookup to `Thread__c`.
 
-**`Async_Settings__c.Max_Threads__c`** controls the current user's running
-thread cap. Blank or non-positive values default to `1`.
+**`Thread_Settings__c.Max_Threads__c`** controls running thread capacity. Blank
+or non-positive values default to `1`.
 
 Operators should usually inspect and recover runtime state through the Bedrock
 Console and Admin Setup & Operations guidance, not by editing `Thread__c` rows

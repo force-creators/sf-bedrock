@@ -209,10 +209,6 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         public override void prepareRecovery(Id threadId) {
             Async.work.prepareRecovery(threadId);
         }
-
-        public override Integer maxThreads() {
-            return Async.settings.maxThreads();
-        }
     }
 
     public virtual with sharing class WorkService {

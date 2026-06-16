@@ -14,7 +14,7 @@ levers intentionally light.
 Two roadmap items that `Async` consumes live in their own component folders
 because they are shared infrastructure, not Async internals:
 
-- Multithreading (per-user thread cap + handoff) and the shared `Thread` /
+- Multithreading (Thread-owned cap + handoff) and the shared `Thread` /
   `Thread__c` service → `../thread-service/ROADMAP.md`.
 - `Limiter` (org-health gate consulted before enqueuing) →
   `../limiter/ROADMAP.md`.
@@ -95,12 +95,10 @@ Split into two buckets:
 | `Archive_After_Days__c` (Number, default 30) | Job Archiving |
 | `Default_Batch_Size__c` (Number) | MetadataService (fallback batch size) |
 | `Track_Performance__c` (Checkbox, default true) | Performance Tracking |
-| `Max_Threads__c` (Number, default 1) | Multithreading (per-user thread cap) |
 
-> `Max_Threads__c` is read by the multithreading layer in
+> Thread capacity is owned by `Thread_Settings__c` in
 > `../thread-service/ROADMAP.md`; `Limits_Threshold_Pct__c` is read by
-> `../limiter/ROADMAP.md`. SettingsService Bucket 1 unblocks the
-> multithreading core.
+> `../limiter/ROADMAP.md`.
 
 ## MetadataService — cached `Async_Job__mdt` reads
 

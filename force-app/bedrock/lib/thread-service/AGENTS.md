@@ -18,15 +18,13 @@ that starts a thread and routes work to the pool-specific dispatcher.
   status through `DML` and caches its Id for the transaction. New threads store
   `Pool__c`, a request-scoped `Thread_Key__c`, a generated unique
   `Unique_Key__c`, and an initial `Heartbeat__c`.
-- `Thread.enqueue()` starts the current thread only from a synchronous,
-  non-finalizer context, only once per transaction, and only when the current
-  user is below `Async.settings.maxThreads()`.
+- `Thread.enqueue()` starts pending threads only from a synchronous,
+  non-finalizer context, filling available Queueable/thread slots when
+  `Thread_Settings__c.Max_Threads__c` allows more than one running chain.
 - `Thread.SettingsService` reads the `Thread_Settings__c` hierarchy setting:
-  global `Max_Threads__c`, recovery threshold, recovery batch size, recovery
-  limiter threshold, and the recovery kill switch. Blank or non-positive
-  numeric values fall back to safe defaults.
-- `Async.SettingsService.maxThreads()` reads `Async_Settings__c.Max_Threads__c`
-  and defaults blank or non-positive values to `1`.
+  `Max_Threads__c`, recovery threshold, recovery batch size, recovery limiter
+  threshold, and the recovery kill switch. Blank or non-positive numeric values
+  fall back to safe defaults.
 - Thread starts stamp `Started__c`, refresh `Heartbeat__c`, clear
   `Completed__c`, and advance `Run_Key__c`. Framework runners/finalizers carry
   that run key and must match the current row before they can advance,
