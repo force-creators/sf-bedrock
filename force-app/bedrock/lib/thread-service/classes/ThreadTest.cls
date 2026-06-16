@@ -132,6 +132,115 @@ public with sharing class ThreadTest {
             'Expected the newly-created current thread to remain pending behind older backlog.');
     }
 
+    @istest static void testEnqueue_fillsMultipleAvailableSlots() {
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
+        Async.setMock(mock);
+        mock.threads.runningThreads(0);
+        Thread__c oldestPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c nextPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        insert new List<Thread__c> { oldestPendingThread, nextPendingThread };
+        Id currentThreadId = Thread.currentOrCreate();
+        mock.threads.queries.pendingThreads.add(oldestPendingThread);
+        mock.threads.queries.pendingThreads.add(nextPendingThread);
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.PENDING));
+
+        Thread.enqueue();
+
+        Assert.areEqual(3, mock.threads.service.startCalls,
+            'Expected Thread.enqueue to fill each available thread slot from a synchronous transaction.');
+        Assert.areEqual(
+            new List<Id> { oldestPendingThread.Id, nextPendingThread.Id, currentThreadId },
+            mock.threads.service.startedThreads,
+            'Expected Thread.enqueue to claim pending backlog before the current transaction thread.');
+    }
+
+    @istest static void testEnqueue_stopsAtMaxThreadCapacity() {
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
+        Async.setMock(mock);
+        mock.threads.runningThreads(1);
+        Thread__c firstPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c secondPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        insert new List<Thread__c> { firstPendingThread, secondPendingThread };
+        Id currentThreadId = Thread.currentOrCreate();
+        mock.threads.queries.pendingThreads.add(firstPendingThread);
+        mock.threads.queries.pendingThreads.add(secondPendingThread);
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.PENDING));
+
+        Thread.enqueue();
+
+        Assert.areEqual(1, mock.threads.service.startCalls,
+            'Expected Thread.enqueue to stop after filling the one remaining configured thread slot.');
+        Assert.areEqual(firstPendingThread.Id, mock.threads.service.startedThreads[0],
+            'Expected Thread.enqueue to claim only the oldest pending thread when one configured slot remains.');
+    }
+
+    @istest static void testEnqueue_stopsAtRemainingQueueableCapacity() {
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
+        Async.setMock(mock);
+        mock.threads.runningThreads(0);
+        Thread__c firstPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c secondPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        insert new List<Thread__c> { firstPendingThread, secondPendingThread };
+        Id currentThreadId = Thread.currentOrCreate();
+        mock.threads.queries.pendingThreads.add(firstPendingThread);
+        mock.threads.queries.pendingThreads.add(secondPendingThread);
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.PENDING));
+        for (Integer i = 0; i < 49; i++) {
+            System.enqueueJob(new NoOpQueueable());
+        }
+
+        Thread.enqueue();
+
+        Assert.areEqual(1, mock.threads.service.startCalls,
+            'Expected Thread.enqueue to respect remaining Queueable capacity in the current transaction.');
+        Assert.areEqual(firstPendingThread.Id, mock.threads.service.startedThreads[0],
+            'Expected Thread.enqueue to spend the last Queueable slot on the oldest pending thread.');
+    }
+
+    @istest static void testEnqueue_fillsAvailableSlotsFromTriggerContext() {
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
+        Async.setMock(mock);
+        mock.threads.runningThreads(0);
+        Thread__c olderPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c newerPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        insert new List<Thread__c> { olderPendingThread, newerPendingThread };
+        Id currentThreadId = Thread.currentOrCreate();
+        mock.threads.queries.pendingThreads.add(olderPendingThread);
+        mock.threads.queries.pendingThreads.add(newerPendingThread);
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.PENDING));
+
+        insert workItem(String.valueOf(NoOpAsync.class), UserInfo.getUserId(), 'Pending', currentThreadId);
+
+        Assert.areEqual(3, mock.threads.service.startCalls,
+            'Expected Async__c trigger execution to fill available thread slots because it is still a synchronous enqueue attempt.');
+        Assert.areEqual(
+            new List<Id> { olderPendingThread.Id, newerPendingThread.Id, currentThreadId },
+            mock.threads.service.startedThreads,
+            'Expected trigger execution to claim pending backlog before the current transaction thread.');
+    }
+
+    @istest static void testEnqueue_doesNotStartThreadFromFinalizerContext() {
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .seedSettings(new Async_Settings__c(Max_Threads__c = 3));
+        Async.setMock(mock);
+        mock.threads.service.isFinalizer = true;
+        mock.threads.queries.pendingThreads.add(new Thread__c(Status__c = Thread.PENDING));
+
+        Thread.enqueue();
+
+        Assert.areEqual(0, mock.threads.service.startCalls,
+            'Expected Thread.enqueue to avoid spawning threads from finalizer context.');
+    }
+
     @istest static void testClaimNextLeavesPendingThreadWhenSlotFillsBeforeStatusUpdate() {
         AsyncMock mock = new AsyncMock()
             .seedSettings(new Async_Settings__c(Max_Threads__c = 1));
@@ -244,5 +353,15 @@ public with sharing class ThreadTest {
             Thread_Key__c = threadKey,
             Unique_Key__c = EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(pool + ':' + threadKey)))
         );
+    }
+
+    public class NoOpQueueable implements Queueable {
+        public void execute(QueueableContext context) {
+        }
+    }
+
+    public class NoOpAsync extends Async {
+        public override void execute(Set<Id> ids) {
+        }
     }
 }
