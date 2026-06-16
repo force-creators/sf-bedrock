@@ -108,15 +108,24 @@ public virtual with sharing class Thread {
 
         public virtual void enqueue() {
             if (!canEnqueue() || hasEnqueued || System.isQueueable() || isFinalizer) return;
-            if (!hasAvailableSlot()) return;
+
+            fillAvailableSlots();
+        }
+
+        public virtual void fillAvailableSlots() {
+            Integer spawnCount = availableSpawnCount();
+            if (spawnCount < 1) return;
 
             currentOrCreate();
-            Id nextThreadId = claimNext(currentPool());
-            if (nextThreadId == null) return;
+            String pool = currentPool();
+            for (Integer i = 0; i < spawnCount; i++) {
+                Id nextThreadId = claimNext(pool);
+                if (nextThreadId == null) return;
 
-            setCurrent(nextThreadId);
-            start(nextThreadId, 0);
-            hasEnqueued = true;
+                setCurrent(nextThreadId);
+                start(nextThreadId, 0);
+                hasEnqueued = true;
+            }
         }
 
         public virtual void continueCurrent() {
@@ -189,6 +198,16 @@ public virtual with sharing class Thread {
 
         public virtual Boolean hasAvailableSlot(String pool) {
             return runningThreadCount(pool) < maxThreads(pool);
+        }
+
+        public virtual Integer availableSpawnCount() {
+            return availableSpawnCount(ASYNC_POOL);
+        }
+
+        public virtual Integer availableSpawnCount(String pool) {
+            Integer availableThreadSlots = maxThreads(pool) - runningThreadCount(pool);
+            Integer availableQueueableSlots = Limits.getLimitQueueableJobs() - Limits.getQueueableJobs();
+            return Math.max(0, Math.min(availableThreadSlots, availableQueueableSlots));
         }
 
         public virtual Integer runningThreadCount() {
