@@ -130,7 +130,7 @@ public with sharing class AsyncTest {
 
         Assert.areEqual(5, config.Batch_Size__c, 'Expected the default batch size when no Async_Job__mdt row exists for the job type.');
         Assert.areEqual(null, config.Max_Retries__c, 'Expected no Max_Retries__c on the default config so auto-retry stays off.');
-        Assert.areEqual(0, config.Priority__c, 'Expected the default priority to seed work items at the lowest priority when no config row exists.');
+        Assert.areEqual(null, config.Priority__c, 'Expected no Priority__c on the default config so unconfigured work has no assigned priority.');
     }
 
     @istest static void testCreate_seedsConfiguredPriorityOnWorkItems() {
@@ -154,7 +154,7 @@ public with sharing class AsyncTest {
         }
     }
 
-    @istest static void testCreate_defaultsPriorityToLowestWhenConfigMissingOrBlank() {
+    @istest static void testCreate_leavesPriorityUnassignedWhenConfigMissingOrBlank() {
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
         Async.setMock(new AsyncMock()
@@ -176,20 +176,20 @@ public with sharing class AsyncTest {
 
         Assert.areEqual(2, inserted.size(), 'Expected one work item per enqueue call.');
         for (Async__c workItem : inserted) {
-            Assert.areEqual(0, workItem.Priority__c, 'Expected missing config rows and blank priority values to seed the lowest priority.');
+            Assert.areEqual(null, workItem.Priority__c, 'Expected missing config rows and blank priority values to leave priority unassigned.');
         }
     }
 
-    @istest static void testEnqueueNextJob_drainsHigherPriorityJobTypeFirst() {
+    @istest static void testEnqueueNextJob_drainsLowestAssignedPriorityFirst() {
         List<Contact> contacts = new List<Contact> {
-            new Contact(LastName = 'High Priority'),
-            new Contact(LastName = 'Low Priority')
+            new Contact(LastName = 'Positive Priority'),
+            new Contact(LastName = 'Negative Priority')
         };
         insert contacts;
 
         AsyncMock mock = new AsyncMock()
             .config(MyPriorityAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Priority__c = 100))
-            .config(MyLowPriorityAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Priority__c = 1));
+            .config(MyLowPriorityAsync.class, new Async_Job__mdt(Batch_Size__c = 5, Priority__c = -10));
         Async.setMock(mock);
 
         Async.enqueue(MyLowPriorityAsync.class, new Set<Id> { contacts[1].Id });
@@ -204,11 +204,33 @@ public with sharing class AsyncTest {
                 WHERE Status__c = 'Running'
             ];
             Assert.areEqual(1, runningItems.size(), 'Expected one batch to be marked Running when the next async job is dispatched.');
-            Assert.areEqual(String.valueOf(MyPriorityAsync.class), runningItems[0].Apex__c,
-                'Expected the higher-priority job type to dispatch before lower-priority work in the same backlog.');
-            Assert.areEqual(100, runningItems[0].Priority__c,
+            Assert.areEqual(String.valueOf(MyLowPriorityAsync.class), runningItems[0].Apex__c,
+                'Expected the lowest assigned priority job type to dispatch before higher-priority work in the same backlog.');
+            Assert.areEqual(-10, runningItems[0].Priority__c,
                 'Expected the running work item to retain its seeded priority.');
         Test.stopTest();
+    }
+
+    @istest static void testQueryService_sortsPriorityAscendingAndNullsLast() {
+        Async.setMock(new AsyncMock());
+        Id threadId = Thread.currentOrCreate();
+        Id recordId = UserInfo.getUserId();
+        String apexClass = String.valueOf(MyPriorityAsync.class);
+        Async__c unassignedPriority = workItem(apexClass, recordId, 'Pending', threadId);
+        Async__c positivePriority = workItem(apexClass, recordId, 'Pending', threadId);
+        positivePriority.Priority__c = 10;
+        Async__c negativePriority = workItem(apexClass, recordId, 'Pending', threadId);
+        negativePriority.Priority__c = -10;
+        insert new List<Async__c> { unassignedPriority, positivePriority, negativePriority };
+
+        Async.QueryService queries = new Async.QueryService();
+        Async__c nextWorkItem = queries.getNextWorkItem(threadId);
+        List<Async__c> matchingWorkItems = queries.getMatchingWorkItems(threadId, apexClass, 3);
+
+        Assert.areEqual(-10, nextWorkItem.Priority__c, 'Expected the next work item query to sort assigned priorities from lowest to highest.');
+        Assert.areEqual(-10, matchingWorkItems[0].Priority__c, 'Expected matching work items to start with the lowest assigned priority.');
+        Assert.areEqual(10, matchingWorkItems[1].Priority__c, 'Expected positive assigned priorities to run after lower assigned priorities.');
+        Assert.areEqual(null, matchingWorkItems[2].Priority__c, 'Expected unassigned priority work items to sort after assigned priorities.');
     }
 
     @istest static void testSettingsService_cachesResolvedSettingsPerTransaction() {

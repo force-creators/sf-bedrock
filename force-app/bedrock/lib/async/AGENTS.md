@@ -41,13 +41,15 @@ today; inspect the code before depending on exact behavior.
   honoring `Async.settings.maxThreads()`, and calling `jobs.enqueueNextJob(...)`
   for the next batch. `AsyncThread` remains as a compatibility wrapper around
   `ThreadRunner`.
-- `JobService.enqueueNextJob()` selects the next pending work item FIFO
-  (`ORDER BY Priority__c DESC, CreatedDate ASC`), reads `Async_Job__mdt` for
+- `JobService.enqueueNextJob()` selects the next pending work item by lowest
+  assigned priority first (`ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC`),
+  reads `Async_Job__mdt` for
   the batch size (default 5), pulls a matching batch of same-Apex work items,
   instantiates the Apex job by name, and enqueues it as `Running`.
 - `WorkService.create(...)` seeds each `Async__c.Priority__c` from the job
   type's `Async_Job__mdt.Priority__c`. Missing config rows or blank priority
-  values fall back to `0`, which is the framework's lowest priority.
+  values leave work unassigned, and pending-work queries sort those null
+  priorities last.
 - `Async.JobWatcher` (a `Finalizer`) marks the batch `Done` and chains the next
   job on success. On failure it delegates to `JobService.handleFailure`, which
   reads each item's `Retry_Count__c`, compares it against the job type's
@@ -63,7 +65,7 @@ today; inspect the code before depending on exact behavior.
   same job type across a chained-job transaction issue one query.
   `QueryService.getJobConfig` delegates to it; no inline `Async_Job__mdt` SOQL
   remains in `QueryService`. When no config row exists for a job type it returns
-  a default with `Batch_Size__c = 5` and `Priority__c = 0` (the
+  a default with `Batch_Size__c = 5` and no priority assignment (the
   `SettingsService` `Default_Batch_Size__c` fallback is still roadmap).
 - `Async.SettingsService` owns the transaction-scoped cached read of the
   hierarchical `Async_Settings__c` custom setting. In this Bucket 1
@@ -90,8 +92,9 @@ This framework relies on the `Async__c` object (fields `Apex__c`,
 hierarchical custom setting `Async_Settings__c`, all under
 `force-app/bedrock/lib/async/objects`. `Retry_Count__c` (default `0`) tracks how
 many times the framework has re-run an item; `Max_Retries__c` (absent/`0` ⇒
-auto-retry off) caps framework auto-retries per job type. `Priority__c`
-defaults to `0` when absent so mixed backlogs still drain deterministically.
+auto-retry off) caps framework auto-retries per job type. `Priority__c` sorts
+from lowest assigned value to highest assigned value, with null/unassigned
+priorities last.
 
 ## Composition
 

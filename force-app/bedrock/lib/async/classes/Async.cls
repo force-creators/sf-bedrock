@@ -262,8 +262,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         Decimal getPriority(String apexClass) {
-            Decimal priority = Async.metadata.getConfig(apexClass).Priority__c;
-            return priority == null ? 0 : priority;
+            return Async.metadata.getConfig(apexClass).Priority__c;
         }
 
         Boolean shouldDefer() {
@@ -382,7 +381,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 'FROM Async__c ' +
                 'WHERE Thread__c = :threadId ' +
                     'AND Status__c = \'Pending\' ' +
-                'ORDER BY Priority__c DESC, CreatedDate ASC ' +
+                'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
                 'LIMIT 1'
             ));
             return workItems.isEmpty() ? null : workItems[0];
@@ -395,7 +394,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 'WHERE Thread__c = :threadId ' +
                     'AND Apex__c = :apexClass ' +
                     'AND Status__c = \'Pending\' ' +
-                'ORDER BY Priority__c DESC ' +
+                'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
                 'LIMIT :batchSize'
             ));
         }
@@ -435,7 +434,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 WHERE Apex__c = :apexClass
                 LIMIT 1
             ]);
-            return !configs.isEmpty() ? configs[0] : new Async_Job__mdt(Batch_Size__c = 5, Priority__c = 0);
+            return !configs.isEmpty() ? configs[0] : new Async_Job__mdt(Batch_Size__c = 5);
         }
     }
 
