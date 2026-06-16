@@ -36,8 +36,12 @@ public with sharing class ThreadMock {
         public List<Id> startedThreads = new List<Id>();
 
         public override Id create() {
+            return create(Thread.ASYNC_POOL, null);
+        }
+
+        public override Id create(String pool, String threadKey) {
             if (!mockIds) {
-                return super.create();
+                return super.create(pool, threadKey);
             }
 
             Thread__c thread = (Thread__c) new TestData(Thread__c.sObjectType)
@@ -49,7 +53,7 @@ public with sharing class ThreadMock {
         public override void continueWork(Id threadId, Integer failures) {
             continueWorkCalls++;
             lastFailures = failures;
-            Async.jobs.enqueueNextJob(threadId, failures);
+            ThreadRunner.service.dispatch(threadId, failures);
         }
 
         public override void start(Id threadId, Integer failures) {
@@ -59,7 +63,7 @@ public with sharing class ThreadMock {
 
             AsyncOptions options = new AsyncOptions();
             options.maximumQueueableStackDepth = 5;
-            System.enqueueJob(new AsyncThread(threadId, failures), options);
+            System.enqueueJob(new ThreadRunner(threadId, failures), options);
         }
 
         public override Boolean canEnqueue() {
@@ -75,7 +79,15 @@ public with sharing class ThreadMock {
             return pendingThreads.isEmpty() ? null : pendingThreads.remove(0);
         }
 
+        public override Thread__c getNextPendingThread(String pool) {
+            return getNextPendingThread();
+        }
+
         public override Integer countRunningThreads(Id userId) {
+            return runningThreadCount;
+        }
+
+        public override Integer countRunningThreads(Id userId, String pool) {
             return runningThreadCount;
         }
     }

@@ -174,6 +174,20 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
     }
 
+    public virtual with sharing class ThreadDispatcher extends ThreadRunner.Dispatcher {
+        public override void dispatch(Id threadId, Integer failures) {
+            Async.jobs.enqueueNextJob(threadId, failures);
+        }
+
+        public override Boolean hasPendingWork(Id threadId) {
+            return Async.queries.hasPendingWork(threadId);
+        }
+
+        public override Integer maxThreads() {
+            return Async.settings.maxThreads();
+        }
+    }
+
     public virtual with sharing class WorkService {
         @testVisible Map<String, Set<Id>> buffer = new Map<String, Set<Id>>();
 

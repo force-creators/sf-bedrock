@@ -36,8 +36,11 @@ today; inspect the code before depending on exact behavior.
   `TriggerHandler`). After insert it starts a thread; after update it re-enqueues
   when `AsyncFilters.shouldRetry` detects an `Error` row flipped back to
   `Pending`.
-- `AsyncThread` is a Queueable that adopts a thread id and asks
-  `jobs.enqueueNextJob()` to dispatch the next pending work for that thread.
+- `ThreadRunner` is the shared Queueable dispatcher. `Async.ThreadDispatcher`
+  adapts the shared runner to Async by checking `Async__c` pending work,
+  honoring `Async.settings.maxThreads()`, and calling `jobs.enqueueNextJob(...)`
+  for the next batch. `AsyncThread` remains as a compatibility wrapper around
+  `ThreadRunner`.
 - `JobService.enqueueNextJob()` selects the next pending work item by lowest
   assigned priority first (`ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC`),
   reads `Async_Job__mdt` for
