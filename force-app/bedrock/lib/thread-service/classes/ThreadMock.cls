@@ -1,10 +1,12 @@
 public with sharing class ThreadMock {
     public Service service;
     public QueryService queries;
+    public SettingsService settings;
 
     public ThreadMock() {
         service = new Service();
         queries = new QueryService();
+        settings = new SettingsService();
     }
 
     public ThreadMock canEnqueue() {
@@ -24,6 +26,12 @@ public with sharing class ThreadMock {
 
     public ThreadMock runningThreads(Integer count) {
         queries.runningThreadCount = count == null ? 0 : count;
+        queries.globalRunningThreadCount = queries.runningThreadCount;
+        return this;
+    }
+
+    public ThreadMock seedSettings(Thread_Settings__c settings) {
+        this.settings.setSettings(settings);
         return this;
     }
 
@@ -39,6 +47,7 @@ public with sharing class ThreadMock {
         public Integer startCalls = 0;
         public Integer lastFailures = -1;
         public List<Id> startedThreads = new List<Id>();
+        public String mockRunKey = 'mock-run-key';
 
         public override Id create() {
             return create(Thread.ASYNC_POOL, null);
@@ -71,6 +80,14 @@ public with sharing class ThreadMock {
             System.enqueueJob(new ThreadRunner(threadId, failures), options);
         }
 
+        public override String currentRunKey(Id threadId) {
+            return mockIds ? mockRunKey : super.currentRunKey(threadId);
+        }
+
+        public override Boolean isRunAuthorized(Id threadId, String runKey) {
+            return mockIds ? runKey == mockRunKey : super.isRunAuthorized(threadId, runKey);
+        }
+
         public override Boolean canEnqueue() {
             return canEnqueue;
         }
@@ -79,7 +96,9 @@ public with sharing class ThreadMock {
     public with sharing class QueryService extends Thread.QueryService {
         public List<Thread__c> pendingThreads = new List<Thread__c>();
         public Integer runningThreadCount = 0;
+        public Integer globalRunningThreadCount = 0;
         public List<Integer> runningThreadCounts = new List<Integer>();
+        public List<Thread__c> recoverableThreads = new List<Thread__c>();
 
         public override Thread__c getNextPendingThread() {
             return pendingThreads.isEmpty() ? super.getNextPendingThread() : pendingThreads.remove(0);
@@ -97,8 +116,27 @@ public with sharing class ThreadMock {
             return nextRunningThreadCount();
         }
 
+        public override Integer countRunningThreads() {
+            return globalRunningThreadCount;
+        }
+
+        public override Integer countRunningThreadsExcluding(Id excludedThreadId) {
+            return globalRunningThreadCount < 1 ? 0 : globalRunningThreadCount - 1;
+        }
+
+        public override Integer countRunningThreadsExcluding(Id userId, String pool, Id excludedThreadId) {
+            return runningThreadCount < 1 ? 0 : runningThreadCount - 1;
+        }
+
+        public override List<Thread__c> getRecoverableThreads(DateTime staleBefore, Integer batchSize) {
+            return recoverableThreads;
+        }
+
         Integer nextRunningThreadCount() {
             return runningThreadCounts.isEmpty() ? runningThreadCount : runningThreadCounts.remove(0);
         }
+    }
+
+    public with sharing class SettingsService extends Thread.SettingsService {
     }
 }

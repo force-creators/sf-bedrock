@@ -431,14 +431,15 @@ public with sharing class AsyncTest {
     @istest static void testAsyncThread_execute_passesFailureCountToNextWorkerDispatch() {
         SpyJobService jobs = new SpyJobService();
         Async.jobs = jobs;
-        Thread__c threadRecord = (Thread__c) new TestData(Thread__c.sObjectType)
-            .mockIds()
-            .build()[0];
-        Id threadId = threadRecord.Id;
+        Thread__c threadRecord = new Thread__c(
+            Status__c = Thread.RUNNING,
+            Run_Key__c = 'active-run-key'
+        );
+        insert threadRecord;
 
-        new AsyncThread(threadId, 2).execute(null);
+        new AsyncThread(threadRecord.Id, 2, 'active-run-key').execute(null);
 
-        Assert.areEqual(threadId, Thread.currentId(), 'Expected AsyncThread to adopt the provided thread id before dispatching the next worker batch.');
+        Assert.areEqual(threadRecord.Id, Thread.currentId(), 'Expected AsyncThread to adopt the provided thread id before dispatching the next worker batch.');
         Assert.areEqual(1, jobs.enqueueNextJobCalls, 'Expected AsyncThread to dispatch the next worker batch once.');
         Assert.areEqual(2, jobs.lastEnqueueFailures, 'Expected AsyncThread to forward the carried failure streak into the next worker dispatch.');
     }
@@ -463,6 +464,34 @@ public with sharing class AsyncTest {
         Async__c result = [SELECT Status__c, Retry_Count__c FROM Async__c WHERE Id = :workItem.Id];
         Assert.areEqual('Done', result.Status__c, 'Expected a manual re-queue past the cap to be honored and run to completion.');
         Assert.areEqual(5, result.Retry_Count__c, 'Expected a manual re-queue not to increment Retry_Count__c.');
+    }
+
+    @istest static void testThreadDispatcher_treatsRunningWorkAsRecoverable() {
+        Contact contact = new Contact(LastName = 'Recoverable');
+        insert contact;
+        Id threadId = Thread.currentOrCreate();
+        insert workItem(String.valueOf(MyTestAsync.class), contact.Id, 'Running', threadId);
+
+        Boolean hasRecoverableWork = new Async.ThreadDispatcher().hasRecoverableWork(threadId);
+
+        Assert.isTrue(hasRecoverableWork, 'Expected stranded Running async work to be recoverable by Thread recovery.');
+    }
+
+    @istest static void testThreadDispatcher_prepareRecoveryRependsRunningWork() {
+        Contact contact = new Contact(LastName = 'Reset');
+        insert contact;
+        Id threadId = Thread.currentOrCreate();
+        Async__c runningWork = workItem(String.valueOf(MyTestAsync.class), contact.Id, 'Running', threadId);
+        insert runningWork;
+
+        new Async.ThreadDispatcher().prepareRecovery(threadId);
+
+        Async__c recoveredWork = [
+            SELECT Status__c
+            FROM Async__c
+            WHERE Id = :runningWork.Id
+        ];
+        Assert.areEqual('Pending', recoveredWork.Status__c, 'Expected Async recovery preparation to make stranded Running work runnable again.');
     }
 
     public with sharing class CountingMetadataService extends Async.MetadataService {
@@ -522,6 +551,12 @@ public with sharing class AsyncTest {
         }
 
         public override void enqueueNextJob(Id threadId, Integer failures) {
+            this.enqueueNextJobCalls++;
+            this.lastThreadId = threadId;
+            this.lastEnqueueFailures = failures;
+        }
+
+        public override void enqueueNextJob(Id threadId, Integer failures, String runKey) {
             this.enqueueNextJobCalls++;
             this.lastThreadId = threadId;
             this.lastEnqueueFailures = failures;
