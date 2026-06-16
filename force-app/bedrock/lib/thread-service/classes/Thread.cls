@@ -110,7 +110,12 @@ public virtual with sharing class Thread {
             if (!canEnqueue() || hasEnqueued || System.isQueueable() || isFinalizer) return;
             if (!hasAvailableSlot()) return;
 
-            start(currentOrCreate(), 0);
+            currentOrCreate();
+            Id nextThreadId = claimNext(currentPool());
+            if (nextThreadId == null) return;
+
+            setCurrent(nextThreadId);
+            start(nextThreadId, 0);
             hasEnqueued = true;
         }
 

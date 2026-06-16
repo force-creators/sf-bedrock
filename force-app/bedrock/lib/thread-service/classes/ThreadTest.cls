@@ -98,15 +98,38 @@ public with sharing class ThreadTest {
     @istest static void testEnqueue_startsThreadWhenSlotIsAvailable() {
         AsyncMock mock = new AsyncMock()
             .canEnqueue()
-            .mockThreadIds()
             .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
         Async.setMock(mock);
         mock.threads.runningThreads(1);
+        Id threadId = Thread.currentOrCreate();
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = threadId, Status__c = Thread.PENDING));
 
         Thread.enqueue();
 
         Assert.areEqual(1, mock.threads.service.startCalls, 'Expected Thread.enqueue to start work when the user is below the thread cap.');
-        Assert.isNotNull(Thread.currentId(), 'Expected Thread.enqueue to create and cache a thread id before starting work.');
+        Assert.areEqual(threadId, Thread.currentId(), 'Expected Thread.enqueue to start and cache the claimed pending thread id.');
+    }
+
+    @istest static void testEnqueue_claimsOlderPendingThreadBeforeCurrentThread() {
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .seedSettings(new Async_Settings__c(Max_Threads__c = 2));
+        Async.setMock(mock);
+        mock.threads.runningThreads(1);
+        Thread__c olderPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        insert olderPendingThread;
+        Id currentThreadId = Thread.currentOrCreate();
+        mock.threads.queries.pendingThreads.add(olderPendingThread);
+
+        Thread.enqueue();
+
+        Assert.areEqual(1, mock.threads.service.startCalls, 'Expected Thread.enqueue to start one pending thread when capacity is available.');
+        Assert.areEqual(olderPendingThread.Id, mock.threads.service.startedThreads[0],
+            'Expected Thread.enqueue to start the oldest pending thread instead of the current transaction thread.');
+        Assert.areEqual(olderPendingThread.Id, Thread.currentId(),
+            'Expected Thread.enqueue to adopt the claimed backlog thread as current.');
+        Assert.areNotEqual(currentThreadId, mock.threads.service.startedThreads[0],
+            'Expected the newly-created current thread to remain pending behind older backlog.');
     }
 
     @istest static void testEnqueue_doesNotStartThreadWhenCapIsFull() {

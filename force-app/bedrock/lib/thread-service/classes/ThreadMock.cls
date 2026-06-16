@@ -76,11 +76,11 @@ public with sharing class ThreadMock {
         public Integer runningThreadCount = 0;
 
         public override Thread__c getNextPendingThread() {
-            return pendingThreads.isEmpty() ? null : pendingThreads.remove(0);
+            return pendingThreads.isEmpty() ? super.getNextPendingThread() : pendingThreads.remove(0);
         }
 
         public override Thread__c getNextPendingThread(String pool) {
-            return getNextPendingThread();
+            return pendingThreads.isEmpty() ? super.getNextPendingThread(pool) : pendingThreads.remove(0);
         }
 
         public override Integer countRunningThreads(Id userId) {
