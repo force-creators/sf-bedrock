@@ -11,9 +11,11 @@ publication, consumption, batching, retry, and stale-event policy.
 
 ## Current Status
 
-The concept fits Bedrock, but it is **not ready for implementation as Event
-Apex yet**. The main architecture is now clear enough to design the supporting
-thread/lane infrastructure first:
+The concept fits Bedrock, and the shared thread/lane foundation now exists.
+`ThreadRunner`, pool dispatchers, `Pool__c`, `Thread_Key__c`, and generated
+lane uniqueness are implemented in the Thread service. Event itself is still
+not implemented, so the next work should be a narrow build slice rather than a
+full-framework pass.
 
 - Async threads are transaction-born ordered chains.
 - Event lanes are global ordered queues that many transactions may append to.
@@ -28,8 +30,9 @@ transaction. Event uses durable global thread keys such as
 into `Thread__c` through their own pool/key strategy instead of creating a new
 lane-owner object per framework.
 
-Before writing the Event facade and handlers, the next concrete design bite is
-the shared `ThreadRunner` model on top of generalized `Thread__c` lanes.
+The remaining planning work is to choose the first Event slice and lock only
+the public API and schema needed for that slice. Treat Event as two halves over
+shared storage and lanes: reliable publication and reliable consumption.
 
 ## Design Goals
 

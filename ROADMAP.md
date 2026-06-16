@@ -28,10 +28,10 @@ concrete test needs a new seam; keep the exposed levers intentionally light.
 | Component | Roadmap | Status |
 |---|---|---|
 | Async (features + Console UI) | [`lib/async/ROADMAP.md`](force-app/bedrock/lib/async/ROADMAP.md) | Active — Retry, Priority, Performance Tracking, SettingsService, MetadataService, Job Archiving, Completed/Archive tabs |
-| Thread / Multithreading | [`lib/thread-service/ROADMAP.md`](force-app/bedrock/lib/thread-service/ROADMAP.md) | Shared infra — Async cap + handoff implemented; Event integration pending |
+| Thread / Multithreading | [`lib/thread-service/ROADMAP.md`](force-app/bedrock/lib/thread-service/ROADMAP.md) | Shared infra — ThreadRunner, Async cap, handoff, and recovery implemented; Event integration pending |
 | Limiter | [`lib/limiter/ROADMAP.md`](force-app/bedrock/lib/limiter/ROADMAP.md) | Shared infra — org-health gate |
 | Scheduler | [`lib/scheduler/ROADMAP.md`](force-app/bedrock/lib/scheduler/ROADMAP.md) | Active MVP — cadence, metadata translation, runtime state |
-| Event | [`lib/event/ROADMAP.md`](force-app/bedrock/lib/event/ROADMAP.md) | Future framework |
+| Event | [`lib/event/ROADMAP.md`](force-app/bedrock/lib/event/ROADMAP.md) | Ready for sliced planning — publication and consumption over shared lanes |
 | Selector / Selector.Cached | [`lib/selector/ROADMAP.md`](force-app/bedrock/lib/selector/ROADMAP.md) | Future, builds on `Query` / `PlatformCache` |
 
 The Async non-goals and deliberate trade-offs (terminal-failure alerting,
@@ -43,7 +43,6 @@ orphaned `Running` reaper, bulk-enqueue chunking) live with the Async roadmap.
   MetadataService, Async UI Completed tab.
 - **Implemented now:** Multithreading core for Async (cap + handoff; uses
   `Max_Threads__c` and `Thread__c`).
-- **Scheduler follow-up:** Job Archiving, Limiter resume monitor,
-  Multithreading backlog-starvation recovery.
+- **Scheduler follow-up:** Job Archiving, Limiter resume monitor.
 - **Blocked by Job Archiving:** Async UI Archive tab.
 - The owner expects to build **Scheduler MVP1** before finishing Async.

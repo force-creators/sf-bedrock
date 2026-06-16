@@ -1,9 +1,9 @@
 # Event — Roadmap
 
-A future Bedrock framework. This folder has no implemented code yet — it is
-proposed work. Cross-cutting roadmap principles and feature sequencing live in
-the repo root `ROADMAP.md`. Event should use the same `Thread__c` container as
-Async so chained work remains linear and understandable.
+A planned Bedrock framework. This folder has no implemented Event code yet —
+it is proposed work. Cross-cutting roadmap principles and feature sequencing
+live in the repo root `ROADMAP.md`. Event should use the same `Thread__c`
+container as Async so chained work remains linear and understandable.
 
 The working architecture sketch lives in `DESIGN.md`.
 
@@ -12,14 +12,17 @@ names, schemas, metadata objects, or behavior that does not exist yet.
 
 ## Event
 
-Status: future. Depends on `Limiter` (`../limiter/ROADMAP.md`) and
-the shared `Thread` / `Thread__c` service (`../thread-service/ROADMAP.md`
-— Event work is expected to stay on the current `Thread__c`). Event should keep
-the same thread lifecycle model that Async uses today: one live Queueable chain
-per thread, finalizer-based continuation, thread handoff, and configurable
-thread caps. It should **not** copy Async's dispatch policy wholesale. Event has
-its own payload model, table, ordering rules, and no priority. It is a sibling
-framework, not a subclass.
+Status: ready for sliced planning. The shared `Thread` / `Thread__c` lane
+foundation now exists (`../thread-service/ROADMAP.md`), including
+`ThreadRunner`, pool dispatchers, `Pool__c`, `Thread_Key__c`, and generated
+lane uniqueness. Event still depends on `Limiter` (`../limiter/ROADMAP.md`)
+for org-health checks before publication and processing. Event work is expected
+to stay on the current `Thread__c` when it is created from an existing thread.
+Event should keep the same thread lifecycle model that Async uses today: one
+live Queueable chain per thread, finalizer-based continuation, thread handoff,
+and configurable thread caps. It should **not** copy Async's dispatch policy
+wholesale. Event has its own payload model, table, ordering rules, and no
+priority. It is a sibling framework, not a subclass.
 
 Adopted direction: treat `Thread__c` as the shared Bedrock lane/worker
 primitive. Async is one consumer of `Thread__c`; Event and future threaded
@@ -33,15 +36,19 @@ payload itself and carries it through the work item. It should interrupt lower-
 urgency Async work on the same thread when reliable publication is needed, while
 preserving the straight-line processing model of the thread.
 
-Event solves **two halves of the same coin** — reliable publish and reliable
-consume — which is why it is separate from Async. Both halves address the same
-Platform Event pain point: silent failures and the lack of built-in retry.
+Event solves **two halves of the same coin** — reliable publication and
+reliable consumption — which is why it is separate from Async. Both halves
+address the same Platform Event pain point: silent failures and the lack of
+built-in retry. Build these halves as inspectable slices over shared
+`Event_Job__c` storage and `Thread__c` lane plumbing rather than as one broad
+framework drop.
 
 ### Current design decisions
 
-- Reuse the shared `Thread__c` lifecycle model, but introduce a neutral thread
-  runner / arbitration layer before Event is implemented. `Thread` should not
-  permanently know how to dispatch only `Async__c` work.
+- Reuse the shared `Thread__c` lifecycle model and the implemented
+  `ThreadRunner` / dispatcher extension point. Event should add its own
+  publish and consume dispatchers without putting Event-specific behavior into
+  `Thread`.
 - Event ordering is FIFO within a global lane, not within one originating
   transaction. Multiple synchronous transactions may append work to the same
   `Pool__c + Thread_Key__c` lane, but only one runner may process that lane at a

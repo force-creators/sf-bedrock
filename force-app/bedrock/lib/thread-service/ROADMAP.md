@@ -16,9 +16,8 @@ names, schemas, metadata objects, or behavior that does not exist yet.
 
 ## Multithreading — Thread-owned cap + backlog handoff
 
-Status: core cap + handoff is implemented for `Async` through `Thread__c`.
-Backlog starvation recovery is **blocked by Scheduler MVP1**
-(`../scheduler/ROADMAP.md` — the 15-minute monitor). Event integration and
+Status: core cap, handoff, generalized `ThreadRunner` dispatch, and unified
+recovery are implemented for `Async` through `Thread__c`. Event integration and
 Limiter integration remain future work.
 
 Today the framework runs effectively one logical thread per originating
@@ -56,7 +55,7 @@ accurately, and without collisions.
 
 **Behavior:**
 
-- New per-user setting `Max_Threads__c` (`Async_Settings__c`) suggests the
+- New per-user setting `Max_Threads__c` (`Thread_Settings__c`) suggests the
   concurrency cap for a user, scoped by `CreatedById` — the framework runs in
   the user's context, so no separate owner field is needed. The cap counts
   running `Thread__c` records for that user. The **recommended org default is
@@ -76,11 +75,10 @@ accurately, and without collisions.
   drains its own thread, before dying it queries `Thread__c`
   `FOR UPDATE` for a backlogged thread, claims it, and launches that chain. Live
   threads settle at `min(cap, threads available)`.
-- **Backlog starvation recovery (blocked by Scheduler MVP1):** if a
-  `Thread__c` sits in backlog longer than ~15 minutes, the scheduled
-  system monitor launches it — and as many other backlogged threads as its
-  limits allow. This is the one path that does not run in the originating user's
-  context.
+- **Backlog starvation recovery:** if a `Thread__c` sits in backlog longer
+  than the configured threshold, the scheduled recovery monitor launches it —
+  and as many other recoverable threads as its limits allow. This is the one
+  path that does not run in the originating user's context.
 - **Composes with Limiter:** a thread starts only when both a slot is
   available AND `Limiter.isSafe()`. The cap is per-user concurrency;
   Limiter is org health. (Limiter is itself blocked by Scheduler
@@ -104,6 +102,5 @@ ahead of lower-urgency Async work on that thread.
 
 - How Event work is prioritized ahead of Async work while preserving the linear
   thread model.
-- Whether the 15-minute starvation-recovery monitor is the same job as the
-  Limiter resume monitor or a sibling. **Deferred until Scheduler MVP1** —
-  the answer isn't needed before then, and could land either way.
+- Whether Event's paused-work recovery shares Thread recovery, the future
+  Limiter resume monitor, or a sibling Event-specific monitor.
