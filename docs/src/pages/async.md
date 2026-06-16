@@ -266,11 +266,16 @@ subscriber using `Async_Job__mdt`.
 | `Apex__c` | Exact name of the `Async` subclass, e.g. `RefreshAccountHealthAsync`. |
 | `Batch_Size__c` | How many work items one `execute` call receives. |
 | `Max_Retries__c` | How many times the framework auto-retries a failed item before it stays in `Error`. Blank or `0` means auto-retry is off. |
-| `Priority__c` | Higher values run first within the same framework thread. Blank values default to `0`. |
+| `Priority__c` | Assigned priorities run from lowest to highest within the same framework thread. Blank values mean no priority is assigned and sort last. |
 
 For example, a record with `Apex__c = RefreshAccountHealthAsync` and
 `Batch_Size__c = 50` makes each `execute` call receive up to 50 record Ids
 instead of 5.
+
+Priority is optional. Use lower numbers for work that should run sooner, and
+higher numbers for work that can wait. Negative values are valid and run before
+positive values. Leave `Priority__c` blank when a job should be unprioritized;
+blank priorities drain after all assigned priorities in the same thread.
 
 Choosing a batch size is a governor-limit trade-off:
 
@@ -433,7 +438,7 @@ business code.
 | `Async_Job__mdt` | `Apex__c` | Exact API name of the `Async` subclass. |
 | `Async_Job__mdt` | `Batch_Size__c` | Number of work items per `execute` call. Defaults to 5 when no record exists. |
 | `Async_Job__mdt` | `Max_Retries__c` | Cap on framework auto-retries. Blank or `0` means auto-retry is off. |
-| `Async_Job__mdt` | `Priority__c` | Higher values run first within the same backlog. Blank values default to `0`. |
+| `Async_Job__mdt` | `Priority__c` | Assigned priorities run lowest to highest within the same backlog. Blank values leave work unprioritized and sort last. |
 | `Async_Settings__c` | `Max_Threads__c` | Maximum concurrent framework-managed chains for the current user. Blank or non-positive values default to 1. |
 
 ## Notes & Edge Cases
