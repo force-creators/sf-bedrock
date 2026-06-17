@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 1280 820">
+  <title id="title">Bedrock threading overview subway map</title>
+  <desc id="desc">A subway-style overview showing Thread as the interchange between Async and Event work.</desc>
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .panel { fill: #f7f9fb; stroke: #d8dde6; stroke-width: 2; }
+      .title { fill: #032d60; font: 700 34px Inter, Arial, sans-serif; }
+      .subtitle { fill: #444b5a; font: 18px Inter, Arial, sans-serif; }
+      .label { fill: #181818; font: 700 16px Inter, Arial, sans-serif; }
+      .small { fill: #444b5a; font: 13px Inter, Arial, sans-serif; }
+      .tiny { fill: #444b5a; font: 12px Inter, Arial, sans-serif; }
+      .station { fill: #ffffff; stroke: #181818; stroke-width: 5; }
+      .terminal { fill: #ffffff; stroke-width: 5; }
+      .async { stroke: #0176d3; }
+      .publish { stroke: #2e844a; }
+      .consume { stroke: #dd7a01; }
+      .thread { stroke: #525a6a; }
+      .recovery { stroke: #7060c8; }
+      .line { fill: none; stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; }
+      .thin { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+      .cap { fill: #ffffff; stroke: #d8dde6; stroke-width: 2; }
+      .capText { fill: #032d60; font: 700 13px Inter, Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1280" height="820"/>
+  <text class="title" x="56" y="58">Bedrock Threading Model</text>
+  <text class="subtitle" x="56" y="88">Thread is the interchange: Async and Event keep their own work tables, but share lanes, runners, caps, and recovery.</text>
+
+  <rect class="panel" x="44" y="118" width="1192" height="610" rx="8"/>
+
+  <path class="line async" d="M 104 218 H 420 C 520 218 520 360 640 360 C 770 360 790 218 940 218 H 1176"/>
+  <path class="line publish" d="M 104 492 H 418 C 512 492 530 400 640 400 C 760 400 786 492 940 492 H 1176"/>
+  <path class="line consume" d="M 104 596 H 420 C 528 596 530 440 640 440 C 768 440 790 596 940 596 H 1176"/>
+  <path class="line thread" d="M 230 360 H 1078"/>
+  <path class="thin recovery" d="M 868 668 C 868 628 918 628 918 588"/>
+
+  <circle class="station" cx="144" cy="218" r="14"/>
+  <text class="label" x="90" y="178">Subscriber code</text>
+  <text class="small" x="90" y="200">record-driven intent</text>
+
+  <circle class="station" cx="364" cy="218" r="14"/>
+  <text class="label" x="300" y="166">Async.enqueue</text>
+  <text class="small" x="300" y="188">Ids only</text>
+
+  <circle class="station" cx="940" cy="218" r="14"/>
+  <text class="label" x="892" y="166">Async__c</text>
+  <text class="small" x="892" y="188">work-item status</text>
+
+  <circle class="station" cx="1140" cy="218" r="14"/>
+  <text class="label" x="1050" y="166">execute(Set&lt;Id&gt;)</text>
+  <text class="small" x="1050" y="188">subscriber batch</text>
+
+  <circle class="station" cx="144" cy="492" r="14"/>
+  <text class="label" x="90" y="454">Publication</text>
+  <text class="small" x="90" y="476">publish payload</text>
+
+  <circle class="station" cx="360" cy="492" r="14"/>
+  <text class="label" x="300" y="532">Event.publish</text>
+  <text class="small" x="300" y="554">outbound reliability</text>
+
+  <circle class="station" cx="940" cy="492" r="14"/>
+  <text class="label" x="874" y="532">Event_Job__c</text>
+  <text class="small" x="874" y="554">Publish work item</text>
+
+  <circle class="station" cx="1140" cy="492" r="14"/>
+  <text class="label" x="1050" y="532">Event.Publisher</text>
+  <text class="small" x="1050" y="554">EventBus or custom destination</text>
+
+  <circle class="station" cx="144" cy="596" r="14"/>
+  <text class="label" x="90" y="636">Consumption</text>
+  <text class="small" x="90" y="658">received payload</text>
+
+  <circle class="station" cx="360" cy="596" r="14"/>
+  <text class="label" x="300" y="636">Event.ingest</text>
+  <text class="small" x="300" y="658">inbound reliability</text>
+
+  <circle class="station" cx="940" cy="596" r="14"/>
+  <text class="label" x="874" y="636">Event_Job__c</text>
+  <text class="small" x="874" y="658">Process work item</text>
+
+  <circle class="station" cx="1140" cy="596" r="14"/>
+  <text class="label" x="1056" y="636">Event.Handler</text>
+  <text class="small" x="1056" y="658">execute(List&lt;Generic&gt;)</text>
+
+  <circle class="station" cx="300" cy="360" r="14"/>
+  <text class="label" x="236" y="334">Thread__c</text>
+  <text class="small" x="236" y="386">Pending lane</text>
+
+  <circle class="station" cx="508" cy="360" r="14"/>
+  <text class="label" x="440" y="334">Capacity gate</text>
+  <text class="small" x="440" y="386">Thread_Settings__c</text>
+
+  <circle class="station" cx="640" cy="400" r="34"/>
+  <circle class="station" cx="640" cy="400" r="18"/>
+  <text class="label" x="574" y="314">Thread interchange</text>
+  <text class="small" x="574" y="336">Pool + key + run key</text>
+
+  <circle class="station" cx="784" cy="360" r="14"/>
+  <text class="label" x="748" y="334">ThreadRunner</text>
+  <text class="small" x="748" y="386">dispatcher</text>
+
+  <circle class="station" cx="1018" cy="360" r="14"/>
+  <text class="label" x="946" y="334">Finalizer</text>
+  <text class="small" x="946" y="386">continue, handoff, or recover</text>
+
+  <circle class="station" cx="868" cy="668" r="12"/>
+  <text class="label" x="720" y="694">Recovery monitor</text>
+  <text class="small" x="720" y="716">restarts stale non-done lanes</text>
+
+  <rect class="cap" x="76" y="742" width="1128" height="42" rx="6"/>
+  <circle cx="112" cy="763" r="7" fill="#0176d3"/>
+  <text class="capText" x="130" y="768">Async line: record Id backlogs</text>
+  <circle cx="370" cy="763" r="7" fill="#2e844a"/>
+  <text class="capText" x="388" y="768">Event publication: outbound payloads</text>
+  <circle cx="684" cy="763" r="7" fill="#dd7a01"/>
+  <text class="capText" x="702" y="768">Event consumption: inbound payloads</text>
+  <circle cx="1010" cy="763" r="7" fill="#525a6a"/>
+  <text class="capText" x="1028" y="768">Shared thread line</text>
+</svg>

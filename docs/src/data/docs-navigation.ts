@@ -19,7 +19,8 @@ export const navGroups: NavGroup[] = [
     label: 'Start Here',
     items: [
       { label: 'Overview', href: '/' },
-      { label: 'Getting Started', href: '/getting-started' }
+      { label: 'Getting Started', href: '/getting-started' },
+      { label: 'Threading Model', href: '/threading-model' }
     ]
   },
   {
