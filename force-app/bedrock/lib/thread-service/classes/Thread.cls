@@ -551,15 +551,36 @@ public virtual with sharing class Thread {
 
         public virtual List<Thread__c> getRecoverableThreads(DateTime staleBefore, Integer batchSize) {
             Integer safeBatchSize = batchSize == null || batchSize < 1 ? 10 : batchSize;
-            return (List<Thread__c>) Query.records(Database.query(
-                'SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c ' +
-                'FROM Thread__c ' +
-                'WHERE Status__c != \'Done\' ' +
-                    'AND Heartbeat__c < :staleBefore ' +
-                'ORDER BY Heartbeat__c ASC ' +
-                'LIMIT :safeBatchSize ' +
-                'FOR UPDATE'
-            ));
+            List<Thread__c> candidates = (List<Thread__c>) Query.records([
+                SELECT Id
+                FROM Thread__c
+                WHERE Status__c != 'Done'
+                    AND Heartbeat__c < :staleBefore
+                ORDER BY Heartbeat__c ASC
+                LIMIT :safeBatchSize
+            ]);
+            if (candidates.isEmpty()) return new List<Thread__c>();
+
+            List<Id> candidateIds = new List<Id>();
+            for (Thread__c candidate : candidates) {
+                candidateIds.add(candidate.Id);
+            }
+
+            Map<Id, Thread__c> lockedThreadsById = new Map<Id, Thread__c>((List<Thread__c>) Query.records([
+                SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c
+                FROM Thread__c
+                WHERE Id IN :candidateIds
+                    AND Status__c != 'Done'
+                    AND Heartbeat__c < :staleBefore
+                FOR UPDATE
+            ]));
+            List<Thread__c> lockedThreads = new List<Thread__c>();
+            for (Id candidateId : candidateIds) {
+                if (lockedThreadsById.containsKey(candidateId)) {
+                    lockedThreads.add(lockedThreadsById.get(candidateId));
+                }
+            }
+            return lockedThreads;
         }
 
         public virtual Set<Id> getThreadIdsWithAsyncWork(Set<Id> threadIds) {

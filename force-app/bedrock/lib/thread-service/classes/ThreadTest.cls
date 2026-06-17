@@ -328,6 +328,26 @@ public with sharing class ThreadTest {
         Assert.isTrue(settings.recoveryEnabled(), 'Expected Thread recovery to default on.');
     }
 
+    @istest static void testQueryService_getRecoverableThreadsLocksOrderedCandidates() {
+        DateTime now = System.now();
+        Thread__c doneThread = staleThread('done');
+        doneThread.Status__c = Thread.DONE;
+        doneThread.Heartbeat__c = now.addMinutes(-40);
+        Thread__c oldestThread = staleThread('oldest');
+        oldestThread.Heartbeat__c = now.addMinutes(-30);
+        Thread__c newerThread = staleThread('newer');
+        newerThread.Heartbeat__c = now.addMinutes(-20);
+        Thread__c extraThread = staleThread('extra');
+        extraThread.Heartbeat__c = now.addMinutes(-10);
+        insert new List<Thread__c> { doneThread, newerThread, oldestThread, extraThread };
+
+        List<Thread__c> recoverableThreads = new Thread.QueryService().getRecoverableThreads(now.addMinutes(-5), 2);
+
+        Assert.areEqual(2, recoverableThreads.size(), 'Expected recovery to lock only the configured number of stale active threads.');
+        Assert.areEqual(oldestThread.Id, recoverableThreads[0].Id, 'Expected recovery to preserve oldest heartbeat ordering after locking.');
+        Assert.areEqual(newerThread.Id, recoverableThreads[1].Id, 'Expected recovery to return the next-oldest stale thread after locking.');
+    }
+
     @istest static void testCreate_stampsInitialHeartbeat() {
         Thread.setMock(new ThreadMock());
 
