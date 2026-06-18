@@ -132,7 +132,7 @@ public virtual with sharing class Thread {
             Integer spawnCount = availableSpawnCount();
             if (spawnCount < 1) return;
 
-            currentOrCreate();
+            if (currentId() == null) currentOrCreate();
             String pool = currentPool();
             for (Integer i = 0; i < spawnCount; i++) {
                 Id nextThreadId = claimNext(pool);

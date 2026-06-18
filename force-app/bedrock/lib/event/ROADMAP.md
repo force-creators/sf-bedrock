@@ -287,7 +287,6 @@ picklist small.
 | `Payload_Type__c` | Text(255) | SObject API name or generic discriminator value. |
 | `Discriminator_Path__c` | Text(255) | JSON path used to route generic payloads. |
 | `Batch_Size__c` | Number | Events processed per Queueable run. |
-| `Batch_Mode__c` | Picklist | `StrictContiguous` by default; optional `UnorderedSameHandler`. |
 | `Max_Age_Minutes__c` | Number | Optional TTL for stale detection. |
 
 ### Open / not-yet-locked

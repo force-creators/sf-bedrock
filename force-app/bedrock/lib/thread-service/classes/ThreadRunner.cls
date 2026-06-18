@@ -85,6 +85,9 @@ public virtual with sharing class ThreadRunner implements Queueable {
             if (normalizedPool == Thread.ASYNC_POOL) {
                 return new Async.ThreadDispatcher();
             }
+            if (normalizedPool == EventRelay.PUBLISH_POOL) {
+                return new EventRelay.ThreadDispatcher();
+            }
             throw new ThreadRunnerException('No ThreadRunner dispatcher is registered for pool ' + normalizedPool + '.');
         }
     }
