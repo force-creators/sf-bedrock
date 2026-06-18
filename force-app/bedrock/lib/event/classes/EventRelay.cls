@@ -1,5 +1,7 @@
 public virtual with sharing class EventRelay {
     public static final String PUBLISH_POOL = 'EventRelayPublish';
+    public static final String PLATFORM_EVENT_PUBLISHER = PlatformEventPublisher.class.getName();
+    public static final String GENERIC_PAYLOAD = 'Generic';
     public static final String PUBLISH = 'Publish';
     public static final String PENDING = 'Pending';
     public static final String RUNNING = 'Running';
@@ -11,21 +13,41 @@ public virtual with sharing class EventRelay {
     public static WorkService work = new WorkService();
     public static QueryService queries = new QueryService();
     public static PayloadService payloads = new PayloadService();
-    public static Publisher publisher = new PlatformEventPublisher();
+    public static PublisherService publishers = new PublisherService();
+    public static RouteService routes = new RouteService();
     public static SettingsService settings = new SettingsService();
+    public static WakeService wakeSignal = new WakeService();
 
     @testVisible static void reset() {
         jobs = new JobService();
         work = new WorkService();
         queries = new QueryService();
         payloads = new PayloadService();
-        publisher = new PlatformEventPublisher();
+        publishers = new PublisherService();
+        routes = new RouteService();
         settings = new SettingsService();
+        wakeSignal = new WakeService();
         Thread.reset();
     }
 
     public static List<Id> publish(List<SObject> events) {
         return work.create(events);
+    }
+
+    public static List<Id> publish(List<SObject> events, Type publisherType) {
+        return work.create(events, publisherType);
+    }
+
+    public static List<Id> publish(List<Generic> payloads) {
+        return work.create(payloads);
+    }
+
+    public static List<Id> publish(String json) {
+        return work.create(EventRelay.payloads.fromJson(json));
+    }
+
+    public static void wake() {
+        Thread.wake(PUBLISH_POOL);
     }
 
     public static void stage(List<SObject> events) {
@@ -54,36 +76,89 @@ public virtual with sharing class EventRelay {
         }
 
         public virtual List<Id> create(List<SObject> events) {
-            List<Event__c> workItems = newWorkItems(events);
+            List<Event__c> workItems = newWorkItems(events, null);
+            return create(workItems);
+        }
+
+        public virtual List<Id> create(List<SObject> events, Type publisherType) {
+            List<Event__c> workItems = newWorkItems(events, publisherType);
+            return create(workItems);
+        }
+
+        public virtual List<Id> create(List<Generic> genericPayloads) {
+            List<Event__c> workItems = newWorkItems(genericPayloads);
+            return create(workItems);
+        }
+
+        public virtual List<Id> create(List<Event__c> workItems) {
             if (workItems.isEmpty()) return new List<Id>();
 
             DML.insertRecords(workItems);
+            Thread.reopen(threadIdsFrom(workItems));
             jobs.enqueue(workItems);
             return idsFrom(workItems);
         }
 
-        public virtual List<Event__c> newWorkItems(List<SObject> events) {
+        public virtual List<Event__c> newWorkItems(List<SObject> events, Type publisherType) {
             List<Event__c> workItems = new List<Event__c>();
             if (events == null || events.isEmpty()) return workItems;
 
             Integer order = 0;
             for (SObject eventRecord : events) {
                 String eventType = eventType(eventRecord);
-                Id threadId = Thread.currentOrCreate(PUBLISH_POOL, eventType);
-                Event__c workItem = new Event__c(
-                    Apex__c = 'EventRelay.PlatformEventPublisher',
-                    Job_Type__c = PUBLISH,
-                    Status__c = PENDING,
-                    Route__c = eventType,
-                    Payload_Type__c = eventType,
-                    Thread__c = threadId,
-                    Thread_Key__c = eventType,
-                    Order__c = order,
-                    Retry_Count__c = 0
-                );
-                payloads.write(workItem, payloads.serialize(eventRecord));
-                workItems.add(workItem);
-                order++;
+                for (Route route : sObjectRoutes(eventType, publisherType)) {
+                    Id threadId = Thread.currentOrCreate(PUBLISH_POOL, route.threadKey);
+                    Event__c workItem = new Event__c(
+                        Apex__c = route.publisherClass,
+                        Job_Type__c = PUBLISH,
+                        Status__c = PENDING,
+                        Route__c = route.route,
+                        Payload_Type__c = route.payloadType,
+                        Thread__c = threadId,
+                        Thread_Key__c = route.threadKey,
+                        Order__c = order,
+                        Retry_Count__c = 0
+                    );
+                    payloads.write(workItem, payloads.serialize(eventRecord));
+                    workItems.add(workItem);
+                    order++;
+                }
+            }
+            return workItems;
+        }
+
+        public virtual List<Event__c> newWorkItems(List<Generic> genericPayloads) {
+            List<Event__c> workItems = new List<Event__c>();
+            if (genericPayloads == null || genericPayloads.isEmpty()) return workItems;
+
+            Integer order = 0;
+            for (Generic payload : genericPayloads) {
+                if (payload == null) {
+                    throw new EventRelayException('EventRelay.publish requires non-null generic payloads.');
+                }
+
+                List<Route> resolvedRoutes = routes.forGeneric(payload);
+                if (resolvedRoutes == null || resolvedRoutes.isEmpty()) {
+                    throw new EventRelayException('EventRelay.publish requires route metadata for generic payloads.');
+                }
+
+                for (Route route : resolvedRoutes) {
+                    Id threadId = Thread.currentOrCreate(PUBLISH_POOL, route.threadKey);
+                    Event__c workItem = new Event__c(
+                        Apex__c = route.publisherClass,
+                        Job_Type__c = PUBLISH,
+                        Status__c = PENDING,
+                        Route__c = route.route,
+                        Payload_Type__c = GENERIC_PAYLOAD,
+                        Thread__c = threadId,
+                        Thread_Key__c = route.threadKey,
+                        Order__c = order,
+                        Retry_Count__c = 0
+                    );
+                    payloads.write(workItem, payload.json());
+                    workItems.add(workItem);
+                    order++;
+                }
             }
             return workItems;
         }
@@ -152,6 +227,14 @@ public virtual with sharing class EventRelay {
             return ids;
         }
 
+        Set<Id> threadIdsFrom(List<Event__c> workItems) {
+            Set<Id> threadIds = new Set<Id>();
+            for (Event__c workItem : workItems) {
+                if (workItem.Thread__c != null) threadIds.add(workItem.Thread__c);
+            }
+            return threadIds;
+        }
+
         String eventType(SObject eventRecord) {
             if (eventRecord == null) {
                 throw new EventRelayException('EventRelay.publish requires platform event records.');
@@ -162,6 +245,27 @@ public virtual with sharing class EventRelay {
                 throw new EventRelayException('EventRelay.publish only accepts platform event SObjects.');
             }
             return eventType;
+        }
+
+        String publisherClass(Type publisherType) {
+            if (publisherType == null) {
+                throw new EventRelayException('EventRelay.publish requires a publisher class for custom publishers.');
+            }
+            return publisherType.getName();
+        }
+
+        List<Route> sObjectRoutes(String eventType, Type publisherType) {
+            if (publisherType != null) {
+                String route = eventType + ':' + publisherType.getName();
+                return new List<Route> {
+                    new Route(route, publisherClass(publisherType), eventType, routeThreadKey(PUBLISH, eventType, route))
+                };
+            }
+
+            List<Route> resolvedRoutes = routes.forSObject(eventType);
+            return resolvedRoutes == null || resolvedRoutes.isEmpty()
+                ? new List<Route> { defaultPlatformEventRoute(eventType) }
+                : resolvedRoutes;
         }
 
         String truncate(String value) {
@@ -175,10 +279,9 @@ public virtual with sharing class EventRelay {
         @testVisible PublishWatcher watcher;
 
         public virtual void enqueue(List<Event__c> workItems) {
-            if (Thread.currentId() == null && workItems != null && !workItems.isEmpty()) {
-                Thread.setCurrent(workItems[0].Thread__c);
-            }
-            Thread.enqueue();
+            if (workItems == null || workItems.isEmpty()) return;
+
+            wakeSignal.signal();
         }
 
         public virtual void enqueueNextPublishJob(Id threadId, Integer failures) {
@@ -186,25 +289,25 @@ public virtual with sharing class EventRelay {
         }
 
         public virtual void enqueueNextPublishJob(Id threadId, Integer failures, String runKey) {
-            if (!Limiter.isSafe(Limiter.types.DAILY_STANDARD_VOLUME_PLATFORM_EVENTS, settings.limitThresholdPct())) {
-                work.pause(queries.getPendingWorkItemIds(threadId, settings.batchSize()),
-                    'Platform Event publication limit is not safe.');
-                Thread.continueCurrent(failures, runKey);
-                return;
-            }
-
             List<Event__c> workItems = queries.getPendingWorkItems(threadId, settings.batchSize());
             if (workItems.isEmpty()) {
                 Thread.continueCurrent(failures, runKey);
                 return;
             }
 
-            Set<Id> workItemIds = idsFrom(workItems);
-            work.running(workItemIds);
+            List<Id> workItemIds = idsFrom(workItems);
+            if (publishers.requiresPlatformEventLimit(workItems)
+                && !Limiter.isSafe(Limiter.types.DAILY_STANDARD_VOLUME_PLATFORM_EVENTS, settings.limitThresholdPct())) {
+                work.pause(new Set<Id>(workItemIds), 'Platform Event publication limit is not safe.');
+                Thread.continueCurrent(failures, runKey);
+                return;
+            }
+
+            work.running(new Set<Id>(workItemIds));
             new PublishJob(threadId, workItemIds, failures, runKey).enqueue();
         }
 
-        public virtual PublishWatcher watch(Id threadId, Set<Id> workItemIds, Integer failures, String runKey) {
+        public virtual PublishWatcher watch(Id threadId, List<Id> workItemIds, Integer failures, String runKey) {
             watcher = new PublishWatcher(threadId, workItemIds, failures, runKey);
             return watcher;
         }
@@ -213,8 +316,8 @@ public virtual with sharing class EventRelay {
             System.attachFinalizer(finalizer);
         }
 
-        Set<Id> idsFrom(List<Event__c> workItems) {
-            Set<Id> ids = new Set<Id>();
+        List<Id> idsFrom(List<Event__c> workItems) {
+            List<Id> ids = new List<Id>();
             for (Event__c workItem : workItems) ids.add(workItem.Id);
             return ids;
         }
@@ -223,8 +326,9 @@ public virtual with sharing class EventRelay {
     public virtual with sharing class QueryService {
         public virtual List<Event__c> getPendingWorkItems(Id threadId, Integer batchSize) {
             Integer safeBatchSize = batchSize == null || batchSize < 1 ? settings.batchSize() : batchSize;
-            return (List<Event__c>) Query.records(Database.query(
+            List<Event__c> workItems = (List<Event__c>) Query.records(Database.query(
                 'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
+                    ', Apex__c, Route__c ' +
                 'FROM Event__c ' +
                 'WHERE Thread__c = :threadId ' +
                     'AND Job_Type__c = \'Publish\' ' +
@@ -232,6 +336,7 @@ public virtual with sharing class EventRelay {
                 'ORDER BY CreatedDate ASC, Order__c ASC, Name ASC ' +
                 'LIMIT :safeBatchSize'
             ));
+            return strictContiguous(workItems);
         }
 
         public virtual Boolean hasPendingWork(Id threadId) {
@@ -262,14 +367,40 @@ public virtual with sharing class EventRelay {
             return workItemIds;
         }
 
-        public virtual List<Event__c> getWorkItemsById(Set<Id> workItemIds) {
+        public virtual List<Event__c> getWorkItemsById(List<Id> workItemIds) {
             if (workItemIds == null || workItemIds.isEmpty()) return new List<Event__c>();
 
-            return (List<Event__c>) Query.records([
-                SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c
+            Map<Id, Event__c> workItemsById = new Map<Id, Event__c>((List<Event__c>) Query.records([
+                SELECT Id, Apex__c, Route__c, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c
                 FROM Event__c
                 WHERE Id IN :workItemIds
-            ]);
+            ]));
+
+            List<Event__c> orderedWorkItems = new List<Event__c>();
+            for (Id workItemId : workItemIds) {
+                if (workItemsById.containsKey(workItemId)) orderedWorkItems.add(workItemsById.get(workItemId));
+            }
+            return orderedWorkItems;
+        }
+
+        public virtual List<Event__c> getWorkItemsById(Set<Id> workItemIds) {
+            return getWorkItemsById(new List<Id>(workItemIds));
+        }
+
+        List<Event__c> strictContiguous(List<Event__c> workItems) {
+            List<Event__c> batch = new List<Event__c>();
+            if (workItems == null || workItems.isEmpty()) return batch;
+
+            Event__c head = workItems[0];
+            for (Event__c workItem : workItems) {
+                if (workItem.Apex__c != head.Apex__c
+                    || workItem.Route__c != head.Route__c
+                    || workItem.Payload_Type__c != head.Payload_Type__c) {
+                    break;
+                }
+                batch.add(workItem);
+            }
+            return batch;
         }
     }
 
@@ -286,14 +417,54 @@ public virtual with sharing class EventRelay {
             return events;
         }
 
+        public virtual List<PublishPayload> toPublishPayloads(List<Event__c> workItems) {
+            List<PublishPayload> publishPayloads = new List<PublishPayload>();
+            if (workItems == null) return publishPayloads;
+
+            for (Event__c workItem : workItems) {
+                publishPayloads.add(new PublishPayload(
+                    workItem.Id,
+                    workItem.Route__c,
+                    workItem.Payload_Type__c,
+                    toGeneric(workItem)
+                ));
+            }
+            return publishPayloads;
+        }
+
+        public virtual List<SObject> toPlatformEvents(List<PublishPayload> publishPayloads) {
+            List<SObject> events = new List<SObject>();
+            if (publishPayloads == null) return events;
+
+            for (PublishPayload publishPayload : publishPayloads) events.add(toSObject(publishPayload));
+            return events;
+        }
+
+        public virtual List<Generic> toGenericList(List<PublishPayload> publishPayloads) {
+            List<Generic> records = new List<Generic>();
+            if (publishPayloads == null) return records;
+
+            for (PublishPayload publishPayload : publishPayloads) records.add(publishPayload.payload);
+            return records;
+        }
+
         public virtual SObject toSObject(Event__c workItem) {
-            Schema.SObjectType sObjectType = Schema.getGlobalDescribe().get(workItem.Payload_Type__c);
+            return toSObject(new PublishPayload(
+                workItem.Id,
+                workItem.Route__c,
+                workItem.Payload_Type__c,
+                toGeneric(workItem)
+            ));
+        }
+
+        public virtual SObject toSObject(PublishPayload publishPayload) {
+            Schema.SObjectType sObjectType = Schema.getGlobalDescribe().get(publishPayload.payloadType);
             if (sObjectType == null) {
-                throw new EventRelayException('Unknown platform event type ' + workItem.Payload_Type__c + '.');
+                throw new EventRelayException('Unknown platform event type ' + publishPayload.payloadType + '.');
             }
 
             SObject eventRecord = sObjectType.newSObject();
-            Map<String, Object> values = (Map<String, Object>) JSON.deserializeUntyped(read(workItem));
+            Map<String, Object> values = publishPayload.payload.generic();
             Map<String, Schema.SObjectField> fields = sObjectType.getDescribe().fields.getMap();
             for (String fieldName : values.keySet()) {
                 if (fields.containsKey(fieldName)) {
@@ -301,6 +472,30 @@ public virtual with sharing class EventRelay {
                 }
             }
             return eventRecord;
+        }
+
+        public virtual Generic toGeneric(Event__c workItem) {
+            return new Generic(read(workItem));
+        }
+
+        public virtual List<Generic> fromJson(String serializedPayload) {
+            List<Generic> genericPayloads = new List<Generic>();
+            if (String.isBlank(serializedPayload)) return genericPayloads;
+
+            Object value = JSON.deserializeUntyped(serializedPayload);
+            if (value instanceof Map<String, Object>) {
+                genericPayloads.add(new Generic((Map<String, Object>) value));
+                return genericPayloads;
+            }
+
+            if (value instanceof List<Object>) {
+                for (Object item : (List<Object>) value) {
+                    genericPayloads.add(new Generic((Map<String, Object>) item));
+                }
+                return genericPayloads;
+            }
+
+            throw new EventRelayException('EventRelay.publish JSON must be an object or a list of objects.');
         }
 
         public virtual void write(Event__c workItem, String payload) {
@@ -340,15 +535,84 @@ public virtual with sharing class EventRelay {
     }
 
     public virtual with sharing class Publisher {
-        public virtual List<PublishResult> publish(List<SObject> events) {
-            return new List<PublishResult>();
+        List<PublishResult> results = new List<PublishResult>();
+        List<SObject> currentSObjectRecords = new List<SObject>();
+        List<Generic> currentGenericRecords = new List<Generic>();
+
+        public virtual List<PublishResult> publish(List<PublishPayload> publishPayloads) {
+            try {
+                results = successResults(publishPayloads);
+                if (isGeneric(publishPayloads)) {
+                    currentGenericRecords = payloads.toGenericList(publishPayloads);
+                    execute(currentGenericRecords);
+                } else {
+                    currentSObjectRecords = payloads.toPlatformEvents(publishPayloads);
+                    execute(currentSObjectRecords);
+                }
+                return new List<PublishResult>(results);
+            } finally {
+                results = new List<PublishResult>();
+                currentSObjectRecords = new List<SObject>();
+                currentGenericRecords = new List<Generic>();
+            }
+        }
+
+        public virtual void execute(List<SObject> records) {
+            throw new EventRelayException('Publisher does not support SObject payloads.');
+        }
+
+        public virtual void execute(List<Generic> records) {
+            throw new EventRelayException('Publisher does not support generic payloads.');
+        }
+
+        public void succeed(SObject record) {
+            mark(indexOf(record), true, null);
+        }
+
+        public void succeed(Generic record) {
+            mark(indexOf(record), true, null);
+        }
+
+        public void fail(SObject record, String message) {
+            mark(indexOf(record), false, message);
+        }
+
+        public void fail(Generic record, String message) {
+            mark(indexOf(record), false, message);
+        }
+
+        void mark(Integer index, Boolean success, String message) {
+            if (index == null || index < 0 || index >= results.size()) {
+                throw new EventRelayException('Publisher result item is not part of the current batch.');
+            }
+            results[index] = new PublishResult(success, message);
+        }
+
+        Integer indexOf(SObject record) {
+            for (Integer i = 0; i < currentSObjectRecords.size(); i++) {
+                if (currentSObjectRecords[i] == record) return i;
+            }
+            throw new EventRelayException('SObject publisher result item is not part of the current batch.');
+        }
+
+        Integer indexOf(Generic record) {
+            for (Integer i = 0; i < currentGenericRecords.size(); i++) {
+                if (currentGenericRecords[i] == record) return i;
+            }
+            throw new EventRelayException('Generic publisher result item is not part of the current batch.');
+        }
+
+        Boolean isGeneric(List<PublishPayload> publishPayloads) {
+            return publishPayloads != null
+                && !publishPayloads.isEmpty()
+                && publishPayloads[0].payloadType == GENERIC_PAYLOAD;
         }
     }
 
     public virtual with sharing class PlatformEventPublisher extends Publisher {
-        public override List<PublishResult> publish(List<SObject> events) {
+        public override List<PublishResult> publish(List<PublishPayload> publishPayloads) {
             List<PublishResult> results = new List<PublishResult>();
-            for (Database.SaveResult saveResult : EventBus.publish(events)) {
+            for (Database.SaveResult saveResult : EventBus.publish(payloads.toPlatformEvents(publishPayloads))) {
                 results.add(toResult(saveResult));
             }
             return results;
@@ -361,6 +625,118 @@ public virtual with sharing class EventRelay {
             List<String> messages = new List<String>();
             for (Database.Error error : saveResult.getErrors()) messages.add(error.getMessage());
             return new PublishResult(false, String.join(messages, '; '));
+        }
+    }
+
+    public virtual with sharing class PublisherService {
+        public virtual Publisher forWorkItems(List<Event__c> workItems) {
+            if (workItems == null || workItems.isEmpty()) return new Publisher();
+
+            String publisherClass = workItems[0].Apex__c;
+            for (Event__c workItem : workItems) {
+                if (workItem.Apex__c != publisherClass) {
+                    throw new EventRelayException('A publish batch can only contain one publisher class.');
+                }
+            }
+            return forClass(publisherClass);
+        }
+
+        public virtual Boolean requiresPlatformEventLimit(List<Event__c> workItems) {
+            if (workItems == null || workItems.isEmpty()) return false;
+
+            String publisherClass = workItems[0].Apex__c;
+            return String.isBlank(publisherClass) || publisherClass == PLATFORM_EVENT_PUBLISHER;
+        }
+
+        public virtual Publisher forClass(String publisherClass) {
+            String safePublisherClass = String.isBlank(publisherClass)
+                ? PLATFORM_EVENT_PUBLISHER
+                : publisherClass.trim();
+            if (safePublisherClass == PLATFORM_EVENT_PUBLISHER) {
+                return new PlatformEventPublisher();
+            }
+
+            Type publisherType = Type.forName(safePublisherClass);
+            if (publisherType == null) {
+                throw new EventRelayException('Unknown EventRelay publisher class ' + safePublisherClass + '.');
+            }
+
+            Object publisherInstance = publisherType.newInstance();
+            if (!(publisherInstance instanceof Publisher)) {
+                throw new EventRelayException(safePublisherClass + ' must extend EventRelay.Publisher.');
+            }
+            return (Publisher) publisherInstance;
+        }
+    }
+
+    public virtual with sharing class RouteService {
+        public virtual List<Route> forSObject(String payloadType) {
+            return new List<Route>();
+        }
+
+        public virtual List<Route> forGeneric(Generic payload) {
+            return new List<Route>();
+        }
+    }
+
+    public virtual with sharing class WakeService {
+        public virtual void signal() {
+            EventBus.publish(new EventRelay_Wake__e());
+        }
+    }
+
+    public with sharing class Route {
+        public String route;
+        public String publisherClass;
+        public String payloadType;
+        public String threadKey;
+
+        public Route(String route, String publisherClass, String payloadType, String threadKey) {
+            this.route = route;
+            this.publisherClass = publisherClass;
+            this.payloadType = payloadType;
+            this.threadKey = threadKey;
+        }
+    }
+
+    static Route defaultPlatformEventRoute(String payloadType) {
+        return new Route(
+            payloadType,
+            PLATFORM_EVENT_PUBLISHER,
+            payloadType,
+            routeThreadKey(PUBLISH, payloadType, payloadType)
+        );
+    }
+
+    static String routeThreadKey(String jobType, String payloadType, String route) {
+        return String.join(new List<String> {
+            String.isBlank(jobType) ? PUBLISH : jobType.trim(),
+            String.isBlank(payloadType) ? GENERIC_PAYLOAD : payloadType.trim(),
+            String.isBlank(route) ? 'Default' : route.trim()
+        }, ':');
+    }
+
+    static List<PublishResult> successResults(List<PublishPayload> publishPayloads) {
+        List<PublishResult> results = new List<PublishResult>();
+        if (publishPayloads == null) return results;
+
+        for (PublishPayload publishPayload : publishPayloads) {
+            results.add(new PublishResult(true, null));
+        }
+        return results;
+    }
+
+    public with sharing class PublishPayload {
+        public Id workItemId;
+        public String route;
+        public String payloadType;
+        public Generic payload;
+
+        public PublishPayload(Id workItemId, String route, String payloadType, Generic payload) {
+            this.workItemId = workItemId;
+            this.route = route;
+            this.payloadType = payloadType;
+            this.payload = payload;
         }
     }
 
@@ -377,12 +753,12 @@ public virtual with sharing class EventRelay {
     public with sharing class PublishJob implements Queueable {
         Id threadId;
         Integer failures;
-        Set<Id> workItemIds;
+        List<Id> workItemIds;
         String runKey;
 
-        public PublishJob(Id threadId, Set<Id> workItemIds, Integer failures, String runKey) {
+        public PublishJob(Id threadId, List<Id> workItemIds, Integer failures, String runKey) {
             this.threadId = threadId;
-            this.workItemIds = workItemIds == null ? new Set<Id>() : workItemIds;
+            this.workItemIds = workItemIds == null ? new List<Id>() : workItemIds;
             this.failures = failures == null ? 0 : failures;
             this.runKey = runKey;
         }
@@ -396,7 +772,7 @@ public virtual with sharing class EventRelay {
             jobs.attachFinalizer(jobs.watch(threadId, workItemIds, failures, runKey));
 
             List<Event__c> workItems = queries.getWorkItemsById(workItemIds);
-            work.applyResults(workItems, publisher.publish(payloads.toSObjects(workItems)));
+            work.applyResults(workItems, publishers.forWorkItems(workItems).publish(payloads.toPublishPayloads(workItems)));
         }
     }
 
@@ -406,9 +782,9 @@ public virtual with sharing class EventRelay {
         Set<Id> workItemIds;
         String runKey;
 
-        public PublishWatcher(Id threadId, Set<Id> workItemIds, Integer failures, String runKey) {
+        public PublishWatcher(Id threadId, List<Id> workItemIds, Integer failures, String runKey) {
             this.threadId = threadId;
-            this.workItemIds = workItemIds == null ? new Set<Id>() : workItemIds;
+            this.workItemIds = workItemIds == null ? new Set<Id>() : new Set<Id>(workItemIds);
             this.failures = failures == null ? 0 : failures;
             this.runKey = runKey;
         }

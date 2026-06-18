@@ -44,6 +44,48 @@ public with sharing class ThreadRunnerTest {
         Assert.areEqual(threadRecord.Id, dispatcher.lastThreadId, 'Expected ThreadRunner to pass the thread id to the pending-work check.');
     }
 
+    @istest static void testDispatch_eventPoolPrioritizesEventWorkBeforeAsyncWork() {
+        Thread__c threadRecord = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        insert threadRecord;
+        SpyDispatcher eventDispatcher = new SpyDispatcher();
+        eventDispatcher.hasPendingWork = true;
+        SpyDispatcher asyncDispatcher = new SpyDispatcher();
+        asyncDispatcher.hasPendingWork = true;
+        ThreadRunner.Service runner = new ThreadRunner.Service();
+        runner.register(EventRelay.PUBLISH_POOL, eventDispatcher);
+        runner.register(Thread.ASYNC_POOL, asyncDispatcher);
+        ThreadRunner.setMock(runner);
+
+        ThreadRunner.service.dispatch(threadRecord.Id, 0, 'active-run-key');
+
+        Assert.areEqual(1, eventDispatcher.dispatchCalls,
+            'Expected EventRelay work to run before same-thread Async work.');
+        Assert.areEqual(0, asyncDispatcher.dispatchCalls,
+            'Expected same-thread Async work to wait while EventRelay work remains.');
+    }
+
+    @istest static void testDispatch_eventPoolFallsBackToSameThreadAsyncWork() {
+        Thread__c threadRecord = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        insert threadRecord;
+        SpyDispatcher eventDispatcher = new SpyDispatcher();
+        eventDispatcher.hasPendingWork = false;
+        SpyDispatcher asyncDispatcher = new SpyDispatcher();
+        asyncDispatcher.hasPendingWork = true;
+        ThreadRunner.Service runner = new ThreadRunner.Service();
+        runner.register(EventRelay.PUBLISH_POOL, eventDispatcher);
+        runner.register(Thread.ASYNC_POOL, asyncDispatcher);
+        ThreadRunner.setMock(runner);
+
+        ThreadRunner.service.dispatch(threadRecord.Id, 0, 'active-run-key');
+
+        Assert.areEqual(0, eventDispatcher.dispatchCalls,
+            'Expected EventRelay dispatch to stop when the event lane has no pending work.');
+        Assert.areEqual(1, asyncDispatcher.dispatchCalls,
+            'Expected same-thread Async work to run after EventRelay work drains.');
+        Assert.areEqual(threadRecord.Id, asyncDispatcher.lastThreadId,
+            'Expected the Async dispatcher to receive the original EventRelay thread id.');
+    }
+
     public with sharing class SpyDispatcher extends ThreadRunner.Dispatcher {
         public Boolean hasPendingWork = false;
         public Integer dispatchCalls = 0;
@@ -60,5 +102,15 @@ public with sharing class ThreadRunnerTest {
             this.lastThreadId = threadId;
             return this.hasPendingWork;
         }
+    }
+
+    static Thread__c thread(String pool, String threadKey) {
+        return new Thread__c(
+            Status__c = Thread.RUNNING,
+            Pool__c = pool,
+            Thread_Key__c = threadKey,
+            Unique_Key__c = EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(pool + ':' + threadKey))),
+            Run_Key__c = 'active-run-key'
+        );
     }
 }

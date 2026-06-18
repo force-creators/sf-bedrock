@@ -5,6 +5,8 @@ private class EventRelayTest {
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
         Thread.setMock(new ThreadMock().mockIds());
+        MockWakeService wakeSignal = new MockWakeService();
+        EventRelay.wakeSignal = wakeSignal;
 
         EventRelay.publish(new List<SObject> {
             new Bedrock_Test_Event__e(Message__c = 'created')
@@ -21,10 +23,160 @@ private class EventRelayTest {
             'New EventRelay work should start as pending.');
         Assert.areEqual('Bedrock_Test_Event__e', workItem.Payload_Type__c,
             'The payload type should preserve the platform event API name.');
-        Assert.areEqual('Bedrock_Test_Event__e', workItem.Thread_Key__c,
-            'The publish lane should be keyed by platform event type.');
+        Assert.areEqual('Publish:Bedrock_Test_Event__e:Bedrock_Test_Event__e', workItem.Thread_Key__c,
+            'The publish lane should be keyed by job type, event type, and route.');
         Assert.isTrue(workItem.Payload1__c.contains('created'),
             'The serialized payload should carry populated platform event fields.');
+        Assert.areEqual(1, wakeSignal.signalCalls,
+            'Persisting EventRelay publish work should signal the wake event instead of directly starting work.');
+    }
+
+    @istest static void publish_sObjectPublisherType_createsDurablePublishWork() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+
+        EventRelay.publish(new List<SObject> {
+            new Bedrock_Test_Event__e(Message__c = 'custom')
+        }, MockSObjectPublisher.class);
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(1, insertedEvents.size(),
+            'One SObject payload should create one Event__c work item for an explicit publisher.');
+
+        Event__c workItem = insertedEvents[0];
+        Assert.areEqual(MockSObjectPublisher.class.getName(), workItem.Apex__c,
+            'Explicit SObject publisher work should store the publisher class name.');
+        Assert.areEqual('Bedrock_Test_Event__e:' + MockSObjectPublisher.class.getName(), workItem.Route__c,
+            'Explicit SObject publisher work should route by event type and publisher class.');
+        Assert.areEqual('Bedrock_Test_Event__e', workItem.Payload_Type__c,
+            'Explicit SObject publisher work should preserve the payload SObject type.');
+        Assert.areEqual('Publish:Bedrock_Test_Event__e:Bedrock_Test_Event__e:' + MockSObjectPublisher.class.getName(), workItem.Thread_Key__c,
+            'Explicit SObject publisher work should use a route-specific lane.');
+    }
+
+    @istest static void publish_sObjectMetadata_createsDurablePublishWork() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+        EventRelay.routes = new MockRouteService(new List<EventRelay.Route> {
+            new EventRelay.Route(
+                'Bedrock_Test_Event__e',
+                MockSObjectPublisher.class.getName(),
+                'Bedrock_Test_Event__e',
+                'Publish:Bedrock_Test_Event__e:Bedrock_Test_Event__e'
+            )
+        });
+
+        EventRelay.publish(new List<SObject> {
+            new Bedrock_Test_Event__e(Message__c = 'metadata')
+        });
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(1, insertedEvents.size(),
+            'One SObject payload should create one Event__c work item from metadata routing.');
+
+        Event__c workItem = insertedEvents[0];
+        Assert.areEqual(MockSObjectPublisher.class.getName(), workItem.Apex__c,
+            'SObject metadata routing should choose the configured publisher class.');
+    }
+
+    @istest static void publish_sObjectMetadata_fansOutToMultipleRouteLanes() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+        EventRelay.routes = new MockRouteService(new List<EventRelay.Route> {
+            new EventRelay.Route(
+                'Bedrock_Test_Event__e:Webhook',
+                MockSObjectPublisher.class.getName(),
+                'Bedrock_Test_Event__e',
+                'Publish:Bedrock_Test_Event__e:Bedrock_Test_Event__e:Webhook'
+            ),
+            new EventRelay.Route(
+                'Bedrock_Test_Event__e:Middleware',
+                MockPublisher.class.getName(),
+                'Bedrock_Test_Event__e',
+                'Publish:Bedrock_Test_Event__e:Bedrock_Test_Event__e:Middleware'
+            )
+        });
+
+        EventRelay.publish(new List<SObject> {
+            new Bedrock_Test_Event__e(Message__c = 'fanout')
+        });
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(2, insertedEvents.size(),
+            'One source event should create one Event__c work item per resolved publish route.');
+
+        Set<String> threadKeys = new Set<String>();
+        for (Event__c workItem : insertedEvents) {
+            threadKeys.add(workItem.Thread_Key__c);
+        }
+        Assert.isTrue(threadKeys.contains('Publish:Bedrock_Test_Event__e:Bedrock_Test_Event__e:Webhook'),
+            'Fanout should create a route-specific lane for the webhook publisher.');
+        Assert.isTrue(threadKeys.contains('Publish:Bedrock_Test_Event__e:Bedrock_Test_Event__e:Middleware'),
+            'Fanout should create a route-specific lane for the middleware publisher.');
+    }
+
+    @istest static void publish_genericWithoutMetadata_throws() {
+        EventRelay.reset();
+        Boolean threwExpectedError = false;
+
+        try {
+            EventRelay.publish(new List<Generic> {
+                new Generic(new Map<String, Object> { 'orderNumber' => '1001' })
+            });
+        } catch (EventRelay.EventRelayException error) {
+            threwExpectedError = error.getMessage().contains('metadata');
+        }
+
+        Assert.isTrue(threwExpectedError,
+            'Generic EventRelay publishing should require route metadata.');
+    }
+
+    @istest static void publish_genericMetadata_createsDurablePublishWork() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+        EventRelay.routes = new MockRouteService(new List<EventRelay.Route> {
+            new EventRelay.Route(
+                'Webhook:OrderService',
+                MockGenericPublisher.class.getName(),
+                EventRelay.GENERIC_PAYLOAD,
+                'Publish:Generic:Webhook:OrderService'
+            )
+        });
+
+        EventRelay.publish(new List<Generic> {
+            new Generic(new Map<String, Object> {
+                'orderNumber' => '1001',
+                'status' => 'Ready'
+            })
+        });
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(1, insertedEvents.size(),
+            'One generic payload should create one Event__c work item from metadata routing.');
+
+        Event__c workItem = insertedEvents[0];
+        Assert.areEqual(MockGenericPublisher.class.getName(), workItem.Apex__c,
+            'Generic metadata routing should choose the configured publisher class.');
+        Assert.areEqual('Webhook:OrderService', workItem.Route__c,
+            'Generic metadata routing should store the configured route.');
+        Assert.areEqual(EventRelay.GENERIC_PAYLOAD, workItem.Payload_Type__c,
+            'Generic metadata routing should mark the payload as generic JSON.');
+        Assert.areEqual('Publish:Generic:Webhook:OrderService', workItem.Thread_Key__c,
+            'Generic metadata routing should use the configured route-specific lane key.');
+        Assert.isTrue(workItem.Payload1__c.contains('1001'),
+            'The stored generic payload should preserve JSON values.');
     }
 
     @istest static void publish_nonPlatformEvent_throws() {
@@ -46,6 +198,7 @@ private class EventRelayTest {
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
         Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
 
         EventRelay.stage(new List<SObject> {
             new Bedrock_Test_Event__e(Message__c = 'staged')
@@ -86,15 +239,17 @@ private class EventRelayTest {
             new EventRelay.PublishResult(true, null),
             new EventRelay.PublishResult(false, 'publish failed')
         });
-        EventRelay.publisher = publisher;
+        EventRelay.publishers = new MockPublisherService(publisher);
         EventRelay.jobs = new MockJobService();
 
-        new EventRelay.PublishJob(threadId, new Set<Id> { success.Id, failure.Id }, 0, 'run').execute(null);
+        new EventRelay.PublishJob(threadId, new List<Id> { success.Id, failure.Id }, 0, 'run').execute(null);
 
-        Assert.areEqual(2, publisher.events.size(),
+        Assert.areEqual(2, publisher.publishPayloads.size(),
             'The publish job should pass each pending work item to the publisher.');
-        Assert.areEqual('published', ((Bedrock_Test_Event__e) publisher.events[0]).Message__c,
+        Assert.areEqual('published', publisher.publishPayloads[0].payload.get('Message__c', String.class),
             'The first published event should come from the first work item payload.');
+        Assert.areEqual('failed', publisher.publishPayloads[1].payload.get('Message__c', String.class),
+            'The second published event should preserve the selected FIFO order.');
         Assert.areEqual(1, dmlMock.updates.size(),
             'Publisher results should be written in a single DML update call.');
 
@@ -110,11 +265,99 @@ private class EventRelayTest {
             'Failed publish results should preserve the publisher error message.');
     }
 
+    @istest static void publisherService_requiresPlatformEventLimitOnlyForBuiltInPublisher() {
+        EventRelay.PublisherService publishers = new EventRelay.PublisherService();
+
+        Assert.isTrue(publishers.requiresPlatformEventLimit(new List<Event__c> {
+            new Event__c(Apex__c = EventRelay.PLATFORM_EVENT_PUBLISHER)
+        }), 'The built-in Platform Event publisher should check Platform Event publish limits.');
+
+        Assert.isFalse(publishers.requiresPlatformEventLimit(new List<Event__c> {
+            new Event__c(Apex__c = MockPublisher.class.getName())
+        }), 'Custom publishers should not be blocked by Platform Event publish limits.');
+    }
+
+    @istest static void genericPublisher_executeCompletesPayloadsAsSuccessfulResults() {
+        MockGenericPublisher publisher = new MockGenericPublisher();
+        List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload> {
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+                new Generic(new Map<String, Object> { 'orderNumber' => '1001' }))
+        });
+
+        Assert.areEqual(1, publisher.executedPayloads.size(),
+            'GenericPublisher should pass generic payloads to execute.');
+        Assert.areEqual('1001', publisher.executedPayloads[0].get('orderNumber', String.class),
+            'GenericPublisher should preserve the generic payload values.');
+        Assert.areEqual(1, results.size(),
+            'GenericPublisher should return one result per executed payload.');
+        Assert.isTrue(results[0].success,
+            'GenericPublisher should mark payloads successful when execute completes.');
+    }
+
+    @istest static void genericPublisher_canFailSpecificRecord() {
+        FailingGenericPublisher publisher = new FailingGenericPublisher();
+
+        List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload> {
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+                new Generic(new Map<String, Object> { 'orderNumber' => '1001' })),
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+                new Generic(new Map<String, Object> { 'orderNumber' => '1002' }))
+        });
+
+        Assert.areEqual(2, results.size(),
+            'GenericPublisher should return one result per payload after item-level failure handling.');
+        Assert.isTrue(results[0].success,
+            'GenericPublisher should leave unfailed records successful.');
+        Assert.isFalse(results[1].success,
+            'GenericPublisher should fail only the record passed to fail.');
+        Assert.areEqual('rejected', results[1].message,
+            'GenericPublisher should preserve the item-level failure message.');
+    }
+
+    @istest static void sObjectPublisher_executeCompletesPayloadsAsSuccessfulResults() {
+        MockSObjectPublisher publisher = new MockSObjectPublisher();
+        List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload> {
+            new EventRelay.PublishPayload(null, 'Bedrock_Test_Event__e', 'Bedrock_Test_Event__e',
+                new Generic(new Map<String, Object> { 'Message__c' => 'published' }))
+        });
+
+        Assert.areEqual(1, publisher.executedRecords.size(),
+            'SObjectPublisher should pass SObject records to execute.');
+        Assert.areEqual('published', ((Bedrock_Test_Event__e) publisher.executedRecords[0]).Message__c,
+            'SObjectPublisher should rehydrate typed SObject payload values.');
+        Assert.areEqual(1, results.size(),
+            'SObjectPublisher should return one result per executed payload.');
+        Assert.isTrue(results[0].success,
+            'SObjectPublisher should mark payloads successful when execute completes.');
+    }
+
+    @istest static void sObjectPublisher_canFailSpecificRecord() {
+        FailingSObjectPublisher publisher = new FailingSObjectPublisher();
+
+        List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload> {
+            new EventRelay.PublishPayload(null, 'Bedrock_Test_Event__e', 'Bedrock_Test_Event__e',
+                new Generic(new Map<String, Object> { 'Message__c' => 'accepted' })),
+            new EventRelay.PublishPayload(null, 'Bedrock_Test_Event__e', 'Bedrock_Test_Event__e',
+                new Generic(new Map<String, Object> { 'Message__c' => 'rejected' }))
+        });
+
+        Assert.areEqual(2, results.size(),
+            'SObjectPublisher should return one result per payload after item-level failure handling.');
+        Assert.isTrue(results[0].success,
+            'SObjectPublisher should leave unfailed records successful.');
+        Assert.isFalse(results[1].success,
+            'SObjectPublisher should fail only the record passed to fail.');
+        Assert.areEqual('rejected', results[1].message,
+            'SObjectPublisher should preserve the item-level failure message.');
+    }
+
     static Event__c workItem(String message) {
         EventRelay.PayloadService payloads = new EventRelay.PayloadService();
         Event__c workItem = (Event__c) new TestData(Event__c.sObjectType)
             .mockIds()
             .build()[0];
+        workItem.Apex__c = EventRelay.PLATFORM_EVENT_PUBLISHER;
+        workItem.Route__c = 'Bedrock_Test_Event__e';
         workItem.Payload_Type__c = 'Bedrock_Test_Event__e';
         payloads.write(workItem, payloads.serialize(new Bedrock_Test_Event__e(Message__c = message)));
         return workItem;
@@ -139,22 +382,90 @@ private class EventRelayTest {
             this.workItems = workItems;
         }
 
-        public override List<Event__c> getWorkItemsById(Set<Id> workItemIds) {
+        public override List<Event__c> getWorkItemsById(List<Id> workItemIds) {
             return workItems;
         }
     }
 
+    private class MockPublisherService extends EventRelay.PublisherService {
+        EventRelay.Publisher publisher;
+
+        MockPublisherService(EventRelay.Publisher publisher) {
+            this.publisher = publisher;
+        }
+
+        public override EventRelay.Publisher forWorkItems(List<Event__c> workItems) {
+            return publisher;
+        }
+    }
+
+    private class MockRouteService extends EventRelay.RouteService {
+        List<EventRelay.Route> routes;
+
+        MockRouteService(List<EventRelay.Route> routes) {
+            this.routes = routes;
+        }
+
+        public override List<EventRelay.Route> forSObject(String payloadType) {
+            return routes;
+        }
+
+        public override List<EventRelay.Route> forGeneric(Generic payload) {
+            return routes;
+        }
+    }
+
+    private class MockWakeService extends EventRelay.WakeService {
+        Integer signalCalls = 0;
+
+        public override void signal() {
+            signalCalls++;
+        }
+    }
+
     private class MockPublisher extends EventRelay.Publisher {
-        List<SObject> events = new List<SObject>();
+        List<EventRelay.PublishPayload> publishPayloads = new List<EventRelay.PublishPayload>();
         List<EventRelay.PublishResult> results;
+
+        MockPublisher() {
+            this(new List<EventRelay.PublishResult>());
+        }
 
         MockPublisher(List<EventRelay.PublishResult> results) {
             this.results = results;
         }
 
-        public override List<EventRelay.PublishResult> publish(List<SObject> events) {
-            this.events = events;
+        public override List<EventRelay.PublishResult> publish(List<EventRelay.PublishPayload> publishPayloads) {
+            this.publishPayloads = publishPayloads;
             return results;
+        }
+    }
+
+    private class MockGenericPublisher extends EventRelay.Publisher {
+        List<Generic> executedPayloads = new List<Generic>();
+
+        public override void execute(List<Generic> records) {
+            this.executedPayloads = records;
+        }
+    }
+
+    private class FailingGenericPublisher extends EventRelay.Publisher {
+        public override void execute(List<Generic> records) {
+            fail(records[1], 'rejected');
+        }
+    }
+
+    private class MockSObjectPublisher extends EventRelay.Publisher {
+        List<SObject> executedRecords = new List<SObject>();
+
+        public override void execute(List<SObject> records) {
+            this.executedRecords = records;
+        }
+    }
+
+    private class FailingSObjectPublisher extends EventRelay.Publisher {
+        public override void execute(List<SObject> records) {
+            fail(records[1], 'rejected');
         }
     }
 

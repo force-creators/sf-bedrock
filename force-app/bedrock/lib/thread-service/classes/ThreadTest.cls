@@ -98,6 +98,53 @@ public with sharing class ThreadTest {
         Assert.areEqual(nextThread.Id, mock.service.startedThreads[0], 'Expected Thread to start the claimed pending thread id.');
     }
 
+    @istest static void testContinueCurrent_eventDrainClaimsAsyncWorkWhenNoEventWorkRemains() {
+        ThreadMock mock = new ThreadMock();
+        Thread.setMock(mock);
+        ThreadRunner.reset();
+        EventRelay.queries = new EmptyEventWorkQueryService();
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
+        Thread__c eventThread = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        eventThread.Status__c = Thread.RUNNING;
+        Thread__c asyncThread = thread(Thread.ASYNC_POOL, 'event-created-async');
+        insert new List<Thread__c> { eventThread, asyncThread };
+        Thread.setCurrent(eventThread.Id);
+        String runKey = Thread.service.startRun(eventThread.Id);
+        mock.queries.pendingThreadsByPool.put(Thread.ASYNC_POOL, new List<Thread__c> { asyncThread });
+
+        Thread.continueCurrent(runKey);
+
+        Assert.areEqual(asyncThread.Id, Thread.currentId(),
+            'Expected a drained EventRelay publish thread to hand off to pending Automated Process async work.');
+        Assert.areEqual(1, mock.service.startCalls,
+            'Expected the EventRelay drain handoff to start the async thread.');
+        Assert.areEqual(asyncThread.Id, mock.service.startedThreads[0],
+            'Expected the EventRelay drain handoff to start the pending Async pool thread.');
+    }
+
+    @istest static void testContinueCurrent_eventThreadContinuesSameThreadAsyncWorkAfterEventsDrain() {
+        ThreadMock mock = new ThreadMock();
+        Thread.setMock(mock);
+        ThreadRunner.reset();
+        EventRelay.queries = new EmptyEventWorkQueryService();
+        Async.queries = new PendingWorkQueryService();
+        Async.jobs = new SpyJobService();
+        Thread__c eventThread = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        eventThread.Status__c = Thread.RUNNING;
+        insert eventThread;
+        Thread.setCurrent(eventThread.Id);
+        String runKey = Thread.service.startRun(eventThread.Id);
+
+        Thread.continueCurrent(runKey);
+
+        Assert.areEqual(1, mock.service.continueWorkCalls,
+            'Expected a drained EventRelay thread with same-thread Async work to continue before completing.');
+        Assert.areEqual(0, mock.service.startCalls,
+            'Expected same-thread Async work to run on the current thread instead of claiming a new one.');
+        Assert.areEqual(eventThread.Id, ((SpyJobService) Async.jobs).lastThreadId,
+            'Expected ThreadRunner to dispatch Async work on the original EventRelay thread.');
+    }
+
     @istest static void testEnqueue_startsThreadWhenSlotIsAvailable() {
         AsyncMock mock = new AsyncMock()
             .canEnqueue();
@@ -241,6 +288,25 @@ public with sharing class ThreadTest {
 
         Assert.areEqual(0, mock.threads.service.startCalls,
             'Expected Thread.enqueue to avoid spawning threads from finalizer context.');
+    }
+
+    @istest static void testWake_startsRequestedPoolWithoutCreatingAsyncThread() {
+        ThreadMock mock = new ThreadMock()
+            .canEnqueue();
+        Thread.setMock(mock);
+        Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
+        Thread__c eventThread = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        insert eventThread;
+        mock.queries.pendingThreads.add(eventThread);
+
+        Thread.wake(EventRelay.PUBLISH_POOL);
+
+        Assert.areEqual(1, mock.service.startCalls,
+            'Expected Thread.wake to start pending work in the requested pool.');
+        Assert.areEqual(eventThread.Id, mock.service.startedThreads[0],
+            'Expected Thread.wake to start the EventRelay publish thread.');
+        Assert.areEqual(eventThread.Id, Thread.currentId(),
+            'Expected Thread.wake to adopt the started EventRelay thread.');
     }
 
     @istest static void testClaimNextLeavesPendingThreadWhenSlotFillsBeforeStatusUpdate() {
@@ -494,7 +560,35 @@ public with sharing class ThreadTest {
         Assert.areEqual(0, runner.startCalls, 'Expected unsafe limiter state not to start a replacement chain.');
     }
 
+    @istest static void testReopen_marksDoneThreadPending() {
+        Thread__c drainedThread = thread('EventRelayPublish', 'Bedrock_Test_Event__e');
+        drainedThread.Status__c = Thread.DONE;
+        drainedThread.Completed__c = System.now();
+        drainedThread.Run_Key__c = 'old-run-key';
+        insert drainedThread;
+
+        Thread.reopen(new Set<Id> { drainedThread.Id });
+
+        Thread__c reopenedThread = [
+            SELECT Status__c, Completed__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :drainedThread.Id
+        ];
+        Assert.areEqual(Thread.PENDING, reopenedThread.Status__c,
+            'Expected appending new lane work to reopen a drained thread for dispatch.');
+        Assert.isNull(reopenedThread.Completed__c,
+            'Expected reopened threads to clear their completed timestamp.');
+        Assert.isNull(reopenedThread.Run_Key__c,
+            'Expected reopened threads to clear their old run key.');
+    }
+
     public with sharing class EmptyWorkQueryService extends Async.QueryService {
+        public override Boolean hasPendingWork(Id threadId) {
+            return false;
+        }
+    }
+
+    public with sharing class EmptyEventWorkQueryService extends EventRelay.QueryService {
         public override Boolean hasPendingWork(Id threadId) {
             return false;
         }
