@@ -1,0 +1,260 @@
+<template>
+    <section class="console-shell">
+        <div class="hero">
+            <div>
+                <p class="eyebrow">Bedrock EventRelay</p>
+                <h1>Event Console</h1>
+                <p class="hero-copy">
+                    Operator view of publish work queued by EventRelay, active lanes, paused publication, and publish failures.
+                </p>
+            </div>
+
+            <div class="hero-actions">
+                <lightning-combobox
+                    class="refresh-interval"
+                    label="Auto-refresh interval"
+                    variant="label-hidden"
+                    value={autoRefreshInterval}
+                    options={autoRefreshOptions}
+                    onchange={handleAutoRefreshChange}
+                ></lightning-combobox>
+                <lightning-button
+                    label={refreshButtonLabel}
+                    icon-name="utility:refresh"
+                    onclick={handleRefresh}
+                    disabled={isRefreshing}
+                ></lightning-button>
+            </div>
+        </div>
+
+        <template lwc:if={hasError}>
+            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+                <span class="slds-assistive-text">Error</span>
+                {errorMessage}
+            </div>
+        </template>
+
+        <div class="metrics">
+            <template for:each={metricCards} for:item="metric">
+                <article key={metric.id} class={metric.className}>
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                </article>
+            </template>
+        </div>
+
+        <section class="timeline-card">
+            <lightning-tabset>
+                <lightning-tab label="Backlog" value="backlog">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Backlog</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                            <lightning-badge label={backlogCountLabel}></lightning-badge>
+                        </div>
+
+                        <template lwc:if={hasBacklogRows}>
+                            <lightning-datatable
+                                key-field="id"
+                                columns={workColumns}
+                                data={backlogRows}
+                                hide-checkbox-column
+                                sorted-by={backlogSortBy}
+                                sorted-direction={backlogSortDirection}
+                                is-loading={isRefreshing}
+                                onrowaction={handleRowAction}
+                                onsort={handleBacklogSort}
+                            ></lightning-datatable>
+                        </template>
+
+                        <template lwc:else>
+                            <div class="empty-state slds-text-align_center" role="status">
+                                <lightning-icon
+                                    icon-name="utility:event"
+                                    size="medium"
+                                    alternative-text=""
+                                ></lightning-icon>
+                                <p class="slds-m-top_small">No pending or paused publish work found.</p>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Running" value="running">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Running</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                            <lightning-badge label={runningCountLabel}></lightning-badge>
+                        </div>
+
+                        <template lwc:if={hasRunningRows}>
+                            <lightning-datatable
+                                key-field="id"
+                                columns={workColumns}
+                                data={runningRows}
+                                hide-checkbox-column
+                                sorted-by={runningSortBy}
+                                sorted-direction={runningSortDirection}
+                                is-loading={isRefreshing}
+                                onrowaction={handleRowAction}
+                                onsort={handleRunningSort}
+                            ></lightning-datatable>
+                        </template>
+
+                        <template lwc:else>
+                            <div class="empty-state slds-text-align_center" role="status">
+                                <lightning-icon
+                                    icon-name="utility:success"
+                                    size="medium"
+                                    alternative-text=""
+                                ></lightning-icon>
+                                <p class="slds-m-top_small">No running publish work found.</p>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Errors" value="errors">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Errors</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                            <lightning-badge label={errorCountLabel}></lightning-badge>
+                        </div>
+
+                        <template lwc:if={hasErrorRows}>
+                            <lightning-datatable
+                                key-field="id"
+                                columns={errorColumns}
+                                data={errorRows}
+                                hide-checkbox-column
+                                sorted-by={errorSortBy}
+                                sorted-direction={errorSortDirection}
+                                is-loading={isRefreshing}
+                                onrowaction={handleRowAction}
+                                onsort={handleErrorSort}
+                            ></lightning-datatable>
+                        </template>
+
+                        <template lwc:else>
+                            <div class="empty-state slds-text-align_center" role="status">
+                                <lightning-icon
+                                    icon-name="utility:success"
+                                    size="medium"
+                                    alternative-text=""
+                                ></lightning-icon>
+                                <p class="slds-m-top_small">No failed publish work found.</p>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Archive" value="archive">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Archive</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                            <lightning-badge label={archiveCountLabel}></lightning-badge>
+                        </div>
+
+                        <template lwc:if={hasArchiveRows}>
+                            <lightning-datatable
+                                key-field="id"
+                                columns={workColumns}
+                                data={archiveRows}
+                                hide-checkbox-column
+                                sorted-by={archiveSortBy}
+                                sorted-direction={archiveSortDirection}
+                                is-loading={isRefreshing}
+                                onrowaction={handleRowAction}
+                                onsort={handleArchiveSort}
+                            ></lightning-datatable>
+                        </template>
+
+                        <template lwc:else>
+                            <div class="empty-state slds-text-align_center" role="status">
+                                <lightning-icon
+                                    icon-name="utility:event"
+                                    size="medium"
+                                    alternative-text=""
+                                ></lightning-icon>
+                                <p class="slds-m-top_small">No published work found.</p>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Settings" value="settings">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Settings</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                        </div>
+
+                        <div class="settings-grid">
+                            <article class="setting">
+                                <span>Publish Batch Size</span>
+                                <strong>{publishBatchSize}</strong>
+                            </article>
+                            <article class="setting">
+                                <span>Limit Safety Threshold</span>
+                                <strong>{limitThresholdPct}</strong>
+                            </article>
+                            <article class="setting">
+                                <span>Publish Pool</span>
+                                <strong>{publishPool}</strong>
+                            </article>
+                        </div>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Event Configs" value="event-configs">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Event Configs</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                            <lightning-badge label={configCountLabel}></lightning-badge>
+                        </div>
+
+                        <template lwc:if={hasConfigRows}>
+                            <lightning-datatable
+                                key-field="id"
+                                columns={configColumns}
+                                data={configRows}
+                                hide-checkbox-column
+                                sorted-by={configSortBy}
+                                sorted-direction={configSortDirection}
+                                is-loading={isRefreshing}
+                                onsort={handleConfigSort}
+                            ></lightning-datatable>
+                        </template>
+
+                        <template lwc:else>
+                            <div class="empty-state slds-text-align_center" role="status">
+                                <lightning-icon
+                                    icon-name="utility:setup"
+                                    size="medium"
+                                    alternative-text=""
+                                ></lightning-icon>
+                                <p class="slds-m-top_small">No event routes found.</p>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-tab>
+            </lightning-tabset>
+        </section>
+    </section>
+</template>
