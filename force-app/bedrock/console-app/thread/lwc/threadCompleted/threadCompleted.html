@@ -1,0 +1,60 @@
+<template>
+    <lightning-card title="Completed Threads" icon-name="utility:success">
+        <div slot="actions" class="card-actions">
+            <lightning-input
+                class="filter-input"
+                type="search"
+                variant="label-hidden"
+                label="Filter completed threads"
+                placeholder="Filter by thread, pool, key, status, user, or run key"
+                value={searchTerm}
+                onchange={handleSearchChange}
+            ></lightning-input>
+
+            <lightning-button-icon
+                class={refreshButtonClass}
+                icon-name="utility:refresh"
+                alternative-text="Refresh completed threads"
+                title="Refresh completed threads"
+                onclick={handleRefresh}
+                disabled={isLoading}
+            ></lightning-button-icon>
+
+            <lightning-badge label={recordCountLabel}></lightning-badge>
+        </div>
+
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template lwc:if={hasError}>
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                    <span class="slds-assistive-text">Error</span>
+                    {errorMessage}
+                </div>
+            </template>
+
+            <template lwc:elseif={hasRows}>
+                <lightning-datatable
+                    key-field="id"
+                    columns={columns}
+                    data={rows}
+                    hide-checkbox-column
+                    sorted-by={sortBy}
+                    sorted-direction={sortDirection}
+                    is-loading={isLoading}
+                    onrowaction={handleRowAction}
+                    onsort={handleSort}
+                ></lightning-datatable>
+            </template>
+
+            <template lwc:else>
+                <div class="empty-state slds-text-align_center" role="status">
+                    <lightning-icon
+                        icon-name="utility:success"
+                        size="medium"
+                        alternative-text=""
+                    ></lightning-icon>
+                    <p class="slds-m-top_small">No completed threads found.</p>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>

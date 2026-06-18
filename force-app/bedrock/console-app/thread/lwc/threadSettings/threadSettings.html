@@ -1,0 +1,241 @@
+<template>
+    <lightning-card title="Thread Settings" icon-name="utility:settings">
+        <div slot="actions" class="card-actions">
+            <template lwc:if={hasSettings}>
+                <lightning-badge label={recoveryStatusLabel}></lightning-badge>
+                <lightning-badge label={effectiveRecoveryThresholdLabel}></lightning-badge>
+                <lightning-badge label={effectiveRecoveryBatchSizeLabel}></lightning-badge>
+                <lightning-badge label={effectiveRecoveryLimitLabel}></lightning-badge>
+                <lightning-badge label={effectiveMaxThreadsLabel}></lightning-badge>
+            </template>
+
+            <lightning-button-icon
+                icon-name="utility:refresh"
+                alternative-text="Refresh settings"
+                title="Refresh settings"
+                onclick={handleRefresh}
+                disabled={isLoading}
+            ></lightning-button-icon>
+        </div>
+
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template lwc:if={hasError}>
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                    <span class="slds-assistive-text">Error</span>
+                    {errorMessage}
+                </div>
+            </template>
+
+            <template lwc:if={isLoading}>
+                <lightning-spinner alternative-text="Loading thread settings" size="small"></lightning-spinner>
+            </template>
+
+            <div class="settings-rows">
+                <article class="setting-row global-row">
+                    <div class="row-owner">
+                        <p>Global</p>
+                        <h3>Organization Default</h3>
+                        <span>{organizationRecordLabel}</span>
+                    </div>
+                    <div class="setting-values">
+                        <div class="setting-cell">
+                            <span>Max Threads</span>
+                            <template lwc:if={isEditingOrganization}>
+                                <lightning-input type="number" label="Global max threads" variant="label-hidden" min="1" max="99999" step="1" value={organizationMaxThreads} onchange={handleOrganizationMaxThreadsChange}></lightning-input>
+                            </template>
+                            <template lwc:else>
+                                <strong>{organizationMaxThreadsDisplay}</strong>
+                            </template>
+                        </div>
+                        <div class="setting-cell">
+                            <span>Recovery Threshold</span>
+                            <template lwc:if={isEditingOrganization}>
+                                <lightning-input type="number" label="Global recovery threshold minutes" variant="label-hidden" min="1" max="99999" step="1" value={organizationRecoveryThresholdMinutes} onchange={handleOrganizationRecoveryThresholdChange}></lightning-input>
+                            </template>
+                            <template lwc:else>
+                                <strong>{organizationRecoveryThresholdDisplay}</strong>
+                            </template>
+                        </div>
+                        <div class="setting-cell">
+                            <span>Recovery Batch Size</span>
+                            <template lwc:if={isEditingOrganization}>
+                                <lightning-input type="number" label="Global recovery batch size" variant="label-hidden" min="1" max="99999" step="1" value={organizationRecoveryBatchSize} onchange={handleOrganizationRecoveryBatchSizeChange}></lightning-input>
+                            </template>
+                            <template lwc:else>
+                                <strong>{organizationRecoveryBatchSizeDisplay}</strong>
+                            </template>
+                        </div>
+                        <div class="setting-cell">
+                            <span>Limit Threshold</span>
+                            <template lwc:if={isEditingOrganization}>
+                                <lightning-input type="number" label="Global recovery limit threshold percent" variant="label-hidden" min="1" max="100" step="1" value={organizationRecoveryLimitThresholdPct} onchange={handleOrganizationRecoveryLimitChange}></lightning-input>
+                            </template>
+                            <template lwc:else>
+                                <strong>{organizationRecoveryLimitDisplay}</strong>
+                            </template>
+                        </div>
+                        <div class="setting-cell">
+                            <span>Recovery</span>
+                            <template lwc:if={isEditingOrganization}>
+                                <lightning-input type="toggle" label="Enable global recovery" variant="label-hidden" checked={organizationRecoveryEnabled} onchange={handleOrganizationRecoveryEnabledChange}></lightning-input>
+                            </template>
+                            <template lwc:else>
+                                <strong>{organizationRecoveryDisplay}</strong>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="row-actions">
+                        <template lwc:if={isEditingOrganization}>
+                            <div class="stacked-actions">
+                                <lightning-button-icon icon-name="utility:save" alternative-text="Save global settings" title="Save global settings" variant="brand" onclick={handleSaveOrganization} disabled={isSaving}></lightning-button-icon>
+                                <lightning-button-icon icon-name="utility:close" alternative-text="Cancel global settings edit" title="Cancel global settings edit" onclick={handleCancelOrganizationEdit} disabled={isSaving}></lightning-button-icon>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <lightning-button-icon icon-name="utility:edit" alternative-text="Edit global settings" title="Edit global settings" onclick={handleEditOrganization} disabled={isLoading}></lightning-button-icon>
+                        </template>
+                    </div>
+                </article>
+
+                <section class="override-group" aria-labelledby="user-overrides-heading">
+                    <div class="override-heading">
+                        <div>
+                            <p>User Overrides</p>
+                            <h3 id="user-overrides-heading">{userOverrideCountLabel}</h3>
+                        </div>
+                        <lightning-button icon-name="utility:add" label="Create New" onclick={handleCreateUserOverride} disabled={isSaving}></lightning-button>
+                    </div>
+
+                    <template lwc:if={hasUserOverrideRows}>
+                        <div class="override-rows">
+                            <template for:each={userOverrideRows} for:item="row">
+                                <article key={row.userId} class="setting-row user-row">
+                                    <div class="user-record-header">
+                                        <div class="row-owner">
+                                            <p>User</p>
+                                            <h3>{row.userLabel}</h3>
+                                            <span>{row.username}</span>
+                                        </div>
+                                        <div class="row-actions">
+                                            <template lwc:if={row.isEditing}>
+                                                <div class="stacked-actions">
+                                                    <lightning-button-icon icon-name="utility:save" alternative-text="Save user settings" title="Save user settings" variant="brand" data-user-id={row.userId} onclick={handleSaveUserOverride} disabled={isSaving}></lightning-button-icon>
+                                                    <lightning-button-icon icon-name="utility:close" alternative-text="Cancel user settings edit" title="Cancel user settings edit" data-user-id={row.userId} onclick={handleCancelUserOverrideEdit} disabled={isSaving}></lightning-button-icon>
+                                                </div>
+                                            </template>
+                                            <template lwc:else>
+                                                <div class="stacked-actions">
+                                                    <lightning-button-icon icon-name="utility:edit" alternative-text="Edit user settings" title="Edit user settings" data-user-id={row.userId} onclick={handleEditUserOverride} disabled={isLoading}></lightning-button-icon>
+                                                    <lightning-button-icon icon-name="utility:delete" alternative-text="Delete user settings" title="Delete user settings" variant="border-filled" data-user-id={row.userId} onclick={handleDeleteUserOverride} disabled={isSaving}></lightning-button-icon>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    <div class="setting-values user-setting-values">
+                                        <div class="setting-cell">
+                                            <span>Max Threads</span>
+                                            <template lwc:if={row.isEditing}>
+                                                <lightning-input type="number" label="User max threads" variant="label-hidden" min="1" max="99999" step="1" value={row.draftMaxThreads} data-user-id={row.userId} onchange={handleOverrideMaxThreadsChange}></lightning-input>
+                                            </template>
+                                            <template lwc:else><strong>{row.maxThreadsDisplay}</strong></template>
+                                        </div>
+                                        <div class="setting-cell">
+                                            <span>Recovery Threshold</span>
+                                            <template lwc:if={row.isEditing}>
+                                                <lightning-input type="number" label="User recovery threshold minutes" variant="label-hidden" min="1" max="99999" step="1" value={row.draftRecoveryThresholdMinutes} data-user-id={row.userId} onchange={handleOverrideRecoveryThresholdChange}></lightning-input>
+                                            </template>
+                                            <template lwc:else><strong>{row.recoveryThresholdDisplay}</strong></template>
+                                        </div>
+                                        <div class="setting-cell">
+                                            <span>Recovery Batch Size</span>
+                                            <template lwc:if={row.isEditing}>
+                                                <lightning-input type="number" label="User recovery batch size" variant="label-hidden" min="1" max="99999" step="1" value={row.draftRecoveryBatchSize} data-user-id={row.userId} onchange={handleOverrideRecoveryBatchSizeChange}></lightning-input>
+                                            </template>
+                                            <template lwc:else><strong>{row.recoveryBatchSizeDisplay}</strong></template>
+                                        </div>
+                                        <div class="setting-cell">
+                                            <span>Limit Threshold</span>
+                                            <template lwc:if={row.isEditing}>
+                                                <lightning-input type="number" label="User recovery limit threshold percent" variant="label-hidden" min="1" max="100" step="1" value={row.draftRecoveryLimitThresholdPct} data-user-id={row.userId} onchange={handleOverrideRecoveryLimitChange}></lightning-input>
+                                            </template>
+                                            <template lwc:else><strong>{row.recoveryLimitDisplay}</strong></template>
+                                        </div>
+                                        <div class="setting-cell">
+                                            <span>Recovery</span>
+                                            <template lwc:if={row.isEditing}>
+                                                <lightning-input type="toggle" label="Enable user recovery" variant="label-hidden" checked={row.draftRecoveryEnabled} data-user-id={row.userId} onchange={handleOverrideRecoveryEnabledChange}></lightning-input>
+                                            </template>
+                                            <template lwc:else><strong>{row.recoveryDisplay}</strong></template>
+                                        </div>
+                                    </div>
+                                </article>
+                            </template>
+                        </div>
+                    </template>
+
+                    <template lwc:else>
+                        <div class="empty-state">
+                            <lightning-icon icon-name="utility:user" size="medium"></lightning-icon>
+                            <h3>No user configs yet</h3>
+                            <p>Global settings apply until a user override exists.</p>
+                        </div>
+                    </template>
+
+                    <template lwc:if={isCreatingUserOverride}>
+                        <article class="setting-row create-row">
+                            <div class="user-record-header">
+                                <div class="row-owner">
+                                    <p>New Override</p>
+                                    <h3>{newOverrideHeading}</h3>
+                                    <span>{newOverrideSubheading}</span>
+                                </div>
+                                <div class="row-actions stacked-actions">
+                                    <lightning-button-icon icon-name="utility:save" alternative-text="Save user override" title="Save user override" variant="brand" onclick={handleSaveNewUserOverride} disabled={isNewUserSaveDisabled}></lightning-button-icon>
+                                    <lightning-button-icon icon-name="utility:close" alternative-text="Cancel user override" title="Cancel user override" onclick={handleCancelCreateUserOverride} disabled={isSaving}></lightning-button-icon>
+                                </div>
+                            </div>
+                            <div class="setting-values user-setting-values">
+                                <div class="lookup setting-cell">
+                                    <span>User</span>
+                                    <lightning-input type="search" label="Find user" variant="label-hidden" value={userSearchTerm} onchange={handleUserSearchChange} onfocus={handleUserSearchFocus}></lightning-input>
+
+                                    <template lwc:if={hasUserOptions}>
+                                        <div class="lookup-results" role="listbox">
+                                            <template for:each={userOptions} for:item="userOption">
+                                                <button key={userOption.id} class="lookup-result" type="button" data-user-id={userOption.id} onclick={handleUserSelect}>
+                                                    <span>{userOption.label}</span>
+                                                    <small>{userOption.username}</small>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <div class="setting-cell">
+                                    <span>Max Threads</span>
+                                    <lightning-input type="number" label="New user max threads" variant="label-hidden" min="1" max="99999" step="1" value={newUserMaxThreads} onchange={handleNewUserMaxThreadsChange}></lightning-input>
+                                </div>
+                                <div class="setting-cell">
+                                    <span>Recovery Threshold</span>
+                                    <lightning-input type="number" label="New user recovery threshold minutes" variant="label-hidden" min="1" max="99999" step="1" value={newUserRecoveryThresholdMinutes} onchange={handleNewUserRecoveryThresholdChange}></lightning-input>
+                                </div>
+                                <div class="setting-cell">
+                                    <span>Recovery Batch Size</span>
+                                    <lightning-input type="number" label="New user recovery batch size" variant="label-hidden" min="1" max="99999" step="1" value={newUserRecoveryBatchSize} onchange={handleNewUserRecoveryBatchSizeChange}></lightning-input>
+                                </div>
+                                <div class="setting-cell">
+                                    <span>Limit Threshold</span>
+                                    <lightning-input type="number" label="New user recovery limit threshold percent" variant="label-hidden" min="1" max="100" step="1" value={newUserRecoveryLimitThresholdPct} onchange={handleNewUserRecoveryLimitChange}></lightning-input>
+                                </div>
+                                <div class="setting-cell">
+                                    <span>Recovery</span>
+                                    <lightning-input type="toggle" label="Enable new user recovery" variant="label-hidden" checked={newUserRecoveryEnabled} onchange={handleNewUserRecoveryEnabledChange}></lightning-input>
+                                </div>
+                            </div>
+                        </article>
+                    </template>
+                </section>
+            </div>
+        </div>
+    </lightning-card>
+</template>

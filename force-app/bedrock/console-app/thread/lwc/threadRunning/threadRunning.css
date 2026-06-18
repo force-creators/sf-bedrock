@@ -1,0 +1,48 @@
+:host {
+    display: block;
+}
+
+.card-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lwc-spacingXSmall, 0.5rem);
+    justify-content: flex-end;
+}
+
+.filter-input {
+    width: 20rem;
+}
+
+.refresh-button.is-refreshing {
+    animation: thread-refresh-spin 1s linear infinite;
+}
+
+@keyframes thread-refresh-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.empty-state {
+    min-height: 12rem;
+    padding: var(--lwc-spacingXLarge, 2rem);
+}
+
+lightning-datatable {
+    display: block;
+}
+
+@media (max-width: 48rem) {
+    .card-actions {
+        justify-content: flex-start;
+    }
+
+    .filter-input {
+        width: 100%;
+    }
+}
