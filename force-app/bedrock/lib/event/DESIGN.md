@@ -11,9 +11,11 @@ publication, consumption, batching, retry, and stale-event policy.
 
 ## Current Status
 
-The concept fits Bedrock, but it is **not ready for implementation as Event
-Apex yet**. The main architecture is now clear enough to design the supporting
-thread/lane infrastructure first:
+The concept fits Bedrock, and the shared thread/lane foundation now exists.
+`ThreadRunner`, pool dispatchers, `Pool__c`, `Thread_Key__c`, and generated
+lane uniqueness are implemented in the Thread service. Event itself is still
+not implemented, so the next work should be a narrow build slice rather than a
+full-framework pass.
 
 - Async threads are transaction-born ordered chains.
 - Event lanes are global ordered queues that many transactions may append to.
@@ -28,8 +30,9 @@ transaction. Event uses durable global thread keys such as
 into `Thread__c` through their own pool/key strategy instead of creating a new
 lane-owner object per framework.
 
-Before writing the Event facade and handlers, the next concrete design bite is
-the shared `ThreadRunner` model on top of generalized `Thread__c` lanes.
+The remaining planning work is to choose the first Event slice and lock only
+the public API and schema needed for that slice. Treat Event as two halves over
+shared storage and lanes: reliable publication and reliable consumption.
 
 ## Design Goals
 
@@ -137,7 +140,6 @@ Routing and processing configuration.
 | `Lane_Strategy__c` | Default lane key strategy, such as route, event type, source, or payload path. |
 | `Lane_Path__c` | Optional Generic path used when the lane is derived from payload data. |
 | `Batch_Size__c` | Maximum jobs per Queueable execution. |
-| `Batch_Mode__c` | `StrictContiguous` by default; optional `UnorderedSameHandler`. |
 | `Max_Retries__c` | Auto-retry cap for framework-managed retries. |
 | `Max_Age_Minutes__c` | Optional TTL for stale handling. |
 | `Active__c` | Allows routes to be disabled without deleting metadata. |
@@ -242,7 +244,6 @@ In-memory resolved route.
 | `apexClass` | Handler or publisher class name. |
 | `payloadType` | SObject API name or generic discriminator value. |
 | `batchSize` | Effective batch size after defaults. |
-| `batchMode` | `StrictContiguous` or `UnorderedSameHandler`. |
 | `laneStrategy` | How to derive lane key. |
 | `maxRetries` | Effective retry cap. |
 | `maxAgeMinutes` | Effective TTL. |

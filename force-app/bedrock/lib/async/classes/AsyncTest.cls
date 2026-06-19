@@ -398,6 +398,58 @@ public with sharing class AsyncTest {
         Assert.areEqual(0, result.Retry_Count__c, 'Expected Retry_Count__c to stay 0 when auto-retry is disabled.');
     }
 
+    @istest static void testAsyncJob_canExplicitlyFailOneRecordAndCompleteTheRest() {
+        List<Contact> contacts = new List<Contact> {
+            new Contact(LastName = 'A Explicit Complete'),
+            new Contact(LastName = 'B Explicit Fail'),
+            new Contact(LastName = 'C Default Complete')
+        };
+        insert contacts;
+
+        AsyncMock mock = new AsyncMock()
+            .canEnqueue()
+            .config(PartialResultAsync.class, new Async_Job__mdt(Batch_Size__c = 3, Max_Retries__c = 0));
+        Async.setMock(mock);
+
+        Test.startTest();
+            Async.enqueue(PartialResultAsync.class, contacts);
+        Test.stopTest();
+
+        Set<String> recordIdValues = new Set<String>();
+        for (Id contactId : Pluck.ids(contacts)) {
+            recordIdValues.add(String.valueOf(contactId));
+        }
+        Map<Id, Async__c> workByRecordId = new Map<Id, Async__c>();
+        for (Async__c workItem : [
+            SELECT Record_Id__c, Status__c, Error_Message__c
+            FROM Async__c
+            WHERE Record_Id__c IN :recordIdValues
+        ]) {
+            workByRecordId.put((Id) workItem.Record_Id__c, workItem);
+        }
+
+        Assert.areEqual('Done', workByRecordId.get(contacts[0].Id).Status__c,
+            'Expected explicitly completed async work to be marked done.');
+        Assert.areEqual('Error', workByRecordId.get(contacts[1].Id).Status__c,
+            'Expected explicitly failed async work to be marked error without failing the whole batch.');
+        Assert.areEqual('partial failure', workByRecordId.get(contacts[1].Id).Error_Message__c,
+            'Expected explicitly failed async work to preserve the failure message.');
+        Assert.areEqual('Done', workByRecordId.get(contacts[2].Id).Status__c,
+            'Expected async work with no explicit result to be marked done.');
+
+        Map<Id, Contact> contactsById = new Map<Id, Contact>([
+            SELECT Id, FirstName
+            FROM Contact
+            WHERE Id IN :Pluck.ids(contacts)
+        ]);
+        Assert.areEqual('Explicit', contactsById.get(contacts[0].Id).FirstName,
+            'Expected the explicitly completed record to keep the job mutation.');
+        Assert.areEqual(null, contactsById.get(contacts[1].Id).FirstName,
+            'Expected the explicitly failed record not to receive the success mutation.');
+        Assert.areEqual('Default', contactsById.get(contacts[2].Id).FirstName,
+            'Expected the default-completed record to keep the job mutation.');
+    }
+
     @istest static void testJobWatcher_continueAfterFailure_underThreshold_keepsDirectChain() {
         SpyJobService jobs = new SpyJobService();
         Async.jobs = jobs;
@@ -492,6 +544,44 @@ public with sharing class AsyncTest {
             WHERE Id = :runningWork.Id
         ];
         Assert.areEqual('Pending', recoveredWork.Status__c, 'Expected Async recovery preparation to make stranded Running work runnable again.');
+    }
+
+    @istest static void testJobService_pausesThreadWhenAsyncLimitIsUnsafe() {
+        Limiter.setMock(new LimiterMock()
+            .setLimit(Limiter.types.DAILY_ASYNC_APEX_EXECUTIONS, 90, 100));
+        Contact contact = new Contact(LastName = 'Limit Pause');
+        insert contact;
+        Thread__c threadRecord = new Thread__c(
+            Status__c = Thread.RUNNING,
+            Pool__c = Thread.ASYNC_POOL,
+            Thread_Key__c = 'request:limit-pause',
+            Run_Key__c = 'run-key',
+            Heartbeat__c = System.now()
+        );
+        insert threadRecord;
+        Async__c work = workItem(String.valueOf(MyTestAsync.class), contact.Id, 'Pending', threadRecord.Id);
+        insert work;
+
+        Async.jobs.enqueueNextJob(threadRecord.Id, 0, 'run-key');
+
+        Async__c storedWork = [
+            SELECT Status__c
+            FROM Async__c
+            WHERE Id = :work.Id
+        ];
+        Thread__c storedThread = [
+            SELECT Status__c, Pause_Reason__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :threadRecord.Id
+        ];
+        Assert.areEqual('Pending', storedWork.Status__c,
+            'Unsafe async limits should leave async work pending.');
+        Assert.areEqual(Thread.PAUSED, storedThread.Status__c,
+            'Unsafe async limits should pause the owning thread.');
+        Assert.areEqual('Daily async Apex execution limit is not safe.', storedThread.Pause_Reason__c,
+            'Expected the paused thread to explain the limiter pause.');
+        Assert.isNull(storedThread.Run_Key__c,
+            'Pausing a thread should fence the current run key.');
     }
 
     public with sharing class CountingMetadataService extends Async.MetadataService {
@@ -618,6 +708,31 @@ public with sharing class AsyncTest {
                 contact.FirstName = 'Child';
             }
             update contacts;
+        }
+    }
+
+    public with sharing class PartialResultAsync extends Async {
+        public override void execute(Set<Id> ids) {
+            List<Contact> contacts = [
+                SELECT Id, FirstName, LastName
+                FROM Contact
+                WHERE Id IN :ids
+                ORDER BY LastName ASC
+            ];
+            List<Contact> contactsToUpdate = new List<Contact>();
+            for (Contact contact : contacts) {
+                if (contact.LastName == 'A Explicit Complete') {
+                    complete(contact.Id);
+                    contact.FirstName = 'Explicit';
+                    contactsToUpdate.add(contact);
+                } else if (contact.LastName == 'B Explicit Fail') {
+                    fail(contact.Id, 'partial failure');
+                } else {
+                    contact.FirstName = 'Default';
+                    contactsToUpdate.add(contact);
+                }
+            }
+            update contactsToUpdate;
         }
     }
 

@@ -59,6 +59,20 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         throw new AsyncException('Async subclasses must override execute(Set<Id>).');
     }
 
+    public void complete(Id recordId) {
+        if (jobs.watcher == null) {
+            throw new AsyncException('Async.complete can only be called while async work is running.');
+        }
+        jobs.watcher.complete(recordId);
+    }
+
+    public void fail(Id recordId, String message) {
+        if (jobs.watcher == null) {
+            throw new AsyncException('Async.fail can only be called while async work is running.');
+        }
+        jobs.watcher.fail(recordId, message);
+    }
+
     public void execute(QueueableContext context) {
         Thread.setCurrent(this.threadId);
         JobWatcher watcher = jobs.watch(this.threadId, this.workItemIds, this.failures, this.runKey);
@@ -69,6 +83,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
     Set<Id> getRecordIds() {
         List<Async__c> workItems = queries.getWorkItemsById(this.workItemIds);
+        if (jobs.watcher != null) jobs.watcher.track(workItems);
         for(Async__c workItem : workItems) {
             this.recordIds.add(workItem.Record_Id__c);
         }
@@ -142,6 +157,10 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             List<Async__c> workItems = Async.queries.getMatchingWorkItems(
                 threadId, nextWorkItem.Apex__c, Integer.valueOf(config.Batch_Size__c));
             Set<Id> workItemIds = Pluck.ids(workItems);
+            if (!Thread.service.canStartQueueableWork()) {
+                Thread.pause(threadId, Thread.service.queueablePauseReason(), runKey);
+                return;
+            }
             
             //dynamically instantiate the async job
             Async asyncJob = (Async) Type.forName(nextWorkItem.Apex__c).newInstance();
@@ -526,6 +545,8 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         Id threadId;
         Integer failures;
         String runKey;
+        Map<Id, Id> workItemIdByRecordId = new Map<Id, Id>();
+        Map<Id, String> failureMessageByRecordId = new Map<Id, String>();
         Map<String, Set<Id>> deferredWork = new Map<String, Set<Id>>();
 
         public JobWatcher(Id threadId, Set<Id> workItemIds, Integer failures) {
@@ -545,7 +566,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             Thread.service.isFinalizer = true;
             try {
                 if (context.getResult() == ParentJobResult.SUCCESS) {
-                    work.complete(this.workItemIds);
+                    this.applyResults();
                     this.createDeferredWork();
                     Thread.continueCurrent(this.runKey);
                     return;
@@ -564,9 +585,53 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             }
         }
 
+        public void complete(Id recordId) {
+            this.workItemIdFor(recordId);
+            this.failureMessageByRecordId.remove(recordId);
+        }
+
+        public void fail(Id recordId, String message) {
+            this.workItemIdFor(recordId);
+            this.failureMessageByRecordId.put(recordId, message);
+        }
+
         @testVisible void continueAfterFailure() {
             Integer nextFailures = this.failures + 1;
             Thread.continueCurrent(nextFailures, this.runKey);
+        }
+
+        void track(List<Async__c> workItems) {
+            if (workItems == null) return;
+            for (Async__c workItem : workItems) {
+                if (workItem.Record_Id__c == null || workItem.Id == null) continue;
+                this.workItemIdByRecordId.put((Id) workItem.Record_Id__c, workItem.Id);
+            }
+        }
+
+        void applyResults() {
+            Set<Id> failedWorkItemIds = new Set<Id>();
+            for (Id recordId : this.failureMessageByRecordId.keySet()) {
+                failedWorkItemIds.add(this.workItemIdFor(recordId));
+            }
+
+            Set<Id> completedWorkItemIds = new Set<Id>(this.workItemIds);
+            completedWorkItemIds.removeAll(failedWorkItemIds);
+            work.complete(completedWorkItemIds);
+
+            for (Id recordId : this.failureMessageByRecordId.keySet()) {
+                jobs.handleFailure(
+                    new Set<Id> { this.workItemIdFor(recordId) },
+                    this.failureMessageByRecordId.get(recordId),
+                    null
+                );
+            }
+        }
+
+        Id workItemIdFor(Id recordId) {
+            if (recordId == null || !this.workItemIdByRecordId.containsKey(recordId)) {
+                throw new AsyncException('Async result item is not part of the current batch.');
+            }
+            return this.workItemIdByRecordId.get(recordId);
         }
 
         void createDeferredWork() {

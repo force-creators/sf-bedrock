@@ -328,7 +328,7 @@ work and `Thread_Settings__c.Max_Threads__c` allows more than one chain, those
 backlogs can drain side by side. If the cap is `1`, one backlog drains while the
 others wait.
 
-![Diagram showing four synchronous transactions becoming four Async backlogs, three running in parallel under Max_Threads__c = 3 and one waiting for a slot.](/images/async-threading-model.png)
+![Subway-style map showing Async enqueue, Async work records, ThreadRunner, Async dispatcher, subscriber execution, and finalizer handoff.](/images/threading-async-subway.svg)
 
 That model gives high-volume users more throughput without changing the
 subscriber contract. The job still receives `Set<Id> ids`; configuration decides
@@ -440,6 +440,7 @@ business code.
 | `Async_Job__mdt` | `Max_Retries__c` | Cap on framework auto-retries. Blank or `0` means auto-retry is off. |
 | `Async_Job__mdt` | `Priority__c` | Assigned priorities run lowest to highest within the same backlog. Blank values leave work unprioritized and sort last. |
 | `Thread_Settings__c` | `Max_Threads__c` | Maximum concurrent framework-managed thread chains. Blank or non-positive values default to 1. |
+| `Thread_Settings__c` | `Recovery_Limit_Threshold_Pct__c` | Shared limiter threshold used by Thread recovery and pause/resume checks. Blank defaults to 90. |
 
 ## Notes & Edge Cases
 
@@ -450,6 +451,9 @@ business code.
 - **Work from Ids, not captured records.** Even when you enqueue a
   `List<SObject>`, only Ids are kept. Re-query inside `execute` so you act on
   current data.
+- **Async limit pressure parks threads.** When Queueable or daily async limits
+  are unsafe, `Async__c` rows stay `Pending` and the owning `Thread__c` becomes
+  `Paused` until recovery resumes it.
 - **Override only `execute(Set<Id> ids)`.** The rest of the class is framework
   machinery.
 - **Setup-object support applies inside Bedrock-managed async work.** When an

@@ -1,6 +1,7 @@
 public virtual with sharing class Thread {
     public static final String ASYNC_POOL = 'Async';
     public static final String DONE = 'Done';
+    public static final String PAUSED = 'Paused';
     public static final String PENDING = 'Pending';
     public static final String RUNNING = 'Running';
 
@@ -40,6 +41,10 @@ public virtual with sharing class Thread {
         service.enqueue();
     }
 
+    public static void wake(String pool) {
+        service.wake(pool);
+    }
+
     public static void continueCurrent() {
         service.continueCurrent();
     }
@@ -58,6 +63,22 @@ public virtual with sharing class Thread {
 
     public static void recover() {
         service.recover();
+    }
+
+    public static void pause(Id threadId, String reason) {
+        service.pause(threadId, reason);
+    }
+
+    public static void pause(Id threadId, String reason, String runKey) {
+        service.pause(threadId, reason, runKey);
+    }
+
+    public static void resume(Set<Id> threadIds) {
+        service.resume(threadIds);
+    }
+
+    public static void reopen(Set<Id> threadIds) {
+        service.reopen(threadIds);
     }
 
     public static void deleteDrained(Set<Id> threadIds) {
@@ -132,8 +153,24 @@ public virtual with sharing class Thread {
             Integer spawnCount = availableSpawnCount();
             if (spawnCount < 1) return;
 
-            currentOrCreate();
-            String pool = currentPool();
+            if (currentId() == null) currentOrCreate();
+            fillAvailableSlots(currentPool(), spawnCount);
+        }
+
+        public virtual void wake(String pool) {
+            if (!canEnqueue() || hasEnqueued || System.isQueueable() || isFinalizer) return;
+
+            fillAvailableSlots(pool);
+        }
+
+        public virtual void fillAvailableSlots(String pool) {
+            Integer spawnCount = availableSpawnCount(pool);
+            if (spawnCount < 1) return;
+
+            fillAvailableSlots(pool, spawnCount);
+        }
+
+        void fillAvailableSlots(String pool, Integer spawnCount) {
             for (Integer i = 0; i < spawnCount; i++) {
                 Id nextThreadId = claimNext(pool);
                 if (nextThreadId == null) return;
@@ -158,6 +195,11 @@ public virtual with sharing class Thread {
 
             heartbeat(currentId());
             if (hasCurrentWork()) {
+                if (!canStartQueueableWork()) {
+                    pause(currentId(), queueablePauseReason(), runKey);
+                    return;
+                }
+
                 if (shouldRestartThread(safeFailures)) {
                     start(currentId(), 0);
                     return;
@@ -167,8 +209,9 @@ public virtual with sharing class Thread {
                 return;
             }
 
+            String drainedPool = currentPool();
             complete(currentId());
-            Id nextThreadId = claimNext(currentPool());
+            Id nextThreadId = ThreadRunner.service.claimNextAfterDrain(drainedPool);
             if (nextThreadId == null) return;
 
             setCurrent(nextThreadId);
@@ -180,6 +223,11 @@ public virtual with sharing class Thread {
         }
 
         public virtual void start(Id threadId, Integer failures) {
+            if (!canStartQueueableWork()) {
+                pause(threadId, queueablePauseReason(), currentRunKey(threadId));
+                return;
+            }
+
             ThreadRunner.service.start(threadId, failures);
         }
 
@@ -213,27 +261,67 @@ public virtual with sharing class Thread {
         public virtual void complete(Id threadId, String runKey) {
             if (!isRunAuthorized(threadId, runKey)) return;
 
-            updateThread(new Thread__c(
+            Thread__c threadRecord = new Thread__c(
                 Id = threadId,
                 Status__c = DONE,
                 Completed__c = System.now(),
                 Heartbeat__c = System.now()
-            ));
+            );
+            threadRecord.Pause_Reason__c = null;
+            updateThread(threadRecord);
         }
 
         public virtual String startRun(Id threadId) {
             if (threadId == null) return null;
 
             String runKey = generateRunKey();
-            updateThread(new Thread__c(
+            Thread__c threadRecord = new Thread__c(
                 Id = threadId,
                 Status__c = RUNNING,
                 Started__c = System.now(),
                 Completed__c = null,
                 Heartbeat__c = System.now(),
                 Run_Key__c = runKey
-            ));
+            );
+            threadRecord.Pause_Reason__c = null;
+            updateThread(threadRecord);
             return runKey;
+        }
+
+        public virtual void pause(Id threadId, String reason) {
+            pause(threadId, reason, currentRunKey(threadId));
+        }
+
+        public virtual void pause(Id threadId, String reason, String runKey) {
+            if (!isRunAuthorized(threadId, runKey)) return;
+
+            updateThread(new Thread__c(
+                Id = threadId,
+                Status__c = PAUSED,
+                Pause_Reason__c = truncate(reason),
+                Heartbeat__c = System.now(),
+                Run_Key__c = null
+            ));
+        }
+
+        public virtual void resume(Set<Id> threadIds) {
+            if (threadIds == null || threadIds.isEmpty()) return;
+
+            List<SObject> updates = new List<SObject>();
+            for (Thread__c threadRecord : queries.getThreadsForUpdate(threadIds)) {
+                if (threadRecord.Status__c != PAUSED) continue;
+
+                Thread__c updateRecord = new Thread__c(
+                    Id = threadRecord.Id,
+                    Status__c = PENDING,
+                    Completed__c = null,
+                    Heartbeat__c = System.now(),
+                    Run_Key__c = null
+                );
+                updateRecord.Pause_Reason__c = null;
+                updates.add(updateRecord);
+            }
+            if (!updates.isEmpty()) DML.updateRecords(updates);
         }
 
         public virtual void heartbeat(Id threadId) {
@@ -287,7 +375,9 @@ public virtual with sharing class Thread {
         }
 
         public virtual Integer runningThreadCount(String pool) {
-            return queries.countRunningThreads(UserInfo.getUserId(), pool);
+            return isUserScoped(pool)
+                ? queries.countRunningThreads(UserInfo.getUserId(), pool)
+                : queries.countRunningThreads(pool);
         }
 
         public virtual Integer globalRunningThreadCount() {
@@ -308,7 +398,11 @@ public virtual with sharing class Thread {
 
         public virtual void recover() {
             if (!Thread.settings.recoveryEnabled()) return;
-            if (!Limiter.isSafe(Limiter.types.QUEUEABLE_JOBS, Thread.settings.recoveryLimitThresholdPct())) return;
+            if (!isRecoveryLimitSafe()) return;
+
+            for (Thread__c pausedThread : queries.getPausedThreads(Thread.settings.recoveryBatchSize())) {
+                recover(pausedThread);
+            }
 
             DateTime staleBefore = System.now().addMinutes(-Thread.settings.recoveryThresholdMinutes());
             for (Thread__c staleThread : queries.getRecoverableThreads(staleBefore, Thread.settings.recoveryBatchSize())) {
@@ -319,12 +413,14 @@ public virtual with sharing class Thread {
         public virtual void recover(Thread__c staleThread) {
             if (staleThread == null || staleThread.Id == null || staleThread.Status__c == DONE) return;
             if (!Thread.settings.recoveryEnabled()) return;
-            if (!Limiter.isSafe(Limiter.types.QUEUEABLE_JOBS, Thread.settings.recoveryLimitThresholdPct())) return;
+            if (!isRecoveryLimitSafe()) return;
             if (!hasRecoverySlot(staleThread)) return;
 
             ThreadRunner.Dispatcher dispatcher = ThreadRunner.service.dispatcherForPool(staleThread.Pool__c);
             String runKey = startRun(staleThread.Id);
-            dispatcher.prepareRecovery(staleThread.Id);
+            if (staleThread.Status__c != PAUSED) {
+                dispatcher.prepareRecovery(staleThread.Id);
+            }
 
             if (dispatcher.hasRecoverableWork(staleThread.Id)) {
                 ThreadRunner.service.start(staleThread.Id, 0, runKey);
@@ -334,12 +430,57 @@ public virtual with sharing class Thread {
             complete(staleThread.Id, runKey);
         }
 
+        public virtual void reopen(Set<Id> threadIds) {
+            if (threadIds == null || threadIds.isEmpty()) return;
+
+            List<SObject> updates = new List<SObject>();
+            for (Thread__c threadRecord : queries.getThreadsForUpdate(threadIds)) {
+                if (threadRecord.Status__c != DONE) continue;
+
+                updates.add(new Thread__c(
+                    Id = threadRecord.Id,
+                    Status__c = PENDING,
+                    Completed__c = null,
+                    Heartbeat__c = System.now(),
+                    Run_Key__c = null
+                ));
+            }
+            if (!updates.isEmpty()) DML.updateRecords(updates);
+        }
+
+        public virtual Boolean canStartQueueableWork() {
+            return Limits.getQueueableJobs() < Limits.getLimitQueueableJobs()
+                && Limiter.isSafe(Limiter.types.DAILY_ASYNC_APEX_EXECUTIONS, Thread.settings.recoveryLimitThresholdPct());
+        }
+
+        public virtual Boolean isRecoveryLimitSafe() {
+            return Limiter.isSafe(Limiter.types.QUEUEABLE_JOBS, Thread.settings.recoveryLimitThresholdPct())
+                && Limiter.isSafe(Limiter.types.DAILY_ASYNC_APEX_EXECUTIONS, Thread.settings.recoveryLimitThresholdPct());
+        }
+
+        public virtual String queueablePauseReason() {
+            if (Limits.getQueueableJobs() >= Limits.getLimitQueueableJobs()) {
+                return 'Queueable job limit is not safe.';
+            }
+            return 'Daily async Apex execution limit is not safe.';
+        }
+
         Boolean hasRecoverySlot(Thread__c threadRecord) {
             String pool = threadRecord == null ? ASYNC_POOL : threadRecord.Pool__c;
             Id threadId = threadRecord == null ? null : threadRecord.Id;
-            return queries.countRunningThreadsExcluding(UserInfo.getUserId(), pool, threadId) < maxThreads(pool)
+            return runningThreadCountExcluding(pool, threadId) < maxThreads(pool)
                 && queries.countRunningThreadsExcluding(threadId) < Thread.settings.maxThreads()
                 && Limits.getQueueableJobs() < Limits.getLimitQueueableJobs();
+        }
+
+        Integer runningThreadCountExcluding(String pool, Id excludedThreadId) {
+            return isUserScoped(pool)
+                ? queries.countRunningThreadsExcluding(UserInfo.getUserId(), pool, excludedThreadId)
+                : queries.countRunningThreadsExcluding(pool, excludedThreadId);
+        }
+
+        Boolean isUserScoped(String pool) {
+            return !EventRelay.isEventPool(normalizePool(pool));
         }
 
         public virtual void deleteDrained(Set<Id> threadIds) {
@@ -397,6 +538,11 @@ public virtual with sharing class Thread {
             return String.isBlank(pool) ? ASYNC_POOL : pool.trim();
         }
 
+        String truncate(String value) {
+            if (value == null || value.length() <= 255) return value;
+            return value.substring(0, 255);
+        }
+
         String normalizeThreadKey(String threadKey) {
             return String.isBlank(threadKey) ? requestThreadKey() : threadKey.trim();
         }
@@ -422,7 +568,7 @@ public virtual with sharing class Thread {
             if (threadId == null) return null;
 
             List<Thread__c> threads = (List<Thread__c>) Query.records([
-                SELECT Id, Pool__c, Thread_Key__c, Unique_Key__c, Status__c, Run_Key__c, Heartbeat__c
+                SELECT Id, Pool__c, Thread_Key__c, Unique_Key__c, Status__c, Run_Key__c, Heartbeat__c, Pause_Reason__c
                 FROM Thread__c
                 WHERE Id = :threadId
                 LIMIT 1
@@ -434,13 +580,24 @@ public virtual with sharing class Thread {
             if (String.isBlank(uniqueKey)) return null;
 
             List<Thread__c> threads = (List<Thread__c>) Query.records([
-                SELECT Id, Pool__c, Thread_Key__c, Unique_Key__c, Status__c, Run_Key__c, Heartbeat__c
+                SELECT Id, Pool__c, Thread_Key__c, Unique_Key__c, Status__c, Run_Key__c, Heartbeat__c, Pause_Reason__c
                 FROM Thread__c
                 WHERE Unique_Key__c = :uniqueKey
                 LIMIT 1
                 FOR UPDATE
             ]);
             return threads.isEmpty() ? null : threads[0];
+        }
+
+        public virtual List<Thread__c> getThreadsForUpdate(Set<Id> threadIds) {
+            if (threadIds == null || threadIds.isEmpty()) return new List<Thread__c>();
+
+            return (List<Thread__c>) Query.records([
+                SELECT Id, Status__c
+                FROM Thread__c
+                WHERE Id IN :threadIds
+                FOR UPDATE
+            ]);
         }
 
         public virtual Thread__c getNextPendingThread() {
@@ -461,6 +618,15 @@ public virtual with sharing class Thread {
                     ORDER BY CreatedDate ASC
                     LIMIT 1
                 ]);
+            } else if (EventRelay.isEventPool(normalizedPool)) {
+                candidates = (List<Thread__c>) Query.records([
+                    SELECT Id
+                    FROM Thread__c
+                    WHERE Status__c = 'Pending'
+                        AND Pool__c = :normalizedPool
+                    ORDER BY CreatedDate ASC
+                    LIMIT 1
+                ]);
             } else {
                 candidates = (List<Thread__c>) Query.records([
                     SELECT Id
@@ -475,13 +641,32 @@ public virtual with sharing class Thread {
             if (candidates.isEmpty()) return null;
 
             List<Thread__c> threads = (List<Thread__c>) Query.records([
-                SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c
+                SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c, Pause_Reason__c
                 FROM Thread__c
                 WHERE Id = :candidates[0].Id
                     AND Status__c = 'Pending'
                 FOR UPDATE
             ]);
             return threads.isEmpty() ? null : threads[0];
+        }
+
+        public virtual Integer countRunningThreads(String pool) {
+            String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
+            if (normalizedPool == ASYNC_POOL) {
+                return [
+                    SELECT COUNT()
+                    FROM Thread__c
+                    WHERE Status__c = 'Running'
+                        AND (Pool__c = :normalizedPool OR Pool__c = null)
+                ];
+            }
+
+            return [
+                SELECT COUNT()
+                FROM Thread__c
+                WHERE Status__c = 'Running'
+                    AND Pool__c = :normalizedPool
+            ];
         }
 
         public virtual Integer countRunningThreads(Id userId) {
@@ -526,6 +711,27 @@ public virtual with sharing class Thread {
             ];
         }
 
+        public virtual Integer countRunningThreadsExcluding(String pool, Id excludedThreadId) {
+            String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
+            if (normalizedPool == ASYNC_POOL) {
+                return [
+                    SELECT COUNT()
+                    FROM Thread__c
+                    WHERE Status__c = 'Running'
+                        AND Id != :excludedThreadId
+                        AND (Pool__c = :normalizedPool OR Pool__c = null)
+                ];
+            }
+
+            return [
+                SELECT COUNT()
+                FROM Thread__c
+                WHERE Status__c = 'Running'
+                    AND Id != :excludedThreadId
+                    AND Pool__c = :normalizedPool
+            ];
+        }
+
         public virtual Integer countRunningThreadsExcluding(Id userId, String pool, Id excludedThreadId) {
             String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
             if (normalizedPool == ASYNC_POOL) {
@@ -567,11 +773,43 @@ public virtual with sharing class Thread {
             }
 
             Map<Id, Thread__c> lockedThreadsById = new Map<Id, Thread__c>((List<Thread__c>) Query.records([
-                SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c
+                SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c, Pause_Reason__c
                 FROM Thread__c
                 WHERE Id IN :candidateIds
                     AND Status__c != 'Done'
                     AND Heartbeat__c < :staleBefore
+                FOR UPDATE
+            ]));
+            List<Thread__c> lockedThreads = new List<Thread__c>();
+            for (Id candidateId : candidateIds) {
+                if (lockedThreadsById.containsKey(candidateId)) {
+                    lockedThreads.add(lockedThreadsById.get(candidateId));
+                }
+            }
+            return lockedThreads;
+        }
+
+        public virtual List<Thread__c> getPausedThreads(Integer batchSize) {
+            Integer safeBatchSize = batchSize == null || batchSize < 1 ? 10 : batchSize;
+            List<Thread__c> candidates = (List<Thread__c>) Query.records([
+                SELECT Id
+                FROM Thread__c
+                WHERE Status__c = 'Paused'
+                ORDER BY Heartbeat__c ASC
+                LIMIT :safeBatchSize
+            ]);
+            if (candidates.isEmpty()) return new List<Thread__c>();
+
+            List<Id> candidateIds = new List<Id>();
+            for (Thread__c candidate : candidates) {
+                candidateIds.add(candidate.Id);
+            }
+
+            Map<Id, Thread__c> lockedThreadsById = new Map<Id, Thread__c>((List<Thread__c>) Query.records([
+                SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c, Pause_Reason__c
+                FROM Thread__c
+                WHERE Id IN :candidateIds
+                    AND Status__c = 'Paused'
                 FOR UPDATE
             ]));
             List<Thread__c> lockedThreads = new List<Thread__c>();

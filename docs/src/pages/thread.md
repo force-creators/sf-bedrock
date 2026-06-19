@@ -135,8 +135,8 @@ creates a `Thread__c` in `Pending` status and caches its Id for the transaction.
 Async work created in that transaction uses that thread.
 
 **Two: the cap gates starts, not inserts.** If no slot is available, work items
-and their `Thread__c` remain `Pending`. The framework does not throw away work
-just because all slots are busy.
+and their `Thread__c` remain `Pending`. If async execution limits are unsafe,
+the `Thread__c` is marked `Paused` with a reason until recovery can resume it.
 
 **Three: handoff keeps the backlog moving.** When a Queueable chain drains its
 thread, the finalizer marks the thread `Done`, selects the oldest pending thread
@@ -162,6 +162,8 @@ starts the next chain.
 | `enqueue` | `public static void enqueue()` | Starts the current thread when the context and cap allow it. |
 | `continueCurrent` | `public static void continueCurrent()` | Continues, completes, or hands off the current thread. |
 | `continueCurrent` | `public static void continueCurrent(Integer failures)` | Same as `continueCurrent()`, carrying the current failure streak. |
+| `pause` | `public static void pause(Id threadId, String reason)` | Parks a thread with an operator-visible reason. Framework-owned. |
+| `resume` | `public static void resume(Set<Id> threadIds)` | Moves paused threads back to pending and clears the pause reason. Framework-owned. |
 | `deleteDrained` | `public static void deleteDrained(Set<Id> threadIds)` | Framework cleanup helper for drained thread rows. Not a subscriber-facing entry point. |
 
 ### Schema
@@ -170,7 +172,8 @@ starts the next chain.
 
 | Field | Purpose |
 | --- | --- |
-| `Status__c` | Thread lifecycle status: `Pending`, `Running`, `Done`. |
+| `Status__c` | Thread lifecycle status: `Pending`, `Running`, `Paused`, `Done`. |
+| `Pause_Reason__c` | Operator-visible reason a thread is parked, such as unsafe async or publish limits. |
 
 **`Async__c.Thread__c`** is a lookup to `Thread__c`.
 
@@ -188,6 +191,8 @@ directly.
 - **The cap is soft.** Concurrent transactions can briefly race past it.
 - **Pending is normal.** If no slot is available, the thread waits in `Pending`
   until another chain drains and hands off.
+- **Paused means limits are unsafe.** Work rows stay in their own pending state;
+  recovery resumes the thread when limits and capacity are safe.
 - **Handoff is FIFO by creation time.** The service first selects the oldest
   pending thread, then locks that row by Id in a second query.
 - **There is no reaper yet.** A platform incident, aborted job, or finalizer

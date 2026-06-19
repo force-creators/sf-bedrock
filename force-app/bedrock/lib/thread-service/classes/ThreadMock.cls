@@ -95,16 +95,23 @@ public with sharing class ThreadMock {
 
     public with sharing class QueryService extends Thread.QueryService {
         public List<Thread__c> pendingThreads = new List<Thread__c>();
+        public Map<String, List<Thread__c>> pendingThreadsByPool = new Map<String, List<Thread__c>>();
         public Integer runningThreadCount = 0;
         public Integer globalRunningThreadCount = 0;
         public List<Integer> runningThreadCounts = new List<Integer>();
         public List<Thread__c> recoverableThreads = new List<Thread__c>();
+        public List<Thread__c> pausedThreads = new List<Thread__c>();
 
         public override Thread__c getNextPendingThread() {
             return pendingThreads.isEmpty() ? super.getNextPendingThread() : pendingThreads.remove(0);
         }
 
         public override Thread__c getNextPendingThread(String pool) {
+            String normalizedPool = String.isBlank(pool) ? Thread.ASYNC_POOL : pool.trim();
+            if (pendingThreadsByPool.containsKey(normalizedPool)
+                && !pendingThreadsByPool.get(normalizedPool).isEmpty()) {
+                return pendingThreadsByPool.get(normalizedPool).remove(0);
+            }
             return pendingThreads.isEmpty() ? super.getNextPendingThread(pool) : pendingThreads.remove(0);
         }
 
@@ -113,6 +120,10 @@ public with sharing class ThreadMock {
         }
 
         public override Integer countRunningThreads(Id userId, String pool) {
+            return nextRunningThreadCount();
+        }
+
+        public override Integer countRunningThreads(String pool) {
             return nextRunningThreadCount();
         }
 
@@ -128,8 +139,16 @@ public with sharing class ThreadMock {
             return runningThreadCount < 1 ? 0 : runningThreadCount - 1;
         }
 
+        public override Integer countRunningThreadsExcluding(String pool, Id excludedThreadId) {
+            return runningThreadCount < 1 ? 0 : runningThreadCount - 1;
+        }
+
         public override List<Thread__c> getRecoverableThreads(DateTime staleBefore, Integer batchSize) {
             return recoverableThreads;
+        }
+
+        public override List<Thread__c> getPausedThreads(Integer batchSize) {
+            return pausedThreads;
         }
 
         Integer nextRunningThreadCount() {

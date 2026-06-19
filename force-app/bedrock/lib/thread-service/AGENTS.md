@@ -36,11 +36,12 @@ that starts a thread and routes work to the pool-specific dispatcher.
   pending thread in the same pool, locks that row with a second `FOR UPDATE`
   query, and starts it when a slot is available. Completion stamps
   `Completed__c` and refreshes `Heartbeat__c`.
-- `Thread.recover()` is the scheduled recovery monitor. It finds stale
-  non-done threads by `Heartbeat__c`, checks `Thread_Settings__c`,
-  `Limiter.isSafe(QUEUEABLE_JOBS, threshold)`, global Thread capacity, and
-  pool capacity, advances `Run_Key__c` under lock, asks the dispatcher to
-  prepare recoverable work, and either restarts the thread or marks it `Done`.
+- `Thread.recover()` is the scheduled recovery monitor. It resumes paused
+  threads when async limits are safe, then finds stale non-done threads by
+  `Heartbeat__c`, checks `Thread_Settings__c`, limiter safety, global Thread
+  capacity, and pool capacity, advances `Run_Key__c` under lock, asks the
+  dispatcher to prepare recoverable work, and either restarts the thread or
+  marks it `Done`.
 - `ThreadRunner` owns the queueable entry point. It reads the thread pool and
   dispatches through the matching `ThreadRunner.Dispatcher`; the current
   implemented dispatcher is `Async.ThreadDispatcher`. Dispatchers can expose
@@ -54,7 +55,8 @@ that starts a thread and routes work to the pool-specific dispatcher.
 ## Schema
 
 The implemented schema is `Thread__c` with `Status__c` values `Pending`,
-`Running`, and `Done`. `Pool__c` identifies the owning work pool,
+`Running`, `Paused`, and `Done`. `Pause_Reason__c` stores why a thread is
+parked. `Pool__c` identifies the owning work pool,
 `Thread_Key__c` identifies the lane within that pool, `Unique_Key__c` stores a
 generated hash for the unique `Pool__c + Thread_Key__c` identity, and
 `Run_Key__c` identifies the currently authorized execution chain.

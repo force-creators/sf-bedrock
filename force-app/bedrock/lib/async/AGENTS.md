@@ -18,6 +18,9 @@ today; inspect the code before depending on exact behavior.
 
 - `Async` is a `virtual` class implementing `Queueable` and
   `Database.AllowsCallouts`. Subclasses override `execute(Set<Id> ids)`.
+  Inside `execute`, a subclass may optionally call `complete(Id)` or
+  `fail(Id, String)` for item-level results. Any selected record Id not
+  explicitly failed is completed when the job succeeds.
 - Five injectable service singletons drive behavior: `Async.jobs`
   (`JobService`), `Async.work` (`WorkService`), `Async.queries`
   (`QueryService`), `Async.metadata` (`MetadataService`), and
@@ -51,11 +54,14 @@ today; inspect the code before depending on exact behavior.
   type's `Async_Job__mdt.Priority__c`. Missing config rows or blank priority
   values leave work unassigned, and pending-work queries sort those null
   priorities last.
-- `Async.JobWatcher` (a `Finalizer`) marks the batch `Done` and chains the next
-  job on success. On failure it delegates to `JobService.handleFailure`, which
-  reads each item's `Retry_Count__c`, compares it against the job type's
-  `Async_Job__mdt.Max_Retries__c` (via `JobService.shouldAutoRetry`), and
-  partitions the batch: items under the cap are re-pended with
+- `Async.JobWatcher` (a `Finalizer`) marks successful work `Done` and chains the
+  next job on success. If the job calls `fail(Id, String)` for specific records,
+  the finalizer sends those work items through `JobService.handleFailure` while
+  completing the rest. On thrown failure it delegates the whole batch to
+  `JobService.handleFailure`, which reads each item's `Retry_Count__c`, compares
+  it against the job type's `Async_Job__mdt.Max_Retries__c` (via
+  `JobService.shouldAutoRetry`), and partitions the batch: items under the cap
+  are re-pended with
   `Retry_Count__c` incremented (`WorkService.autoRetry`) so the chain re-runs
   them, and items at/over the cap (or with no/zero `Max_Retries__c`) record a
   terminal `Error` with truncated message/stack trace. The finalizer then chains
@@ -82,6 +88,9 @@ today; inspect the code before depending on exact behavior.
   and `prepareRecovery(threadId)` resets stranded `Running` rows back to
   `Pending`. Thread remains the recovery orchestrator; Async only owns the
   work-item reset.
+- When async execution limits are unsafe, Async leaves selected `Async__c` rows
+  `Pending` and pauses the owning `Thread__c`; Thread recovery resumes the
+  thread later when limits are safe.
 - `AsyncMock` provides test subclasses of the five services, including a
   `canEnqueue()` toggle, a bounded `maximumQueueableStackDepth` thread start, a
   `config(Type, Async_Job__mdt)` seam that injects job-type config into the

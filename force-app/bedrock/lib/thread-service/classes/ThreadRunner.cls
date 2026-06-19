@@ -47,6 +47,10 @@ public virtual with sharing class ThreadRunner implements Queueable {
 
         public virtual void start(Id threadId, Integer failures, String runKey) {
             if (threadId == null || String.isBlank(runKey)) return;
+            if (!Thread.service.canStartQueueableWork()) {
+                Thread.pause(threadId, Thread.service.queueablePauseReason(), runKey);
+                return;
+            }
 
             System.enqueueJob(new ThreadRunner(threadId, failures, runKey));
         }
@@ -56,11 +60,24 @@ public virtual with sharing class ThreadRunner implements Queueable {
         }
 
         public virtual void dispatch(Id threadId, Integer failures, String runKey) {
-            dispatcherFor(threadId).dispatch(threadId, failures, runKey);
+            dispatcherForWork(threadId).dispatch(threadId, failures, runKey);
         }
 
         public virtual Boolean hasPendingWork(Id threadId) {
-            return dispatcherFor(threadId).hasPendingWork(threadId);
+            return dispatcherForWork(threadId).hasPendingWork(threadId);
+        }
+
+        public virtual Id claimNextAfterDrain(String pool) {
+            String normalizedPool = normalizePool(pool);
+            Id nextThreadId = Thread.service.claimNext(normalizedPool);
+            if (nextThreadId != null) return nextThreadId;
+
+            String fallbackPool = fallbackPoolAfterDrain(normalizedPool);
+            return String.isBlank(fallbackPool) ? null : Thread.service.claimNext(fallbackPool);
+        }
+
+        public virtual String fallbackPoolAfterDrain(String pool) {
+            return EventRelay.isEventPool(normalizePool(pool)) ? Thread.ASYNC_POOL : null;
         }
 
         public virtual Integer maxThreads(String pool) {
@@ -77,15 +94,39 @@ public virtual with sharing class ThreadRunner implements Queueable {
             return dispatcherForPool(pool);
         }
 
+        public virtual Dispatcher dispatcherForWork(Id threadId) {
+            Thread__c threadRecord = Thread.queries.getThread(threadId);
+            String pool = threadRecord == null || String.isBlank(threadRecord.Pool__c)
+                ? Thread.ASYNC_POOL
+                : normalizePool(threadRecord.Pool__c);
+            Dispatcher poolDispatcher = dispatcherForPool(pool);
+            if (!EventRelay.isEventPool(pool) || poolDispatcher.hasPendingWork(threadId)) {
+                return poolDispatcher;
+            }
+
+            Dispatcher asyncDispatcher = dispatcherForPool(Thread.ASYNC_POOL);
+            return asyncDispatcher.hasPendingWork(threadId) ? asyncDispatcher : poolDispatcher;
+        }
+
         public virtual Dispatcher dispatcherForPool(String pool) {
-            String normalizedPool = String.isBlank(pool) ? Thread.ASYNC_POOL : pool;
+            String normalizedPool = normalizePool(pool);
             if (this.dispatchers.containsKey(normalizedPool)) {
                 return this.dispatchers.get(normalizedPool);
             }
             if (normalizedPool == Thread.ASYNC_POOL) {
                 return new Async.ThreadDispatcher();
             }
+            if (normalizedPool == EventRelay.PUBLISH_POOL) {
+                return new EventRelay.ThreadDispatcher();
+            }
+            if (normalizedPool == EventRelay.PROCESS_POOL) {
+                return new EventRelay.ProcessThreadDispatcher();
+            }
             throw new ThreadRunnerException('No ThreadRunner dispatcher is registered for pool ' + normalizedPool + '.');
+        }
+
+        String normalizePool(String pool) {
+            return String.isBlank(pool) ? Thread.ASYNC_POOL : pool.trim();
         }
     }
 
