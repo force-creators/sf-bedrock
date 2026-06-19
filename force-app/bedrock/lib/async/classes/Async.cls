@@ -157,6 +157,10 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             List<Async__c> workItems = Async.queries.getMatchingWorkItems(
                 threadId, nextWorkItem.Apex__c, Integer.valueOf(config.Batch_Size__c));
             Set<Id> workItemIds = Pluck.ids(workItems);
+            if (!Thread.service.canStartQueueableWork()) {
+                Thread.pause(threadId, Thread.service.queueablePauseReason(), runKey);
+                return;
+            }
             
             //dynamically instantiate the async job
             Async asyncJob = (Async) Type.forName(nextWorkItem.Apex__c).newInstance();

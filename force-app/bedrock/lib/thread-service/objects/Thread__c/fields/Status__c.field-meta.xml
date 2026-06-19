@@ -15,6 +15,11 @@
                 <label>Done</label>
             </value>
             <value>
+                <fullName>Paused</fullName>
+                <default>false</default>
+                <label>Paused</label>
+            </value>
+            <value>
                 <fullName>Pending</fullName>
                 <default>true</default>
                 <label>Pending</label>

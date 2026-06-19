@@ -88,6 +88,9 @@ today; inspect the code before depending on exact behavior.
   and `prepareRecovery(threadId)` resets stranded `Running` rows back to
   `Pending`. Thread remains the recovery orchestrator; Async only owns the
   work-item reset.
+- When async execution limits are unsafe, Async leaves selected `Async__c` rows
+  `Pending` and pauses the owning `Thread__c`; Thread recovery resumes the
+  thread later when limits are safe.
 - `AsyncMock` provides test subclasses of the five services, including a
   `canEnqueue()` toggle, a bounded `maximumQueueableStackDepth` thread start, a
   `config(Type, Async_Job__mdt)` seam that injects job-type config into the

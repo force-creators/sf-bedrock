@@ -11,7 +11,6 @@ public virtual with sharing class EventRelay {
     public static final String PROCESS = 'Process';
     public static final String PENDING = 'Pending';
     public static final String RUNNING = 'Running';
-    public static final String PAUSED = 'Paused';
     public static final String DONE = 'Done';
     public static final String ERROR = 'Error';
 
@@ -284,10 +283,6 @@ public virtual with sharing class EventRelay {
             updateStatus(workItemIds, new Event__c(Status__c = DONE));
         }
 
-        public virtual void pause(Set<Id> workItemIds, String message) {
-            updateStatus(workItemIds, new Event__c(Status__c = PAUSED, Error_Message__c = truncate(message)));
-        }
-
         public virtual List<Id> retry(Set<Id> workItemIds) {
             List<Event__c> workItems = queries.getRetryableWorkItems(workItemIds);
             if (workItems.isEmpty()) return new List<Id>();
@@ -522,10 +517,14 @@ public virtual with sharing class EventRelay {
             }
 
             List<Id> workItemIds = idsFrom(workItems);
+            if (!Thread.service.canStartQueueableWork()) {
+                Thread.pause(threadId, Thread.service.queueablePauseReason(), runKey);
+                return;
+            }
+
             if (publishers.requiresPlatformEventLimit(workItems)
                 && !Limiter.isSafe(Limiter.types.DAILY_STANDARD_VOLUME_PLATFORM_EVENTS, settings.limitThresholdPct())) {
-                work.pause(new Set<Id>(workItemIds), 'Platform Event publication limit is not safe.');
-                Thread.continueCurrent(failures, runKey);
+                Thread.pause(threadId, 'Platform Event publication limit is not safe.', runKey);
                 return;
             }
 
@@ -545,6 +544,11 @@ public virtual with sharing class EventRelay {
             }
 
             List<Id> workItemIds = idsFrom(workItems);
+            if (!Thread.service.canStartQueueableWork()) {
+                Thread.pause(threadId, Thread.service.queueablePauseReason(), runKey);
+                return;
+            }
+
             work.running(new Set<Id>(workItemIds));
             new ProcessJob(threadId, workItemIds, failures, runKey).enqueue();
         }
@@ -667,12 +671,11 @@ public virtual with sharing class EventRelay {
         public virtual List<Event__c> getRetryableWorkItems(Set<Id> workItemIds) {
             if (workItemIds == null || workItemIds.isEmpty()) return new List<Event__c>();
 
-            Set<String> statuses = new Set<String> { ERROR, PAUSED };
             return (List<Event__c>) Query.records([
                 SELECT Id, Thread__c
                 FROM Event__c
                 WHERE Id IN :workItemIds
-                    AND Status__c IN :statuses
+                    AND Status__c = :ERROR
                 ORDER BY CreatedDate ASC, Order__c ASC, Name ASC
             ]);
         }

@@ -100,6 +100,7 @@ public with sharing class ThreadMock {
         public Integer globalRunningThreadCount = 0;
         public List<Integer> runningThreadCounts = new List<Integer>();
         public List<Thread__c> recoverableThreads = new List<Thread__c>();
+        public List<Thread__c> pausedThreads = new List<Thread__c>();
 
         public override Thread__c getNextPendingThread() {
             return pendingThreads.isEmpty() ? super.getNextPendingThread() : pendingThreads.remove(0);
@@ -144,6 +145,10 @@ public with sharing class ThreadMock {
 
         public override List<Thread__c> getRecoverableThreads(DateTime staleBefore, Integer batchSize) {
             return recoverableThreads;
+        }
+
+        public override List<Thread__c> getPausedThreads(Integer batchSize) {
+            return pausedThreads;
         }
 
         Integer nextRunningThreadCount() {

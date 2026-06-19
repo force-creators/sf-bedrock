@@ -170,7 +170,7 @@ public with sharing class EventConsoleController {
     }
 
     static Set<String> backlogStatuses() {
-        return new Set<String>{ EventRelay.PENDING, EventRelay.PAUSED };
+        return new Set<String>{ EventRelay.PENDING };
     }
 
     static List<EventRow> rowsFrom(List<Event__c> workItems) {

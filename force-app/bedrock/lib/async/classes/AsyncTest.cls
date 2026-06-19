@@ -546,6 +546,44 @@ public with sharing class AsyncTest {
         Assert.areEqual('Pending', recoveredWork.Status__c, 'Expected Async recovery preparation to make stranded Running work runnable again.');
     }
 
+    @istest static void testJobService_pausesThreadWhenAsyncLimitIsUnsafe() {
+        Limiter.setMock(new LimiterMock()
+            .setLimit(Limiter.types.DAILY_ASYNC_APEX_EXECUTIONS, 90, 100));
+        Contact contact = new Contact(LastName = 'Limit Pause');
+        insert contact;
+        Thread__c threadRecord = new Thread__c(
+            Status__c = Thread.RUNNING,
+            Pool__c = Thread.ASYNC_POOL,
+            Thread_Key__c = 'request:limit-pause',
+            Run_Key__c = 'run-key',
+            Heartbeat__c = System.now()
+        );
+        insert threadRecord;
+        Async__c work = workItem(String.valueOf(MyTestAsync.class), contact.Id, 'Pending', threadRecord.Id);
+        insert work;
+
+        Async.jobs.enqueueNextJob(threadRecord.Id, 0, 'run-key');
+
+        Async__c storedWork = [
+            SELECT Status__c
+            FROM Async__c
+            WHERE Id = :work.Id
+        ];
+        Thread__c storedThread = [
+            SELECT Status__c, Pause_Reason__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :threadRecord.Id
+        ];
+        Assert.areEqual('Pending', storedWork.Status__c,
+            'Unsafe async limits should leave async work pending.');
+        Assert.areEqual(Thread.PAUSED, storedThread.Status__c,
+            'Unsafe async limits should pause the owning thread.');
+        Assert.areEqual('Daily async Apex execution limit is not safe.', storedThread.Pause_Reason__c,
+            'Expected the paused thread to explain the limiter pause.');
+        Assert.isNull(storedThread.Run_Key__c,
+            'Pausing a thread should fence the current run key.');
+    }
+
     public with sharing class CountingMetadataService extends Async.MetadataService {
         public Integer loadCount = 0;
 

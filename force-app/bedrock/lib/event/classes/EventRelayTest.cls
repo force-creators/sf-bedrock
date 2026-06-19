@@ -623,30 +623,22 @@ private class EventRelayTest {
         errored.Error_Message__c = 'publish failed';
         errored.Error_Stack_Trace__c = 'stack';
 
-        Event__c paused = workItem('paused');
-        paused.Id = null;
-        paused.Status__c = EventRelay.PAUSED;
-        paused.Thread__c = threadRecord.Id;
-        paused.Thread_Key__c = 'Bedrock_Test_Event__e';
-        paused.Retry_Count__c = 1;
-        paused.Error_Message__c = 'limit unsafe';
-
         Event__c done = workItem('done');
         done.Id = null;
         done.Status__c = EventRelay.DONE;
         done.Thread__c = threadRecord.Id;
         done.Thread_Key__c = 'Bedrock_Test_Event__e';
 
-        insert new List<Event__c> { errored, paused, done };
+        insert new List<Event__c> { errored, done };
 
         Test.startTest();
-        List<Id> retriedIds = EventRelay.retry(new Set<Id> { errored.Id, paused.Id, done.Id });
+        List<Id> retriedIds = EventRelay.retry(new Set<Id> { errored.Id, done.Id });
         Test.stopTest();
 
-        Assert.areEqual(new Set<Id> { errored.Id, paused.Id }, new Set<Id>(retriedIds),
+        Assert.areEqual(new Set<Id> { errored.Id }, new Set<Id>(retriedIds),
             'Manual retry should return only work items moved back to pending.');
 
-        Set<Id> workItemIds = new Set<Id> { errored.Id, paused.Id, done.Id };
+        Set<Id> workItemIds = new Set<Id> { errored.Id, done.Id };
         Map<Id, Event__c> workById = new Map<Id, Event__c>([
             SELECT Status__c, Retry_Count__c, Error_Message__c, Error_Stack_Trace__c
             FROM Event__c
@@ -660,12 +652,6 @@ private class EventRelayTest {
             'Manual retry should clear the latest error message.');
         Assert.areEqual(null, workById.get(errored.Id).Error_Stack_Trace__c,
             'Manual retry should clear the latest error stack trace.');
-        Assert.areEqual(EventRelay.PENDING, workById.get(paused.Id).Status__c,
-            'Manual retry should requeue paused work.');
-        Assert.areEqual(1, workById.get(paused.Id).Retry_Count__c,
-            'Manual retry should preserve retry count on paused work.');
-        Assert.areEqual(null, workById.get(paused.Id).Error_Message__c,
-            'Manual retry should clear the pause reason before rerunning.');
         Assert.areEqual(EventRelay.DONE, workById.get(done.Id).Status__c,
             'Manual retry should ignore non-retryable work.');
 
@@ -682,6 +668,51 @@ private class EventRelayTest {
             'Manual retry should clear the stale lane run key.');
         Assert.areEqual(1, wakeSignal.signalCalls,
             'Manual retry should signal EventRelay wake processing.');
+    }
+
+    @istest static void enqueueNextPublishJob_pausesThreadWhenPlatformEventLimitIsUnsafe() {
+        EventRelay.reset();
+        Limiter.setMock(new LimiterMock()
+            .setLimit(Limiter.types.DAILY_ASYNC_APEX_EXECUTIONS, 0, 100)
+            .setLimit(Limiter.types.DAILY_STANDARD_VOLUME_PLATFORM_EVENTS, 90, 100));
+
+        Thread__c threadRecord = new Thread__c(
+            Status__c = Thread.RUNNING,
+            Pool__c = EventRelay.PUBLISH_POOL,
+            Thread_Key__c = 'Bedrock_Test_Event__e',
+            Run_Key__c = 'run-key',
+            Heartbeat__c = System.now()
+        );
+        insert threadRecord;
+
+        Event__c work = workItem('pending');
+        work.Id = null;
+        work.Status__c = EventRelay.PENDING;
+        work.Thread__c = threadRecord.Id;
+        work.Thread_Key__c = 'Bedrock_Test_Event__e';
+        work.Apex__c = EventRelay.PLATFORM_EVENT_PUBLISHER;
+        insert work;
+
+        EventRelay.jobs.enqueueNextPublishJob(threadRecord.Id, 0, 'run-key');
+
+        Event__c storedWork = [
+            SELECT Status__c
+            FROM Event__c
+            WHERE Id = :work.Id
+        ];
+        Thread__c storedThread = [
+            SELECT Status__c, Pause_Reason__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :threadRecord.Id
+        ];
+        Assert.areEqual(EventRelay.PENDING, storedWork.Status__c,
+            'Unsafe Platform Event limits should leave publish work pending.');
+        Assert.areEqual(Thread.PAUSED, storedThread.Status__c,
+            'Unsafe Platform Event limits should pause the owning publish thread.');
+        Assert.areEqual('Platform Event publication limit is not safe.', storedThread.Pause_Reason__c,
+            'Expected the paused thread to explain why publish work is parked.');
+        Assert.isNull(storedThread.Run_Key__c,
+            'Pausing a thread should fence the current run key.');
     }
 
     @istest static void publisherService_requiresPlatformEventLimitOnlyForBuiltInPublisher() {

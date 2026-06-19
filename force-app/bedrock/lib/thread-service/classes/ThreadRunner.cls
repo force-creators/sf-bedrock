@@ -47,6 +47,10 @@ public virtual with sharing class ThreadRunner implements Queueable {
 
         public virtual void start(Id threadId, Integer failures, String runKey) {
             if (threadId == null || String.isBlank(runKey)) return;
+            if (!Thread.service.canStartQueueableWork()) {
+                Thread.pause(threadId, Thread.service.queueablePauseReason(), runKey);
+                return;
+            }
 
             System.enqueueJob(new ThreadRunner(threadId, failures, runKey));
         }

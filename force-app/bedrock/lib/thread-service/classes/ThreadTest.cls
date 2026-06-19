@@ -51,6 +51,19 @@ public with sharing class ThreadTest {
             'Expected pending-thread claims to select work from the requested pool.');
     }
 
+    @istest static void testQueryService_getNextPendingThreadIgnoresPausedThreads() {
+        Thread__c pausedThread = thread(Thread.ASYNC_POOL, 'request:paused');
+        pausedThread.Status__c = Thread.PAUSED;
+        pausedThread.Pause_Reason__c = 'Daily async Apex execution limit is not safe.';
+        Thread__c pendingThread = thread(Thread.ASYNC_POOL, 'request:pending');
+        insert new List<Thread__c> { pausedThread, pendingThread };
+
+        Thread__c nextThread = new Thread.QueryService().getNextPendingThread();
+
+        Assert.areEqual(pendingThread.Id, nextThread.Id,
+            'Expected pending-thread claims to skip paused threads until recovery resumes them.');
+    }
+
     @istest static void testContinueCurrent_restartsCurrentThreadAtFailureThreshold() {
         ThreadMock mock = new ThreadMock();
         Thread.setMock(mock);
@@ -445,6 +458,51 @@ public with sharing class ThreadTest {
         Assert.areEqual(runKey, storedThread.Run_Key__c, 'Expected starting a thread run to persist the generated run key.');
     }
 
+    @istest static void testPause_marksThreadPausedWithReasonAndFencesRunKey() {
+        Thread__c threadRecord = thread(Thread.ASYNC_POOL, 'request:pause');
+        insert threadRecord;
+        String runKey = Thread.service.startRun(threadRecord.Id);
+
+        Thread.pause(threadRecord.Id, 'Daily async Apex execution limit is not safe.', runKey);
+
+        Thread__c pausedThread = [
+            SELECT Status__c, Pause_Reason__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :threadRecord.Id
+        ];
+        Assert.areEqual(Thread.PAUSED, pausedThread.Status__c,
+            'Expected Thread.pause to park the thread.');
+        Assert.areEqual('Daily async Apex execution limit is not safe.', pausedThread.Pause_Reason__c,
+            'Expected Thread.pause to store an operator-visible reason.');
+        Assert.isNull(pausedThread.Run_Key__c,
+            'Expected Thread.pause to clear the run key so stale runners cannot continue the lane.');
+    }
+
+    @istest static void testResume_marksPausedThreadPendingAndClearsReason() {
+        Thread__c threadRecord = thread(Thread.ASYNC_POOL, 'request:resume');
+        threadRecord.Status__c = Thread.PAUSED;
+        threadRecord.Pause_Reason__c = 'Daily async Apex execution limit is not safe.';
+        threadRecord.Completed__c = System.now();
+        threadRecord.Run_Key__c = 'old-run-key';
+        insert threadRecord;
+
+        Thread.resume(new Set<Id> { threadRecord.Id });
+
+        Thread__c resumedThread = [
+            SELECT Status__c, Pause_Reason__c, Completed__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :threadRecord.Id
+        ];
+        Assert.areEqual(Thread.PENDING, resumedThread.Status__c,
+            'Expected Thread.resume to make paused work claimable again.');
+        Assert.isNull(resumedThread.Pause_Reason__c,
+            'Expected Thread.resume to clear the old pause reason.');
+        Assert.isNull(resumedThread.Completed__c,
+            'Expected Thread.resume to clear any completed timestamp.');
+        Assert.isNull(resumedThread.Run_Key__c,
+            'Expected Thread.resume to clear stale run authorization.');
+    }
+
     @istest static void testContinueCurrent_staleRunKeyDoesNotAdvanceThread() {
         ThreadMock mock = new ThreadMock();
         Thread.setMock(mock);
@@ -461,7 +519,7 @@ public with sharing class ThreadTest {
     }
 
     @istest static void testRecover_restartsRecoverableThreadWithAdvancedRunKey() {
-        Limiter.setMock(new LimiterMock().setLimit(Limiter.types.QUEUEABLE_JOBS, 0, 50));
+        Limiter.setMock(safeAsyncLimits());
         ThreadMock mock = new ThreadMock()
             .seedSettings(new Thread_Settings__c(Max_Threads__c = 2));
         Thread.setMock(mock);
@@ -488,8 +546,43 @@ public with sharing class ThreadTest {
         Assert.areEqual(recoveredThread.Run_Key__c, runner.lastRunKey, 'Expected the replacement runner to carry the newly authorized run key.');
     }
 
+    @istest static void testRecover_restartsPausedThreadWhenLimitsAreSafe() {
+        Limiter.setMock(safeAsyncLimits());
+        ThreadMock mock = new ThreadMock()
+            .seedSettings(new Thread_Settings__c(Max_Threads__c = 2));
+        Thread.setMock(mock);
+        Thread__c pausedThread = thread(Thread.ASYNC_POOL, 'paused-recovery');
+        pausedThread.Status__c = Thread.PAUSED;
+        pausedThread.Pause_Reason__c = 'Daily async Apex execution limit is not safe.';
+        pausedThread.Run_Key__c = null;
+        insert pausedThread;
+        mock.queries.pausedThreads.add(pausedThread);
+        SpyDispatcher dispatcher = new SpyDispatcher();
+        dispatcher.hasRecoverableWork = true;
+        SpyRunnerService runner = new SpyRunnerService(dispatcher);
+        ThreadRunner.setMock(runner);
+
+        Thread.recover();
+
+        Thread__c recoveredThread = [
+            SELECT Status__c, Pause_Reason__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :pausedThread.Id
+        ];
+        Assert.areEqual(Thread.RUNNING, recoveredThread.Status__c,
+            'Expected recovery to restart paused threads when limits are safe.');
+        Assert.isNull(recoveredThread.Pause_Reason__c,
+            'Expected paused-thread recovery to clear the old pause reason.');
+        Assert.isNotNull(recoveredThread.Run_Key__c,
+            'Expected paused-thread recovery to authorize a replacement run.');
+        Assert.areEqual(0, dispatcher.prepareRecoveryCalls,
+            'Expected paused-thread recovery not to repend work that never started running.');
+        Assert.areEqual(1, runner.startCalls,
+            'Expected paused-thread recovery to restart the paused lane.');
+    }
+
     @istest static void testRecover_completesStaleThreadWithNoRecoverableWork() {
-        Limiter.setMock(new LimiterMock().setLimit(Limiter.types.QUEUEABLE_JOBS, 0, 50));
+        Limiter.setMock(safeAsyncLimits());
         ThreadMock mock = new ThreadMock()
             .seedSettings(new Thread_Settings__c(Max_Threads__c = 2));
         Thread.setMock(mock);
@@ -512,7 +605,7 @@ public with sharing class ThreadTest {
     }
 
     @istest static void testRecover_doesNothingWhenRecoveryDisabled() {
-        Limiter.setMock(new LimiterMock().setLimit(Limiter.types.QUEUEABLE_JOBS, 0, 50));
+        Limiter.setMock(safeAsyncLimits());
         ThreadMock mock = new ThreadMock()
             .seedSettings(new Thread_Settings__c(Enable_Recovery__c = false, Max_Threads__c = 2));
         Thread.setMock(mock);
@@ -558,6 +651,30 @@ public with sharing class ThreadTest {
         ];
         Assert.areEqual('old-run-key', untouchedThread.Run_Key__c, 'Expected unsafe limiter state not to advance the stale run key.');
         Assert.areEqual(0, runner.startCalls, 'Expected unsafe limiter state not to start a replacement chain.');
+    }
+
+    @istest static void testContinueCurrent_pausesCurrentThreadWhenAsyncLimitIsUnsafe() {
+        Limiter.setMock(new LimiterMock()
+            .setLimit(Limiter.types.DAILY_ASYNC_APEX_EXECUTIONS, 90, 100));
+        ThreadMock mock = new ThreadMock();
+        Thread.setMock(mock);
+        Id threadId = Thread.currentOrCreate();
+        String runKey = Thread.service.startRun(threadId);
+        Async.queries = new PendingWorkQueryService();
+
+        Thread.continueCurrent(runKey);
+
+        Thread__c pausedThread = [
+            SELECT Status__c, Pause_Reason__c
+            FROM Thread__c
+            WHERE Id = :threadId
+        ];
+        Assert.areEqual(Thread.PAUSED, pausedThread.Status__c,
+            'Expected Thread continuation to pause instead of enqueueing when async limits are unsafe.');
+        Assert.areEqual('Daily async Apex execution limit is not safe.', pausedThread.Pause_Reason__c,
+            'Expected Thread continuation to explain the limiter pause.');
+        Assert.areEqual(0, mock.service.continueWorkCalls,
+            'Expected unsafe async limits to stop current-thread dispatch.');
     }
 
     @istest static void testReopen_marksDoneThreadPending() {
@@ -676,6 +793,12 @@ public with sharing class ThreadTest {
         threadRecord.Heartbeat__c = System.now().addMinutes(-30);
         threadRecord.Run_Key__c = 'old-run-key';
         return threadRecord;
+    }
+
+    static LimiterMock safeAsyncLimits() {
+        return new LimiterMock()
+            .setLimit(Limiter.types.QUEUEABLE_JOBS, 0, 50)
+            .setLimit(Limiter.types.DAILY_ASYNC_APEX_EXECUTIONS, 0, 100);
     }
 
     public class NoOpQueueable implements Queueable {

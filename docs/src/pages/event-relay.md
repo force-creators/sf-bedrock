@@ -623,7 +623,7 @@ continue the lane with an incremented failure count.
 | `ingest` | `public static List<Id> ingest(List<SObject> events, Type handlerType)` | Creates durable process work for Platform Event SObjects and routes it to the explicit handler class. |
 | `ingest` | `public static List<Id> ingest(List<Generic> payloads)` | Creates durable process work for generic payloads. Requires an active matching `Event_Config__mdt` ingest route. |
 | `ingest` | `public static List<Id> ingest(List<Generic> payloads, Type handlerType)` | Creates durable process work for generic payloads and routes it to the explicit handler class. |
-| `retry` | `public static List<Id> retry(Set<Id> workItemIds)` | Moves `Error` and `Paused` work back to `Pending`, preserves `Retry_Count__c`, clears latest error details, reopens drained lanes, and signals EventRelay wake processing. Returns the requeued work item Ids. |
+| `retry` | `public static List<Id> retry(Set<Id> workItemIds)` | Moves `Error` work back to `Pending`, preserves `Retry_Count__c`, clears latest error details, reopens drained lanes, and signals EventRelay wake processing. Returns the requeued work item Ids. |
 | `stage` | `public static void stage(List<SObject> events)` | Adds Platform Event SObjects to the current transaction buffer. |
 | `flush` | `public static List<Id> flush()` | Persists buffered Platform Events and returns the new `Event__c` Ids. Returns an empty list when the buffer is empty. |
 | `wake` | `public static void wake()` | Starts pending work in the EventRelay publish and process pools. The wake Platform Event trigger calls this method. |
@@ -669,7 +669,7 @@ continue the lane with an incremented failure count.
 | --- | --- | --- |
 | `Event__c` | `Apex__c` | Publisher or handler class name. Blank publish values are treated as the built-in Platform Event publisher by `PublisherService`. |
 | `Event__c` | `Job_Type__c` | `Publish` for outbound publication work or `Process` for inbound handler work. |
-| `Event__c` | `Status__c` | Work state. Implemented statuses include `Pending`, `Running`, `Paused`, `Done`, and `Error`. |
+| `Event__c` | `Status__c` | Work state. Implemented statuses include `Pending`, `Running`, `Done`, and `Error`. |
 | `Event__c` | `Route__c` | Route or destination key selected for the payload. |
 | `Event__c` | `Payload_Type__c` | Platform Event API name or `Generic`. |
 | `Event__c` | `Thread__c` | Lookup to the `Thread__c` lane that owns the work. |
@@ -728,12 +728,12 @@ continue the lane with an incremented failure count.
   `complete(...)`, `fail(...)`, or `succeed(...)` with another object instance
   throws.
 - **Built-in Platform Event publishing checks limits.** When the Platform Event
-  limit is not safe at the configured threshold, the batch is marked `Paused`
-  instead of published.
+  limit is not safe at the configured threshold, the owning `Thread__c` is
+  marked `Paused` and the publish work remains `Pending`.
 - **Manual retry is operator-owned.** `EventRelay.retry(...)` requeues only
-  `Error` and `Paused` work, preserves the existing retry count, and reopens the
-  owning lane if it had already drained. The Event Console exposes selected-row
-  retry and delete actions for failed publish work.
+  `Error` work, preserves the existing retry count, and reopens the owning lane
+  if it had already drained. The Event Console exposes selected-row retry and
+  delete actions for failed publish work.
 - **Strict contiguous batching can make smaller batches.** A lane may select
   fewer than the configured batch size when the next pending work item has a
   different publisher, handler, route, or payload type.
