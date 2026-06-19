@@ -1,48 +1,31 @@
 # sf-bedrock Roadmap
 
-This file holds only the **cross-cutting** roadmap: the shared principles that
-span frameworks and the feature sequencing across them. Each framework's
-detailed roadmap now lives next to its code in
-`force-app/bedrock/lib/<component>/ROADMAP.md`. AGENTS.md (root and per
-component) describes only implemented tools; anything not yet built lives in a
-component ROADMAP.
+This file is only the cross-component index. The implemented contract lives in
+`force-app/bedrock/lib`; per-component guides describe current behavior, and
+per-component roadmaps track remaining work.
 
-These are intended designs, not finalized public APIs. Inspect current code in
-`force-app/bedrock/lib` before building, and ask before locking names, schemas,
-metadata objects, or behavior that does not exist yet. Prefer one clear bite at
-a time over large speculative framework builds.
+Treat roadmap notes as intended direction, not public API. Inspect the current
+source before building, and ask before locking names, schemas, metadata objects,
+or behavior that does not exist yet.
 
-## Cross-cutting principle: keep threads linear
+## Cross-Cutting Principle
 
 Treat a thread as a container of ordered work. Work created while a thread is
 running should stay on that thread unless a future design explicitly breaks it
-out. Async and Event may keep their own work-item objects and policies, but they
-share the same `Thread__c` lifecycle so chained work remains easy to reason
-about. Event publication is allowed to interrupt Async work on the same thread
-when needed, because reliable event publication is more urgent than continuing
-ordinary async backlog. Extend mocks and service override surfaces only when a
-concrete test needs a new seam; keep the exposed levers intentionally light.
+out. Async and EventRelay keep their own work-item objects and policies, but
+they share the same `Thread__c` lifecycle so chained work remains easy to reason
+about.
 
-## Component roadmaps
+Extend mocks and service override surfaces only when a concrete test needs a new
+seam. Keep the exposed levers intentionally light.
 
-| Component | Roadmap | Status |
+## Component Roadmaps
+
+| Component | Roadmap | Current purpose |
 |---|---|---|
-| Async (features + Console UI) | [`lib/async/ROADMAP.md`](force-app/bedrock/lib/async/ROADMAP.md) | Active — Retry, Priority, Performance Tracking, SettingsService, MetadataService, Job Archiving, Completed/Archive tabs |
-| Thread / Multithreading | [`lib/thread-service/ROADMAP.md`](force-app/bedrock/lib/thread-service/ROADMAP.md) | Shared infra — ThreadRunner, Async cap, handoff, and recovery implemented; Event integration pending |
-| Limiter | [`lib/limiter/ROADMAP.md`](force-app/bedrock/lib/limiter/ROADMAP.md) | Shared infra — org-health gate |
-| Scheduler | [`lib/scheduler/ROADMAP.md`](force-app/bedrock/lib/scheduler/ROADMAP.md) | Active MVP — cadence, metadata translation, runtime state |
-| Event | [`lib/event/ROADMAP.md`](force-app/bedrock/lib/event/ROADMAP.md) | Ready for sliced planning — publication and consumption over shared lanes |
-| Selector / Selector.Cached | [`lib/selector/ROADMAP.md`](force-app/bedrock/lib/selector/ROADMAP.md) | Future, builds on `Query` / `PlatformCache` |
-
-The Async non-goals and deliberate trade-offs (terminal-failure alerting,
-orphaned `Running` reaper, bulk-enqueue chunking) live with the Async roadmap.
-
-## Sequencing at a glance
-
-- **Unblocked now:** Retry, Priority, Performance Tracking, SettingsService,
-  MetadataService, Async UI Completed tab.
-- **Implemented now:** Multithreading core for Async (cap + handoff; uses
-  `Max_Threads__c` and `Thread__c`).
-- **Scheduler follow-up:** Job Archiving, Limiter resume monitor.
-- **Blocked by Job Archiving:** Async UI Archive tab.
-- The owner expects to build **Scheduler MVP1** before finishing Async.
+| Async | [`lib/async/ROADMAP.md`](force-app/bedrock/lib/async/ROADMAP.md) | Remaining Async enhancements and console follow-up |
+| Thread | [`lib/thread-service/ROADMAP.md`](force-app/bedrock/lib/thread-service/ROADMAP.md) | Shared recovery, pool policy, and operator visibility |
+| Limiter | [`lib/limiter/ROADMAP.md`](force-app/bedrock/lib/limiter/ROADMAP.md) | Remaining org-health integration ideas |
+| Scheduler | [`lib/scheduler/ROADMAP.md`](force-app/bedrock/lib/scheduler/ROADMAP.md) | Future cadence, throttling, and admin visibility work |
+| EventRelay | [`lib/event/ROADMAP.md`](force-app/bedrock/lib/event/ROADMAP.md) | Remaining event framework decisions |
+| Selector | [`lib/selector/ROADMAP.md`](force-app/bedrock/lib/selector/ROADMAP.md) | Future query and cache abstraction |

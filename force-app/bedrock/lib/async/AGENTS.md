@@ -2,10 +2,9 @@
 
 Component guide for the `Async` framework. Global conventions (Apex style,
 testing rules, the Salesforce MCP deploy/validate workflow, architecture
-layers) live in the repo root `AGENTS.md`. Planned Async work — Retry,
-Priority, Performance Tracking, SettingsService, MetadataService, Job
-Archiving, and the Async Console UI — lives in `./ROADMAP.md`. Inspect the code
-in this folder before depending on exact method behavior.
+layers) live in the repo root `AGENTS.md`. Remaining Async work lives in
+`./ROADMAP.md`. Inspect the code in this folder before depending on exact method
+behavior.
 
 ## What it is
 

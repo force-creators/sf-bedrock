@@ -6,11 +6,12 @@ roadmap notes as intended direction, not implemented contract.
 
 ## What it is
 
-`Thread` is shared concurrency infrastructure used by `Async` today. It creates
-and tracks `Thread__c` records, stores the current transaction's thread id in a
-static service, and controls when a Queueable chain may start or hand off to the
-next pending thread. `ThreadRunner` is the shared Queueable/dispatcher layer
-that starts a thread and routes work to the pool-specific dispatcher.
+`Thread` is shared concurrency infrastructure used by `Async` and `EventRelay`.
+It creates and tracks `Thread__c` records, stores the current transaction's
+thread id in a static service, and controls when a Queueable chain may start or
+hand off to the next pending thread. `ThreadRunner` is the shared
+Queueable/dispatcher layer that starts a thread and routes work to the
+pool-specific dispatcher.
 
 ## Current shape
 
@@ -43,10 +44,10 @@ that starts a thread and routes work to the pool-specific dispatcher.
   dispatcher to prepare recoverable work, and either restarts the thread or
   marks it `Done`.
 - `ThreadRunner` owns the queueable entry point. It reads the thread pool and
-  dispatches through the matching `ThreadRunner.Dispatcher`; the current
-  implemented dispatcher is `Async.ThreadDispatcher`. Dispatchers can expose
-  recovery hooks with `hasRecoverableWork(threadId)` and
-  `prepareRecovery(threadId)`.
+  dispatches through the matching `ThreadRunner.Dispatcher`; implemented
+  dispatchers include `Async.ThreadDispatcher` and EventRelay publish/process
+  dispatchers. Dispatchers can expose recovery hooks with
+  `hasRecoverableWork(threadId)` and `prepareRecovery(threadId)`.
 - `Thread.QueryService` owns `Thread__c` reads: pending-thread claim and running
   thread count. Running counts are scoped to `CreatedById = UserInfo.getUserId()`.
 - `ThreadMock` provides test seams for `canEnqueue`, mock thread ids, pending
@@ -64,5 +65,5 @@ generated hash for the unique `Pool__c + Thread_Key__c` identity, and
 inspectable. `Thread_Settings__c` owns global Thread capacity and recovery
 settings. `Async__c.Thread__c` is a lookup to `Thread__c`.
 
-The roadmap still tracks future details such as Event consumption, Event-over-
-Async priority on the same thread, Limiter integration, and starvation recovery.
+The roadmap still tracks future details such as pool fairness, operator
+visibility, and recovery tuning.

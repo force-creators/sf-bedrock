@@ -2,8 +2,8 @@
 
 Component guide for the `Limiter` framework. Global conventions (Apex
 style, testing rules, the Salesforce MCP deploy/validate workflow, architecture
-layers) live in the repo root `AGENTS.md`. Planned pause/resume integration
-lives in `./ROADMAP.md`.
+layers) live in the repo root `AGENTS.md`. Remaining integration ideas live in
+`./ROADMAP.md`.
 
 ## What it is
 
@@ -33,8 +33,7 @@ work.
 
 ## Notes
 
-- This implementation intentionally has no Async behavior wiring yet. Consumers
-  should call `Limiter.isSafe(name, thresholdPercent)` from their own
+- Consumers should call `Limiter.isSafe(name, thresholdPercent)` from their own
   enqueue/start points.
 - Platform limit names are Salesforce-provided `OrgLimits` keys. Use
   `Limiter.getLimit('<OrgLimitName>')` when a consumer needs a specific
@@ -42,5 +41,4 @@ work.
 - The planned `Async_Settings__c.Limits_Threshold_Pct__c` integration is not
   implemented yet. Threshold values are expected to be owned by consuming
   frameworks and passed to `isSafe(name, thresholdPercent)`.
-- Pause/resume behavior and `Paused` status transitions are future work tracked
-  in the roadmap.
+- Thread-based pause/resume behavior is owned by the shared `Thread` service.

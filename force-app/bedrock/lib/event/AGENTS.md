@@ -3,8 +3,8 @@
 Component guide for the `EventRelay` framework. Global conventions
 (Apex style, testing rules, Salesforce MCP validation, architecture layers) live
 in the repo root `AGENTS.md`. Planned and historical event notes live in
-`./ROADMAP.md` and `./DESIGN.md`; inspect the code in this folder before
-depending on exact behavior.
+`./ROADMAP.md`; inspect the code in this folder before depending on exact
+behavior.
 
 ## What it is
 

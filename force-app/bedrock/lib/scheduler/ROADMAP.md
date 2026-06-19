@@ -1,58 +1,37 @@
-# Scheduler - Roadmap
+# Scheduler — Roadmap
 
-Scheduler now has an MVP framework in `force-app/bedrock/lib/scheduler`. Treat
-this roadmap as planned direction beyond the implemented contract. Cross-cutting
-sequencing and the "keep the pools separate" principle live in the repo root
-`ROADMAP.md`.
+`Scheduler` is implemented in this folder. The current contract is the Apex
+source, metadata, and `AGENTS.md`; this roadmap tracks only follow-up work.
 
-The current implementation provides twelve physical scheduled Apex jobs that
-together fire one heartbeat every five minutes. Each heartbeat translates
-`Scheduler_Job__mdt` into `Scheduler__c` when configuration changes, then
-enqueues due logical jobs as Queueables. It supports `Minutes`, `Hours`,
-`Days`, `Weeks`, and `Months` cadence units using `Interval__c` and
-`Next_Run__c`.
+## Current Baseline
 
-## Current MVP Scope
+- Twelve physical scheduled Apex jobs provide one heartbeat every five minutes.
+- `Scheduler_Job__mdt` metadata is translated into `Scheduler__c` runtime rows.
+- Due logical jobs run as Queueables.
+- Existing cadence units are `Minutes`, `Hours`, `Days`, `Weeks`, and `Months`.
+- Overdue jobs self-heal by running once on the next scheduler tick.
+- First-party metadata exists for Thread recovery and Async archiving.
 
-- Twelve physical scheduler slots via the top-level `SchedulerTick` entrypoint.
-- Logical jobs extend `Scheduler` and override `execute()` with no parameters.
-- Each due logical job runs as its own Queueable.
-- `Scheduler_Job__mdt` defines Apex class, enabled state, frequency, and
-  frequency value.
-- `Scheduler__c` stores translated runtime state, including next run time, last
-  execution, and last error. It also stores `Hash__c`, the marker used to
-  short-circuit translation when runtime rows already match the current config.
-- Outages self-heal by running overdue jobs once on the next scheduler tick.
+## Remaining Work
 
-## Near-Term Integration
-
-- Add first-party scheduler jobs for Async job archiving.
-- Add first-party scheduler jobs for Limiter resume monitoring.
-- Add default metadata records for those jobs once their concrete classes exist.
-- Revisit Async archiving's shape if it needs a recordless system-task path
-  instead of direct scheduler execution.
-
-## Future Roadmap
-
-- **Missed tick and backfill policy:** decide whether any job needs replay of
-  each missed occurrence, or whether "run once when overdue" remains the
-  framework default. If replay is needed, add explicit per-job configuration so
-  maintenance jobs do not accidentally create backlog surges.
-- **Concurrency protection:** cap how many logical scheduler Queueables can be
-  enqueued per tick, likely using the future ThreadService and Limiter
-  layer rather than local scheduler-only limits.
+- **Limiter resume visibility:** decide whether Thread recovery is enough for
+  paused-work resumption or whether a separate Limiter-focused operator view is
+  useful.
+- **Missed tick policy:** keep "run once when overdue" as the default. Add replay
+  only if a concrete scheduled job proves it needs every missed occurrence.
+- **Scheduler throttling:** consider a cap on logical Queueables per tick if real
+  org usage shows scheduler fan-out can crowd other work.
 - **Additional cadences:** consider time-of-day windows, weekday rules, and
-  priority ordering only after real jobs prove the need.
-- **Operational state:** consider next planned run, last attempted run,
-  consecutive failure count, and paused-until fields on `Scheduler__c` when
-  correction logic needs them.
+  priority ordering only after existing cadence types prove too narrow.
+- **Operational state:** add fields such as consecutive failure count or
+  paused-until only when correction logic needs them.
 - **Admin visibility:** add a simple console view for enabled jobs, last run,
   last error, and next due estimate after the runtime model settles.
 
-## Non-Goals For MVP
+## Non-Goals For Now
 
-- No replay of every missed tick.
+- No replay of every missed tick by default.
 - No per-job Salesforce cron schedules.
-- No multiple physical scheduler slots.
-- No queueable concurrency cap beyond platform limits.
+- No more physical scheduler slots unless the five-minute heartbeat is no longer
+  enough.
 - No wall-clock alignment for hourly or daily jobs.

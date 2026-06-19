@@ -1,168 +1,44 @@
 # Async — Roadmap
 
-Planned and future work for the `Async` framework. The implemented framework is
-described in `./AGENTS.md`. Cross-cutting roadmap principles and feature
-sequencing live in the repo root `ROADMAP.md`.
+`Async` is implemented in this folder. The current contract is the Apex source,
+metadata, and `AGENTS.md`; this roadmap tracks remaining Async-specific work.
 
-These are intended designs, not finalized public APIs. Inspect current code in
-this folder before building, and ask before locking names, schemas, metadata
-objects, or behavior that does not exist yet. Prefer one clear bite at a time
-over large speculative framework builds. Extend `AsyncMock` and the service
-override surface only when a concrete test needs a new seam; keep the exposed
-levers intentionally light.
+Shared thread capacity, recovery, and limiter behavior live with
+`../thread-service`. Scheduler integration lives with `../scheduler`.
 
-Two roadmap items that `Async` consumes live in their own component folders
-because they are shared infrastructure, not Async internals:
+## Deliberate Trade-Offs
 
-- Multithreading (Thread-owned cap + handoff) and the shared `Thread` /
-  `Thread__c` service → `../thread-service/ROADMAP.md`.
-- `Limiter` (org-health gate consulted before enqueuing) →
-  `../limiter/ROADMAP.md`.
+These are intentional omissions, recorded so they are not re-litigated.
 
-## Non-goals & deliberate trade-offs
+- **Terminal-failure alerting:** when retries exhaust, items rest in `Error`.
+  Alerting is left to subscribers and admin tooling.
+- **Subscriber finalizer failures:** the framework leans on Finalizers to catch
+  otherwise-uncatchable failures. A subscriber whose own DML throws inside the
+  finalizer path can still strand work; recovery should remain conservative.
+- **Bulk-enqueue chunking:** enqueuing more than about 10k Ids in one transaction
+  hits Salesforce DML row limits. The framework does not hide that platform
+  boundary.
 
-These are intentional omissions, recorded so they are not re-litigated. They
-reflect the mission: stay lightweight and unopinionated while feature-rich,
-rather than being everyone's safety net.
+## Remaining Work
 
-- **Terminal-failure alerting.** When retries exhaust, items rest in `Error`;
-  the framework raises no alarms. Alerting is left to subscribers via the
-  dashboard — alarm thresholds are too company-specific to bake in.
-- **Orphaned `Running` reaper.** By design the framework leans on Finalizers to
-  catch otherwise-uncatchable failures, which is why the Queueable deliberately
-  carries no try/catch and the Finalizer stays intentionally light (mutate
-  state, enqueue the next job). A subscriber whose own DML throws inside that
-  light path could strand a `Running` item; building a reaper for that is an
-  accepted non-goal.
-- **Bulk-enqueue chunking.** Enqueuing more than ~10k Ids in one transaction
-  hits the platform DML row limit. That is inherent to Salesforce, not specific
-  to the framework, and is not worked around or advertised against.
+- **Performance tracking:** decide whether to add timing and limits fields such
+  as queued, started, completed, backlog duration, execution duration, CPU, and
+  SOQL count. Gate any writes behind an Async setting if the fields are added.
+- **Default batch size setting:** `Async.MetadataService` currently falls back to
+  `Batch_Size__c = 5` when no `Async_Job__mdt` row exists. If a setting is still
+  useful, add only the field and behavior needed for that fallback.
+- **Console Completed tab:** show `Async__c` records in `Done` status with useful
+  operational columns.
+- **Console Archive tab:** show `Async_Archive__c` records and expose any manual
+  archive action only if the console needs it.
+- **Archive operations docs:** document `Archive_Threshold_Hours__c`,
+  `Enable_Archive_Cleanup__c`, `Max_Archive_Age__c`, `AsyncArchiveJob`,
+  `AsyncArchiveBatch`, and `AsyncArchiveCleanupBatch` in the appropriate docs
+  page.
 
----
+## Non-Goals For Now
 
-## Retry — `Retry_Count__c` + bounded auto-retry
-
-Status: **implemented.** See `JobService.handleFailure` / `shouldAutoRetry`,
-`WorkService.autoRetry`, and the `Retry_Count__c` / `Max_Retries__c` fields.
-`JobWatcher`'s failure path partitions the batch: items under the configured cap
-are re-pended with `Retry_Count__c` incremented and re-run by the chain, items at
-or over the cap (or with no/zero `Max_Retries__c`) stay terminal `Error`. Manual
-`Error → Pending` flips remain unbounded, always honored, and never increment the
-counter (`AsyncFilters.shouldRetry` unchanged).
-
-## Performance Tracking
-
-Status: unblocked. Toggle depends on SettingsService (`Track_Performance__c`).
-
-**Schema:** new fields on `Async__c`:
-
-- `Queued_At__c` (DateTime) — set when the work item is created (`Pending`).
-- `Started_At__c` (DateTime) — set on transition to `Running`.
-- `Completed_At__c` (DateTime) — set when the finalizer marks `Done`/`Error`.
-- `Backlog_Time_ms__c` (Number) — `Queued_At__c` → `Started_At__c`.
-- `Execution_Time_ms__c` (Number) — `Started_At__c` → `Completed_At__c`.
-- `CPU_Time_ms__c` (Number) — `Limits.getCpuTime()` at job end.
-- `SOQL_Queries__c` (Number) — `Limits.getQueries()` at job end.
-
-`WorkService` populates timestamps during status transitions. The finalizer
-reads `Limits` at the point it runs and writes the performance fields alongside
-`complete`/`fail`. A `Track_Performance__c` setting can disable the writes when
-the overhead is not wanted.
-
-## SettingsService — `Async_Settings__c`
-
-Status: **Bucket 1 implemented.** Bucket 2 remains pending; consumer fields land
-with the features that read them.
-
-Split into two buckets:
-
-**Bucket 1 — infrastructure (implemented):**
-
-- Create `Async_Settings__c` as a hierarchical custom setting (Org / Profile /
-  User), so framework defaults can be overridden per user.
-- Add `Async.SettingsService` as a fifth injectable singleton alongside
-  `JobService`, `WorkService`, `QueryService`, and `MetadataService`. It reads
-  `Async_Settings__c.getInstance()`, caches for the transaction, exposes typed
-  access to the backing settings row, and is mockable via `Async.setMock`.
-- Expose a single advanced test hook to set the backing `Async_Settings__c`
-  values directly, rather than a wide mock surface — keep the lever light.
-
-**Bucket 2 — field definitions (pending; each feature declares what it reads):**
-
-| Setting field | Consumed by |
-|---|---|
-| `Limits_Threshold_Pct__c` (Number, default 90) | Limiter |
-| `Archive_After_Days__c` (Number, default 30) | Job Archiving |
-| `Default_Batch_Size__c` (Number) | MetadataService (fallback batch size) |
-| `Track_Performance__c` (Checkbox, default true) | Performance Tracking |
-
-> Thread capacity is owned by `Thread_Settings__c` in
-> `../thread-service/ROADMAP.md`; `Limits_Threshold_Pct__c` is read by
-> `../limiter/ROADMAP.md`.
-
-## MetadataService — cached `Async_Job__mdt` reads
-
-Status: **implemented.** `Async.MetadataService` is the fourth injectable
-singleton (`Async.metadata`); it owns all `Async_Job__mdt` reads behind a
-transaction-scoped cache keyed by Apex name, `QueryService.getJobConfig`
-delegates to it, and `AsyncMock.config(...)` injects config without DML.
-
-Remaining roadmap tie-in: when no `Async_Job__mdt` row exists it currently
-returns a default `Batch_Size__c = 5`. Once `Default_Batch_Size__c` lands in
-Bucket 2, the no-row fallback should read that value from
-`Async.SettingsService` instead of the hard-coded default.
-
-## Priority — default per job type from config
-
-Status: unblocked.
-
-Dispatch already orders the backlog by `Priority__c DESC`, but nothing currently
-sets it, so every work item is equal priority. Add an optional `Priority__c`
-(Number) to `Async_Job__mdt`; at enqueue, `WorkService` seeds each work
-item's `Priority__c` from that job type's config (via `MetadataService`),
-defaulting to the lowest priority when no config row or value exists. Priority is
-configuration-driven only — there is no per-call priority argument on
-`Async.enqueue`.
-
-## Job Archiving — `Async_Archive__c`
-
-Status: **blocked by Scheduler MVP1** (see `../scheduler/ROADMAP.md`).
-
-**Schema:** create `Async_Archive__c` with the same fields as `Async__c`
-(Status, Apex, Record_Id, Thread, Priority, error fields, perf fields, retry
-count).
-
-**Behavior:**
-
-- A scheduled job (via Scheduler MVP1) reads `Archive_After_Days__c` from
-  `Async.SettingsService` and bulk-moves `Done` work items older than that
-  threshold from `Async__c` to `Async_Archive__c`.
-- The archive job is itself an `Async` subclass so it runs through the standard
-  framework machinery.
-- **Thread cleanup:** the archive run records the `threadId` of each archived
-  work item and, as its final step, deletes the corresponding
-  `Thread__c` records so they do not accumulate.
-- The Bedrock Console exposes an ad-hoc "Archive Now" trigger (see Async UI).
-
----
-
-# Async UI (Bedrock Console)
-
-The console already has **Dashboard**, **Backlog**, **Errors**, and **Jobs**
-tabs (Jobs lists the configured `Async_Job__mdt` records). The outstanding UI
-work is two new tabs:
-
-## Completed tab
-
-Status: unblocked.
-
-Shows `Async__c` records in `Done` status. Columns: Apex class, Record Id,
-Thread, completed timestamp, backlog time, execution time, CPU time, SOQL
-queries, retry count. Standard sort/filter; no row actions needed.
-
-## Archive tab
-
-Status: **blocked by Job Archiving**.
-
-Shows `Async_Archive__c` records with the same columns as Completed. Includes an
-"Archive Now" button that enqueues an ad-hoc archive run via `Async.enqueue`.
+- No per-call priority argument on `Async.enqueue`; priority stays
+  configuration-driven through `Async_Job__mdt`.
+- No Async-owned thread cap; `Thread_Settings__c` owns capacity.
+- No Async-specific recovery monitor separate from `Thread.recover()`.
