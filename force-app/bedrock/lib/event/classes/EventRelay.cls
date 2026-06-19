@@ -68,6 +68,10 @@ public virtual with sharing class EventRelay {
         return work.createProcess(payloads, handlerType);
     }
 
+    public static List<Id> retry(Set<Id> workItemIds) {
+        return work.retry(workItemIds);
+    }
+
     public static void wake() {
         if (!Thread.service.canEnqueue() || Thread.service.hasEnqueued || System.isQueueable() || Thread.service.isFinalizer) return;
 
@@ -282,6 +286,26 @@ public virtual with sharing class EventRelay {
 
         public virtual void pause(Set<Id> workItemIds, String message) {
             updateStatus(workItemIds, new Event__c(Status__c = PAUSED, Error_Message__c = truncate(message)));
+        }
+
+        public virtual List<Id> retry(Set<Id> workItemIds) {
+            List<Event__c> workItems = queries.getRetryableWorkItems(workItemIds);
+            if (workItems.isEmpty()) return new List<Id>();
+
+            List<SObject> updates = new List<SObject>();
+            for (Event__c workItem : workItems) {
+                Event__c updateRecord = new Event__c(
+                    Id = workItem.Id,
+                    Status__c = PENDING
+                );
+                updateRecord.Error_Message__c = null;
+                updateRecord.Error_Stack_Trace__c = null;
+                updates.add(updateRecord);
+            }
+            DML.updateRecords(updates);
+            Thread.reopen(threadIdsFrom(workItems));
+            jobs.enqueue(workItems);
+            return idsFrom(workItems);
         }
 
         public virtual void fail(Set<Id> workItemIds, String message, String stackTrace) {
@@ -638,6 +662,19 @@ public virtual with sharing class EventRelay {
 
         public virtual List<Event__c> getWorkItemsById(Set<Id> workItemIds) {
             return getWorkItemsById(new List<Id>(workItemIds));
+        }
+
+        public virtual List<Event__c> getRetryableWorkItems(Set<Id> workItemIds) {
+            if (workItemIds == null || workItemIds.isEmpty()) return new List<Event__c>();
+
+            Set<String> statuses = new Set<String> { ERROR, PAUSED };
+            return (List<Event__c>) Query.records([
+                SELECT Id, Thread__c
+                FROM Event__c
+                WHERE Id IN :workItemIds
+                    AND Status__c IN :statuses
+                ORDER BY CreatedDate ASC, Order__c ASC, Name ASC
+            ]);
         }
 
         List<Event__c> strictContiguous(List<Event__c> workItems) {

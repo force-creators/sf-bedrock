@@ -140,6 +140,20 @@ h1 {
     margin-top: 0.2rem;
 }
 
+.table-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lwc-spacingXSmall, 0.5rem);
+    justify-content: flex-start;
+    margin-bottom: var(--lwc-spacingSmall, 0.75rem);
+}
+
+.selected-count {
+    color: var(--lwc-colorTextWeak, #444444);
+    font-size: 0.8rem;
+}
+
 .empty-state {
     border: 1px dashed var(--lwc-colorBorder, #dddbda);
     border-radius: 0.75rem;
@@ -214,4 +228,5 @@ h1 {
         align-items: flex-start;
         display: block;
     }
+
 }

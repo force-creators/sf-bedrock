@@ -14,6 +14,57 @@ public with sharing class EventConsoleController {
         return state;
     }
 
+    @AuraEnabled
+    public static Integer retryWorkItems(List<Id> workItemIds) {
+        assertCanRetry();
+
+        List<Event__c> workItems = errorWorkItems(workItemIds);
+        Set<Id> ids = Pluck.ids(workItems);
+        EventRelay.retry(ids);
+        return ids.size();
+    }
+
+    @AuraEnabled
+    public static Integer deleteWorkItems(List<Id> workItemIds) {
+        assertCanDelete();
+
+        List<Event__c> workItems = errorWorkItems(workItemIds);
+        DML.deleteRecords(workItems);
+        return workItems.size();
+    }
+
+    static List<Event__c> errorWorkItems(List<Id> workItemIds) {
+        Set<Id> selectedIds = new Set<Id>();
+
+        if (workItemIds != null) {
+            selectedIds.addAll(workItemIds);
+        }
+
+        if (selectedIds.isEmpty()) {
+            return new List<Event__c>();
+        }
+
+        return [
+            SELECT Id
+            FROM Event__c
+            WHERE Id IN :selectedIds
+                AND Job_Type__c = :EventRelay.PUBLISH
+                AND Status__c = :EventRelay.ERROR
+        ];
+    }
+
+    static void assertCanRetry() {
+        if (!Schema.sObjectType.Event__c.isUpdateable()) {
+            throw new AuraHandledException('You do not have permission to retry event errors.');
+        }
+    }
+
+    static void assertCanDelete() {
+        if (!Schema.sObjectType.Event__c.isDeletable()) {
+            throw new AuraHandledException('You do not have permission to delete event errors.');
+        }
+    }
+
     static ConsoleMetrics getMetrics() {
         ConsoleMetrics metrics = new ConsoleMetrics();
 

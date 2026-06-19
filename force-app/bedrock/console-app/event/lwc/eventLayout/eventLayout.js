@@ -1,6 +1,9 @@
 import { LightningElement } from 'lwc';
-import { NavigationMixin } from 'lightning/navigation';
 import getState from '@salesforce/apex/EventConsoleController.getState';
+import retryWorkItems from '@salesforce/apex/EventConsoleController.retryWorkItems';
+import deleteWorkItems from '@salesforce/apex/EventConsoleController.deleteWorkItems';
+import LightningConfirm from 'lightning/confirm';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 const AUTO_REFRESH_OPTIONS = [
     { label: 'Auto-Refresh Off', value: 'off' },
@@ -18,20 +21,7 @@ const METRIC_DEFINITIONS = [
     { id: 'publishedToday', label: 'Published Today', className: 'metric metric-success' }
 ];
 
-const OPEN_COLUMN = {
-    label: 'Open',
-    type: 'button',
-    initialWidth: 90,
-    typeAttributes: {
-        label: 'Open',
-        name: 'open',
-        title: 'Open event record',
-        variant: 'base'
-    }
-};
-
 const WORK_COLUMNS = [
-    OPEN_COLUMN,
     { label: 'Event', fieldName: 'eventNumber', sortable: true, initialWidth: 130 },
     { label: 'Status', fieldName: 'status', sortable: true, initialWidth: 120 },
     { label: 'Route', fieldName: 'route', sortable: true },
@@ -44,7 +34,6 @@ const WORK_COLUMNS = [
 ];
 
 const ERROR_COLUMNS = [
-    OPEN_COLUMN,
     { label: 'Event', fieldName: 'eventNumber', sortable: true, initialWidth: 130 },
     { label: 'Status', fieldName: 'status', sortable: true, initialWidth: 120 },
     { label: 'Route', fieldName: 'route', sortable: true, initialWidth: 180 },
@@ -60,7 +49,7 @@ const CONFIG_COLUMNS = [
     { label: 'Work Items', fieldName: 'workItems', type: 'number', sortable: true, initialWidth: 140 }
 ];
 
-export default class EventLayout extends NavigationMixin(LightningElement) {
+export default class EventLayout extends LightningElement {
     autoRefreshOptions = AUTO_REFRESH_OPTIONS;
     autoRefreshInterval = '15';
     workColumns = WORK_COLUMNS;
@@ -74,9 +63,11 @@ export default class EventLayout extends NavigationMixin(LightningElement) {
     configRows = [];
     settings = {};
     isRefreshing = false;
+    isApplyingErrorAction = false;
     errorMessage;
     lastRefreshedAt;
     refreshTimer;
+    selectedErrorRowIds = [];
     backlogSortBy = 'createdDate';
     backlogSortDirection = 'asc';
     runningSortBy = 'lastModifiedDate';
@@ -172,6 +163,18 @@ export default class EventLayout extends NavigationMixin(LightningElement) {
         return this.isRefreshing ? 'Refreshing...' : 'Refresh';
     }
 
+    get hasSelectedErrorRows() {
+        return this.selectedErrorRowIds.length > 0;
+    }
+
+    get selectedErrorCountLabel() {
+        return this.recordCountLabel(this.selectedErrorRowIds.length);
+    }
+
+    get isSelectedErrorActionDisabled() {
+        return this.isRefreshing || this.isApplyingErrorAction || !this.hasSelectedErrorRows;
+    }
+
     handleRefresh() {
         this.refreshAll();
     }
@@ -211,21 +214,48 @@ export default class EventLayout extends NavigationMixin(LightningElement) {
         this.configRows = this.sortRows(this.configRows, this.configSortBy, this.configSortDirection);
     }
 
-    handleRowAction(event) {
-        const { action, row } = event.detail;
+    handleErrorSelection(event) {
+        this.selectedErrorRowIds = (event.detail.selectedRows || [])
+            .map((row) => row.id)
+            .filter(Boolean);
+    }
 
-        if (action.name === 'open' && row.id) {
-            this[NavigationMixin.GenerateUrl]({
-                type: 'standard__recordPage',
-                attributes: {
-                    recordId: row.id,
-                    objectApiName: 'Event__c',
-                    actionName: 'view'
-                }
-            }).then((url) => {
-                window.open(url, '_blank', 'noopener');
-            });
+    async handleRetrySelected() {
+        const confirmed = await LightningConfirm.open({
+            label: 'Retry selected events',
+            message: `Retry ${this.selectedErrorCountLabel}?`,
+            variant: 'header'
+        });
+
+        if (!confirmed) {
+            return;
         }
+
+        await this.runSelectedErrorAction(
+            (workItemIds) => retryWorkItems({ workItemIds }),
+            'Retry queued',
+            'moved back to pending',
+            'Retry failed'
+        );
+    }
+
+    async handleDeleteSelected() {
+        const confirmed = await LightningConfirm.open({
+            label: 'Delete selected events',
+            message: `Delete ${this.selectedErrorCountLabel}? This removes the selected failed EventRelay work items.`,
+            variant: 'header'
+        });
+
+        if (!confirmed) {
+            return;
+        }
+
+        await this.runSelectedErrorAction(
+            (workItemIds) => deleteWorkItems({ workItemIds }),
+            'Events deleted',
+            'deleted',
+            'Delete failed'
+        );
     }
 
     async refreshAll() {
@@ -245,6 +275,7 @@ export default class EventLayout extends NavigationMixin(LightningElement) {
             this.archiveRows = this.sortRows(state.archiveRows || [], this.archiveSortBy, this.archiveSortDirection);
             this.configRows = this.sortRows(state.configRows || [], this.configSortBy, this.configSortDirection);
             this.settings = state.settings || {};
+            this.selectedErrorRowIds = [];
         } catch (error) {
             this.metrics = {};
             this.backlogRows = [];
@@ -253,10 +284,44 @@ export default class EventLayout extends NavigationMixin(LightningElement) {
             this.archiveRows = [];
             this.configRows = [];
             this.settings = {};
+            this.selectedErrorRowIds = [];
             this.errorMessage = this.reduceErrors(error);
         } finally {
             this.lastRefreshedAt = new Date();
             this.isRefreshing = false;
+        }
+    }
+
+    async runSelectedErrorAction(action, successTitle, successVerb, errorTitle) {
+        const workItemIds = [...this.selectedErrorRowIds];
+        if (workItemIds.length === 0 || this.isApplyingErrorAction) {
+            return;
+        }
+
+        this.isApplyingErrorAction = true;
+        this.errorMessage = undefined;
+
+        try {
+            const actionCount = await action(workItemIds);
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: successTitle,
+                    message: `${this.formatNumber(actionCount || 0)} ${actionCount === 1 ? 'event' : 'events'} ${successVerb}.`,
+                    variant: 'success'
+                })
+            );
+            await this.refreshAll();
+        } catch (error) {
+            this.errorMessage = this.reduceErrors(error);
+            this.dispatchEvent(
+                new ShowToastEvent({
+                    title: errorTitle,
+                    message: this.errorMessage,
+                    variant: 'error'
+                })
+            );
+        } finally {
+            this.isApplyingErrorAction = false;
         }
     }
 

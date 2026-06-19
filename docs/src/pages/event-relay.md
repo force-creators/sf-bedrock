@@ -65,8 +65,8 @@ non-critical, and does not need durable status, ordered lanes, or item-level
 operational review. Reach for a normal Platform Event trigger when native
 trigger behavior is enough and you do not need durable handler status.
 
-> Auto-retry, stale-event policy, and richer operator controls are still future
-> work. This page documents only the Apex and metadata that exist now.
+> Stale-event policy is still future work. This page documents only the Apex,
+> metadata, and console controls that exist now.
 
 ## Quickstart
 
@@ -333,8 +333,8 @@ That payload resolves to a config like this:
 
 `DeveloperName` is the route and thread key for metadata-backed routes. Keep it
 stable once work exists. `Batch_Size__c` overrides EventRelay's default batch
-size for that route. `Max_Retries__c` exists on the metadata type for parity
-with Bedrock config conventions, but automatic retry is not implemented yet.
+size for that route. `Max_Retries__c` caps framework-managed automatic retry for
+failed publish and process work on that route.
 
 ## Ingesting Work
 
@@ -461,9 +461,12 @@ public with sharing class ContactChangedHandler extends EventRelay.Handler {
 }
 ```
 
-If `execute` completes, EventRelay marks the selected process work items `Done`.
-If the Queueable fails, the finalizer marks the selected work items `Error` with
-the exception message and stack trace when available.
+If `execute` completes, EventRelay marks selected process work items `Done` by
+default. A handler may call `complete(record)` or `fail(record, message)` for
+individual records when it wants item-level results. Failed items follow the
+route's `Max_Retries__c` cap: under the cap they return to `Pending` with
+`Retry_Count__c` incremented; at the cap they become `Error`. If the Queueable
+throws, the finalizer applies that failure to the whole selected batch.
 
 ## Custom Publishers
 
@@ -484,8 +487,9 @@ public with sharing class ContactWebhookPublisher extends EventRelay.Publisher {
 
 Publisher results are item-level. The base publisher starts each item as a
 success, then `fail(record, message)` changes that one item to a failed
-`PublishResult`. Use `succeed(record)` only when a publisher first marked a
-record failed and later needs to mark it successful again inside the same batch.
+`PublishResult`. Use `complete(record)` or `succeed(record)` only when a
+publisher first marked a record failed and later needs to mark it successful
+again inside the same batch.
 
 The built-in `PlatformEventPublisher` converts stored payloads back to typed
 Platform Event SObjects and calls `EventBus.publish(...)`. It maps each
@@ -619,6 +623,7 @@ continue the lane with an incremented failure count.
 | `ingest` | `public static List<Id> ingest(List<SObject> events, Type handlerType)` | Creates durable process work for Platform Event SObjects and routes it to the explicit handler class. |
 | `ingest` | `public static List<Id> ingest(List<Generic> payloads)` | Creates durable process work for generic payloads. Requires an active matching `Event_Config__mdt` ingest route. |
 | `ingest` | `public static List<Id> ingest(List<Generic> payloads, Type handlerType)` | Creates durable process work for generic payloads and routes it to the explicit handler class. |
+| `retry` | `public static List<Id> retry(Set<Id> workItemIds)` | Moves `Error` and `Paused` work back to `Pending`, preserves `Retry_Count__c`, clears latest error details, reopens drained lanes, and signals EventRelay wake processing. Returns the requeued work item Ids. |
 | `stage` | `public static void stage(List<SObject> events)` | Adds Platform Event SObjects to the current transaction buffer. |
 | `flush` | `public static List<Id> flush()` | Persists buffered Platform Events and returns the new `Event__c` Ids. Returns an empty list when the buffer is empty. |
 | `wake` | `public static void wake()` | Starts pending work in the EventRelay publish and process pools. The wake Platform Event trigger calls this method. |
@@ -627,7 +632,10 @@ continue the lane with an incremented failure count.
 
 | Member | Signature | Description |
 | --- | --- | --- |
+| `process` | `public virtual List<ProcessResult> process(List<Generic> records)` | Initializes item-level process results, calls `execute`, and returns one result per payload. Most handlers do not override this method. |
 | `execute` | `public virtual void execute(List<Generic> records)` | Override this in every handler. Receives the current batch of event payloads as `Generic` records. The base implementation throws. |
+| `complete` | `public void complete(Generic record)` | Marks one generic payload successful in the current handler batch. Items are successful by default, so this is only needed after an earlier `fail`. |
+| `fail` | `public void fail(Generic record, String message)` | Marks one generic payload failed in the current handler batch with a message. |
 
 ### Publisher contract
 
@@ -636,6 +644,8 @@ continue the lane with an incremented failure count.
 | `publish` | `public virtual List<PublishResult> publish(List<PublishPayload> publishPayloads)` | Converts payloads into the supported record shape, calls `execute`, and returns one result per payload. Most custom publishers do not override this method. |
 | `execute` | `public virtual void execute(List<SObject> records)` | Override this for Platform Event-shaped payloads or other SObject payloads. The base implementation throws. |
 | `execute` | `public virtual void execute(List<Generic> records)` | Override this for generic payloads. The base implementation throws. |
+| `complete` | `public void complete(SObject record)` | Marks one SObject payload successful in the current batch. |
+| `complete` | `public void complete(Generic record)` | Marks one generic payload successful in the current batch. |
 | `succeed` | `public void succeed(SObject record)` | Marks one SObject payload successful in the current batch. |
 | `succeed` | `public void succeed(Generic record)` | Marks one generic payload successful in the current batch. |
 | `fail` | `public void fail(SObject record, String message)` | Marks one SObject payload failed in the current batch with a message. |
@@ -648,7 +658,8 @@ continue the lane with an incremented failure count.
 | `EventRelay.Route` | `route`, `publisherClass`, `payloadType`, `threadKey` | Resolved route used to create work. |
 | `EventRelay.PublishPayload` | `workItemId`, `route`, `payloadType`, `payload` | Payload passed to publishers after work items are read from storage. |
 | `EventRelay.PublishResult` | `success`, `message` | Item-level publisher outcome. `success` is stored as `true` only when the constructor receives `true`. |
-| `EventRelay.Handler` | `execute(List<Generic>)` | Base class for process-side handlers. |
+| `EventRelay.ProcessResult` | `status`, `message` | Item-level handler outcome used internally by `Handler.process(...)`. |
+| `EventRelay.Handler` | `process(List<Generic>)`, `execute(List<Generic>)`, `complete(Generic)`, `fail(Generic, String)` | Base class for process-side handlers. |
 | `EventRelay.PlatformEventPublisher` | extends `EventRelay.Publisher` | Built-in publisher that calls `EventBus.publish(...)` and maps `Database.SaveResult` values to `PublishResult` values. |
 | `EventRelay.EventRelayException` | extends `Exception` | Exception type thrown for invalid payloads, routing gaps, and publisher contract errors. |
 
@@ -664,7 +675,7 @@ continue the lane with an incremented failure count.
 | `Event__c` | `Thread__c` | Lookup to the `Thread__c` lane that owns the work. |
 | `Event__c` | `Thread_Key__c` | FIFO lane key. |
 | `Event__c` | `Order__c` | Per-create-call ordering value used after `CreatedDate`. |
-| `Event__c` | `Retry_Count__c` | Stored retry count. Automatic retry behavior is not implemented in EventRelay yet. |
+| `Event__c` | `Retry_Count__c` | Stored retry count. Automatic retry increments this value when a failed item is requeued below its configured cap. Manual retry preserves it. |
 | `Event__c` | `Payload1__c` - `Payload4__c` | Serialized payload chunks. Each chunk stores up to 32,768 characters. |
 | `Event__c` | `Error_Message__c` | Publisher result error, pause reason, or Queueable failure message. |
 | `Event__c` | `Error_Stack_Trace__c` | Queueable failure stack trace when available. |
@@ -681,7 +692,7 @@ continue the lane with an incremented failure count.
 | `Event_Config__mdt` | `Routing_Value__c` | Platform Event API name or generic payload value that selects the route. |
 | `Event_Config__mdt` | `Apex__c` | Publisher class for publish routes or handler class for ingest routes. Platform Event publish routes may leave this blank to use the built-in publisher. |
 | `Event_Config__mdt` | `Batch_Size__c` | Optional batch size override for this route. |
-| `Event_Config__mdt` | `Max_Retries__c` | Reserved for future automatic retry behavior. |
+| `Event_Config__mdt` | `Max_Retries__c` | Optional automatic retry cap for failed publish and process work on this route. Blank or zero disables automatic retry. |
 
 ### Defaults
 
@@ -710,17 +721,22 @@ continue the lane with an incremented failure count.
   chunks. Payloads larger than that capacity throw an `EventRelayException`.
 - **Custom publishers are item-level.** If `execute` completes and no item is
   failed, every item is marked successful.
-- **Custom handlers are batch-level today.** If `execute` completes, selected
-  process work becomes `Done`. If the Queueable fails, selected work becomes
-  `Error`.
+- **Custom handlers can be item-level.** If `execute` completes and no item is
+  failed, every item is marked successful. Use `fail(record, message)` for the
+  records that should retry or become terminal errors.
 - **Publisher result records must come from the current batch.** Calling
-  `fail(...)` or `succeed(...)` with another object instance throws.
+  `complete(...)`, `fail(...)`, or `succeed(...)` with another object instance
+  throws.
 - **Built-in Platform Event publishing checks limits.** When the Platform Event
   limit is not safe at the configured threshold, the batch is marked `Paused`
   instead of published.
+- **Manual retry is operator-owned.** `EventRelay.retry(...)` requeues only
+  `Error` and `Paused` work, preserves the existing retry count, and reopens the
+  owning lane if it had already drained. The Event Console exposes selected-row
+  retry and delete actions for failed publish work.
 - **Strict contiguous batching can make smaller batches.** A lane may select
   fewer than the configured batch size when the next pending work item has a
   different publisher, handler, route, or payload type.
-- **Automatic retry is not implemented yet.** EventRelay records
-  `Retry_Count__c`, but failed publish and process work currently becomes
-  `Error`.
+- **Automatic retry is route-configured.** `Max_Retries__c` greater than zero
+  requeues failed work until the stored `Retry_Count__c` reaches the cap. Blank
+  or zero leaves failures terminal.

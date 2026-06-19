@@ -64,7 +64,6 @@
                                 sorted-by={backlogSortBy}
                                 sorted-direction={backlogSortDirection}
                                 is-loading={isRefreshing}
-                                onrowaction={handleRowAction}
                                 onsort={handleBacklogSort}
                             ></lightning-datatable>
                         </template>
@@ -101,7 +100,6 @@
                                 sorted-by={runningSortBy}
                                 sorted-direction={runningSortDirection}
                                 is-loading={isRefreshing}
-                                onrowaction={handleRowAction}
                                 onsort={handleRunningSort}
                             ></lightning-datatable>
                         </template>
@@ -130,15 +128,34 @@
                         </div>
 
                         <template lwc:if={hasErrorRows}>
+                            <template lwc:if={hasSelectedErrorRows}>
+                                <div class="table-actions">
+                                    <lightning-button
+                                        label="Retry"
+                                        icon-name="utility:redo"
+                                        onclick={handleRetrySelected}
+                                        disabled={isSelectedErrorActionDisabled}
+                                    ></lightning-button>
+                                    <lightning-button
+                                        label="Delete"
+                                        icon-name="utility:delete"
+                                        variant="destructive"
+                                        onclick={handleDeleteSelected}
+                                        disabled={isSelectedErrorActionDisabled}
+                                    ></lightning-button>
+                                    <span class="selected-count">{selectedErrorCountLabel} selected</span>
+                                </div>
+                            </template>
+
                             <lightning-datatable
                                 key-field="id"
                                 columns={errorColumns}
                                 data={errorRows}
-                                hide-checkbox-column
+                                selected-rows={selectedErrorRowIds}
                                 sorted-by={errorSortBy}
                                 sorted-direction={errorSortDirection}
                                 is-loading={isRefreshing}
-                                onrowaction={handleRowAction}
+                                onrowselection={handleErrorSelection}
                                 onsort={handleErrorSort}
                             ></lightning-datatable>
                         </template>
@@ -175,7 +192,6 @@
                                 sorted-by={archiveSortBy}
                                 sorted-direction={archiveSortDirection}
                                 is-loading={isRefreshing}
-                                onrowaction={handleRowAction}
                                 onsort={handleArchiveSort}
                             ></lightning-datatable>
                         </template>

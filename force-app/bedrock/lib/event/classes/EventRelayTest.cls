@@ -599,6 +599,91 @@ private class EventRelayTest {
             'Terminal process work should preserve the latest handler stack trace.');
     }
 
+    @istest static void retry_requeuesRetryableWorkAndReopensThread() {
+        EventRelay.reset();
+        MockWakeService wakeSignal = new MockWakeService();
+        EventRelay.wakeSignal = wakeSignal;
+
+        Thread__c threadRecord = new Thread__c(
+            Status__c = Thread.DONE,
+            Pool__c = EventRelay.PUBLISH_POOL,
+            Thread_Key__c = 'Bedrock_Test_Event__e',
+            Completed__c = System.now(),
+            Run_Key__c = 'old-run-key',
+            Heartbeat__c = System.now()
+        );
+        insert threadRecord;
+
+        Event__c errored = workItem('errored');
+        errored.Id = null;
+        errored.Status__c = EventRelay.ERROR;
+        errored.Thread__c = threadRecord.Id;
+        errored.Thread_Key__c = 'Bedrock_Test_Event__e';
+        errored.Retry_Count__c = 3;
+        errored.Error_Message__c = 'publish failed';
+        errored.Error_Stack_Trace__c = 'stack';
+
+        Event__c paused = workItem('paused');
+        paused.Id = null;
+        paused.Status__c = EventRelay.PAUSED;
+        paused.Thread__c = threadRecord.Id;
+        paused.Thread_Key__c = 'Bedrock_Test_Event__e';
+        paused.Retry_Count__c = 1;
+        paused.Error_Message__c = 'limit unsafe';
+
+        Event__c done = workItem('done');
+        done.Id = null;
+        done.Status__c = EventRelay.DONE;
+        done.Thread__c = threadRecord.Id;
+        done.Thread_Key__c = 'Bedrock_Test_Event__e';
+
+        insert new List<Event__c> { errored, paused, done };
+
+        Test.startTest();
+        List<Id> retriedIds = EventRelay.retry(new Set<Id> { errored.Id, paused.Id, done.Id });
+        Test.stopTest();
+
+        Assert.areEqual(new Set<Id> { errored.Id, paused.Id }, new Set<Id>(retriedIds),
+            'Manual retry should return only work items moved back to pending.');
+
+        Set<Id> workItemIds = new Set<Id> { errored.Id, paused.Id, done.Id };
+        Map<Id, Event__c> workById = new Map<Id, Event__c>([
+            SELECT Status__c, Retry_Count__c, Error_Message__c, Error_Stack_Trace__c
+            FROM Event__c
+            WHERE Id IN :workItemIds
+        ]);
+        Assert.areEqual(EventRelay.PENDING, workById.get(errored.Id).Status__c,
+            'Manual retry should requeue errored work.');
+        Assert.areEqual(3, workById.get(errored.Id).Retry_Count__c,
+            'Manual retry should preserve the existing retry count.');
+        Assert.areEqual(null, workById.get(errored.Id).Error_Message__c,
+            'Manual retry should clear the latest error message.');
+        Assert.areEqual(null, workById.get(errored.Id).Error_Stack_Trace__c,
+            'Manual retry should clear the latest error stack trace.');
+        Assert.areEqual(EventRelay.PENDING, workById.get(paused.Id).Status__c,
+            'Manual retry should requeue paused work.');
+        Assert.areEqual(1, workById.get(paused.Id).Retry_Count__c,
+            'Manual retry should preserve retry count on paused work.');
+        Assert.areEqual(null, workById.get(paused.Id).Error_Message__c,
+            'Manual retry should clear the pause reason before rerunning.');
+        Assert.areEqual(EventRelay.DONE, workById.get(done.Id).Status__c,
+            'Manual retry should ignore non-retryable work.');
+
+        Thread__c reopenedThread = [
+            SELECT Status__c, Completed__c, Run_Key__c
+            FROM Thread__c
+            WHERE Id = :threadRecord.Id
+        ];
+        Assert.areEqual(Thread.PENDING, reopenedThread.Status__c,
+            'Manual retry should reopen a drained EventRelay lane.');
+        Assert.areEqual(null, reopenedThread.Completed__c,
+            'Manual retry should clear the lane completed timestamp.');
+        Assert.areEqual(null, reopenedThread.Run_Key__c,
+            'Manual retry should clear the stale lane run key.');
+        Assert.areEqual(1, wakeSignal.signalCalls,
+            'Manual retry should signal EventRelay wake processing.');
+    }
+
     @istest static void publisherService_requiresPlatformEventLimitOnlyForBuiltInPublisher() {
         EventRelay.PublisherService publishers = new EventRelay.PublisherService();
 
