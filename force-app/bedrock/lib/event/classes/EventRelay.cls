@@ -285,11 +285,11 @@ public virtual with sharing class EventRelay {
         }
 
         public virtual void fail(Set<Id> workItemIds, String message, String stackTrace) {
-            updateStatus(workItemIds, new Event__c(
-                Status__c = ERROR,
-                Error_Message__c = truncate(message),
-                Error_Stack_Trace__c = truncate(stackTrace)
-            ));
+            applyFailure(
+                queries.getWorkItemsById(workItemIds),
+                new PublishResult(false, message),
+                stackTrace
+            );
         }
 
         public virtual void applyResults(List<Event__c> workItems, List<PublishResult> results) {
@@ -302,12 +302,43 @@ public virtual with sharing class EventRelay {
                     ? safeResults[i]
                     : new PublishResult(false, 'Publisher returned no result for work item ' + workItems[i].Id);
 
-                Event__c updateRecord = new Event__c(Id = workItems[i].Id);
-                updateRecord.Status__c = result.success ? DONE : ERROR;
-                if (!result.success) updateRecord.Error_Message__c = truncate(result.message);
-                updates.add(updateRecord);
+                updates.add(result.success
+                    ? successUpdate(workItems[i])
+                    : failureUpdate(workItems[i], result, null));
             }
             DML.updateRecords(updates);
+        }
+
+        void applyFailure(List<Event__c> workItems, PublishResult result, String stackTrace) {
+            if (workItems == null || workItems.isEmpty()) return;
+
+            List<SObject> updates = new List<SObject>();
+            for (Event__c workItem : workItems) {
+                updates.add(failureUpdate(workItem, result, stackTrace));
+            }
+            DML.updateRecords(updates);
+        }
+
+        Event__c successUpdate(Event__c workItem) {
+            return new Event__c(Id = workItem.Id, Status__c = DONE);
+        }
+
+        Event__c failureUpdate(Event__c workItem, PublishResult result, String stackTrace) {
+            Integer retryCount = retryCount(workItem);
+            Boolean shouldRetry = retryCount < metadata.maxRetries(workItem.Route__c);
+            Event__c updateRecord = new Event__c(
+                Id = workItem.Id,
+                Status__c = shouldRetry ? PENDING : ERROR,
+                Error_Message__c = truncate(result.message),
+                Error_Stack_Trace__c = truncate(stackTrace)
+            );
+            if (shouldRetry) updateRecord.Retry_Count__c = retryCount + 1;
+            return updateRecord;
+        }
+
+        Integer retryCount(Event__c workItem) {
+            if (workItem == null || workItem.Retry_Count__c == null || workItem.Retry_Count__c < 0) return 0;
+            return workItem.Retry_Count__c.intValue();
         }
 
         public virtual void prepareRecovery(Id threadId) {
@@ -509,7 +540,7 @@ public virtual with sharing class EventRelay {
             String safeJobType = String.isBlank(jobType) ? PUBLISH : jobType.trim();
             List<Event__c> heads = (List<Event__c>) Query.records(Database.query(
                 'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
-                    ', Apex__c, Route__c ' +
+                    ', Apex__c, Route__c, Retry_Count__c ' +
                 'FROM Event__c ' +
                 'WHERE Thread__c = :threadId ' +
                     'AND Job_Type__c = :safeJobType ' +
@@ -524,7 +555,7 @@ public virtual with sharing class EventRelay {
 
             List<Event__c> workItems = (List<Event__c>) Query.records(Database.query(
                 'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
-                    ', Apex__c, Route__c ' +
+                    ', Apex__c, Route__c, Retry_Count__c ' +
                 'FROM Event__c ' +
                 'WHERE Thread__c = :threadId ' +
                     'AND Job_Type__c = :safeJobType ' +
@@ -572,7 +603,8 @@ public virtual with sharing class EventRelay {
             if (workItemIds == null || workItemIds.isEmpty()) return new List<Event__c>();
 
             Map<Id, Event__c> workItemsById = new Map<Id, Event__c>((List<Event__c>) Query.records([
-                SELECT Id, Apex__c, Route__c, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c
+                SELECT Id, Apex__c, Route__c, Payload_Type__c, Retry_Count__c,
+                    Payload1__c, Payload2__c, Payload3__c, Payload4__c
                 FROM Event__c
                 WHERE Id IN :workItemIds
             ]));
@@ -921,6 +953,12 @@ public virtual with sharing class EventRelay {
             Event_Config__mdt config = getConfig(route);
             if (config == null || config.Batch_Size__c == null || config.Batch_Size__c < 1) return safeDefault;
             return config.Batch_Size__c.intValue();
+        }
+
+        public virtual Integer maxRetries(String route) {
+            Event_Config__mdt config = getConfig(route);
+            if (config == null || config.Max_Retries__c == null || config.Max_Retries__c < 1) return 0;
+            return config.Max_Retries__c.intValue();
         }
 
         protected virtual List<Event_Config__mdt> loadConfigs() {

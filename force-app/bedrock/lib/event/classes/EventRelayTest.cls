@@ -424,6 +424,53 @@ private class EventRelayTest {
             'Failed publish results should preserve the publisher error message.');
     }
 
+    @istest static void publishJob_retriesFailedResultUntilConfiguredCap() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+
+        Id threadId = (Id) new TestData(Thread__c.sObjectType).mockIds().build()[0].Id;
+        Event__c retryable = workItem('retryable');
+        Event__c terminal = workItem('terminal');
+        terminal.Retry_Count__c = 2;
+        Event_Config__mdt config = eventConfig(
+            retryable.Route__c,
+            EventRelay.PUBLISH,
+            EventRelay.PLATFORM_EVENT,
+            EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+            retryable.Payload_Type__c,
+            EventRelay.PLATFORM_EVENT_PUBLISHER,
+            null
+        );
+        config.Max_Retries__c = 2;
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> { config });
+        EventRelay.queries = new MockQueryService(new List<Event__c> { retryable, terminal });
+        EventRelay.publishers = new MockPublisherService(new MockPublisher(new List<EventRelay.PublishResult> {
+            new EventRelay.PublishResult(false, 'retryable failure'),
+            new EventRelay.PublishResult(false, 'terminal failure')
+        }));
+        EventRelay.jobs = new MockJobService();
+
+        new EventRelay.PublishJob(threadId, new List<Id> { retryable.Id, terminal.Id }, 0, 'run').execute(null);
+
+        Map<Id, Event__c> updatesById = new Map<Id, Event__c>();
+        for (SObject updateRecord : dmlMock.updates[0]) {
+            updatesById.put(updateRecord.Id, (Event__c) updateRecord);
+        }
+        Assert.areEqual(EventRelay.PENDING, updatesById.get(retryable.Id).Status__c,
+            'Failed publish work below the configured retry cap should move back to pending.');
+        Assert.areEqual(1, updatesById.get(retryable.Id).Retry_Count__c,
+            'Failed publish work below the configured retry cap should increment retry count.');
+        Assert.areEqual('retryable failure', updatesById.get(retryable.Id).Error_Message__c,
+            'Retried publish work should preserve the latest publisher error message.');
+        Assert.areEqual(EventRelay.ERROR, updatesById.get(terminal.Id).Status__c,
+            'Failed publish work at the configured retry cap should become terminal error work.');
+        Assert.areEqual(null, updatesById.get(terminal.Id).Retry_Count__c,
+            'Terminal publish work should not increment retry count beyond the configured cap.');
+        Assert.areEqual('terminal failure', updatesById.get(terminal.Id).Error_Message__c,
+            'Terminal publish work should preserve the latest publisher error message.');
+    }
+
     @istest static void processJob_executesHandlerAndCompletesWorkItems() {
         EventRelay.reset();
         DMLMock dmlMock = new DMLMock();
@@ -456,6 +503,51 @@ private class EventRelayTest {
             'Successful handler execution should mark the first work item done.');
         Assert.areEqual(EventRelay.DONE, updatesById.get(second.Id).Status__c,
             'Successful handler execution should mark the second work item done.');
+    }
+
+    @istest static void workFail_retriesProcessWorkUntilConfiguredCap() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+
+        Event__c retryable = processWorkItem('1001');
+        Event__c terminal = processWorkItem('1002');
+        terminal.Retry_Count__c = 1;
+        Event_Config__mdt config = eventConfig(
+            retryable.Route__c,
+            EventRelay.INGEST,
+            EventRelay.GENERIC_PAYLOAD,
+            'type',
+            'order',
+            MockHandler.class.getName(),
+            null
+        );
+        config.Max_Retries__c = 1;
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> { config });
+        EventRelay.queries = new MockQueryService(new List<Event__c> { retryable, terminal });
+
+        EventRelay.work.fail(new Set<Id> { retryable.Id, terminal.Id }, 'handler failed', 'handler stack');
+
+        Map<Id, Event__c> updatesById = new Map<Id, Event__c>();
+        for (SObject updateRecord : dmlMock.updates[0]) {
+            updatesById.put(updateRecord.Id, (Event__c) updateRecord);
+        }
+        Assert.areEqual(EventRelay.PENDING, updatesById.get(retryable.Id).Status__c,
+            'Failed process work below the configured retry cap should move back to pending.');
+        Assert.areEqual(1, updatesById.get(retryable.Id).Retry_Count__c,
+            'Failed process work below the configured retry cap should increment retry count.');
+        Assert.areEqual('handler failed', updatesById.get(retryable.Id).Error_Message__c,
+            'Retried process work should preserve the latest handler error message.');
+        Assert.areEqual('handler stack', updatesById.get(retryable.Id).Error_Stack_Trace__c,
+            'Retried process work should preserve the latest handler stack trace.');
+        Assert.areEqual(EventRelay.ERROR, updatesById.get(terminal.Id).Status__c,
+            'Failed process work at the configured retry cap should become terminal error work.');
+        Assert.areEqual(null, updatesById.get(terminal.Id).Retry_Count__c,
+            'Terminal process work should not increment retry count beyond the configured cap.');
+        Assert.areEqual('handler failed', updatesById.get(terminal.Id).Error_Message__c,
+            'Terminal process work should preserve the latest handler error message.');
+        Assert.areEqual('handler stack', updatesById.get(terminal.Id).Error_Stack_Trace__c,
+            'Terminal process work should preserve the latest handler stack trace.');
     }
 
     @istest static void publisherService_requiresPlatformEventLimitOnlyForBuiltInPublisher() {
