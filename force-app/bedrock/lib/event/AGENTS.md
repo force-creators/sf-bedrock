@@ -38,6 +38,18 @@ inspectable status.
   `EventRelay.Publisher` is the outbound publication extension point.
 - `EventRelay.Route.apexClass` is the current internal name for the class that
   executes work. `Route.publisherClass` remains as a compatibility alias.
+- `EventRelay` remains the public facade and compatibility container. Several
+  formerly nested service implementations now live in focused top-level Apex
+  classes named `EventRelay*Service`; the nested `EventRelay.*Service` classes
+  remain as thin wrappers so existing tests and subscriber mocks keep compiling.
+- Put payload serialization/chunking in `EventRelayPayloadService`, Event
+  metadata reads in `EventRelayMetadataService`, route resolution in
+  `EventRelayRouteService`, durable work creation/status/idempotency/retry
+  behavior in `EventRelayWorkService`, Event work SOQL/batching in
+  `EventRelayQueryService`, thread-lane job dispatch in
+  `EventRelayJobService`, handler/publisher class lookup in
+  `EventRelayHandlerService` / `EventRelayPublisherService`, wake publication in
+  `EventRelay.WakeService`, and defaults in `EventRelay.SettingsService`.
 - `EventRelay*Smoke*` classes are end-to-end smoke fixtures used by tests to
   exercise real Queueable and Platform Event behavior. Do not treat them as
   recommended subscriber naming patterns.

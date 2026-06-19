@@ -4,14 +4,12 @@ title: EventRelay | sf-bedrock docs
 description: A durable event relay for Platform Event publication, inbound event processing, custom publishers, and tracked status.
 eyebrow: Frameworks
 heading: EventRelay
-lede: EventRelay turns event publication and event processing into durable, tracked work. Bedrock stores Platform Event or generic payloads as Event__c rows, then Thread-managed lanes drain them through publishers or handlers.
+lede: EventRelay turns event publication and event processing into durable, tracked work. Bedrock stores Platform Event or generic payloads as Event__c rows, then ordered lanes drain them through publishers or handlers.
 sections:
   - label: Overview
     href: "#overview"
   - label: Quickstart
     href: "#quickstart"
-  - label: Glossary
-    href: "#glossary"
   - label: Examples
     href: "#examples"
   - label: Configuration
@@ -54,7 +52,7 @@ The public model is intentionally small:
   `execute(List<Generic>)`.
 - **Customize publication:** extend `EventRelay.Publisher` and override
   `execute(List<SObject>)` or `execute(List<Generic>)`.
-- **Keep lanes ordered:** route work into a `Thread_Key__c` so each lane drains
+- **Keep lanes ordered:** route work into a stable lane key so each lane drains
   in FIFO order while other lanes can run separately.
 
 Use `EventRelay` when event publication or consumption is important enough to
@@ -66,27 +64,6 @@ Reach for direct `EventBus.publish(...)` instead when the publication is small,
 non-critical, and does not need durable status, ordered lanes, or item-level
 operational review. Reach for a normal Platform Event trigger when native
 trigger behavior is enough and you do not need durable handler status.
-
-> TTL and sequence-based stale policy are still future work. This page documents
-> the Apex, metadata, and console controls that exist now.
-
-## Glossary
-
-`EventRelay` uses a few small words for advanced runtime ideas:
-
-| Term | Meaning |
-| --- | --- |
-| Work item | One `Event__c` row that stores a payload and its status. |
-| Publish | Durable outbound event work. A publisher turns stored payloads into Platform Events or another external publication. |
-| Ingest | The public API for durable inbound processing. `EventRelay.ingest(...)` stores process work. |
-| Process | The stored job type for ingested work. A handler processes the payload later. |
-| Route | The resolved destination or handler choice. Metadata-backed routes use `Event_Config__mdt.DeveloperName`. |
-| Lane | The FIFO boundary for ordered work. One lane drains in order; separate lanes can run independently. |
-| Thread | The `Thread__c` worker record that owns and drains a lane. |
-| Thread key | The stable lane key stored on `Thread__c.Thread_Key__c` and `Event__c.Thread_Key__c`. |
-| Publisher | A class that extends `EventRelay.Publisher` and publishes outbound payloads. |
-| Handler | A class that extends `EventRelay.Handler` and processes ingested payloads. |
-| Stale | Duplicate idempotent work that is saved for audit but not run. |
 
 ## Quickstart
 
@@ -106,11 +83,11 @@ List<Id> workItemIds = EventRelay.publish(events);
 ```
 
 The caller creates one `Event__c` work item for each event payload. EventRelay
-stores the serialized payload, places it on a publish lane, signals the wake
-Platform Event, and returns the new work item Ids.
+stores the serialized payload, places it on a publish lane, and returns the new
+work item Ids.
 
 The built-in publisher later rehydrates those payloads back into Platform Event
-SObjects and calls `EventBus.publish(...)` in a Bedrock-managed Queueable.
+SObjects and calls `EventBus.publish(...)` in a background transaction.
 
 For inbound event processing, add a one-line trigger and a handler.
 
@@ -131,9 +108,8 @@ public with sharing class AccountChangedHandler extends EventRelay.Handler {
 }
 ```
 
-The trigger stores process work and returns. The handler runs later in a
-Bedrock-managed Queueable, and each selected work item becomes `Done` or
-`Error`.
+The trigger stores process work and returns. The handler runs later, and each
+selected work item becomes `Done` or `Error`.
 
 ## Examples
 
@@ -194,7 +170,7 @@ transaction. Nothing is persisted until `flush()` runs.
 ### Ingest Platform Events from a trigger
 
 Use `ingest` when a Platform Event trigger should persist the payload and process
-it through a handler in a Queueable.
+it later through a handler.
 
 ```apex
 trigger OrderSubmittedTrigger on Order_Submitted__e (after insert) {
@@ -415,7 +391,7 @@ List<Id> genericWork = EventRelay.publish(genericPayloads);
 ```
 
 The Platform Event overload accepts only SObjects whose API names end in `__e`.
-Passing ordinary records, such as `Account`, raises an `EventRelayException`.
+Passing ordinary records, such as `Account`, raises an error.
 
 ### Staging and flushing
 
@@ -450,9 +426,9 @@ Account_Changed__e:AccountWebhookPublisher
 Publish:Account_Changed__e:Account_Changed__e:AccountWebhookPublisher
 ```
 
-Route service implementations can fan one payload out to several routes. In
-that case, EventRelay creates one `Event__c` row per resolved route. Each row can
-have its own publisher class and thread key.
+Matching metadata can fan one payload out to several routes. In that case,
+EventRelay creates one `Event__c` row per resolved route. Each row can have its
+own publisher class and thread key.
 
 Metadata-backed routes use the `Event_Config__mdt.DeveloperName` as both the
 stored route and thread key. That keeps the lane stable without adding a
@@ -507,8 +483,7 @@ If `execute` completes, EventRelay marks selected process work items `Done` by
 default. A handler may call `complete(record)` or `fail(record, message)` for
 individual records when it wants item-level results. Failed items follow the
 route's `Max_Retries__c` cap: under the cap they return to `Pending` with
-`Retry_Count__c` incremented; at the cap they become `Error`. If the Queueable
-throws, the finalizer applies that failure to the whole selected batch.
+`Retry_Count__c` incremented; at the cap they become `Error`.
 
 ## Custom Publishers
 
@@ -527,82 +502,17 @@ public with sharing class ContactWebhookPublisher extends EventRelay.Publisher {
 }
 ```
 
-Publisher results are item-level. The base publisher starts each item as a
-success, then `fail(record, message)` changes that one item to a failed
-`PublishResult`. Use `complete(record)` or `succeed(record)` only when a
-publisher first marked a record failed and later needs to mark it successful
-again inside the same batch.
-
-The built-in `PlatformEventPublisher` converts stored payloads back to typed
-Platform Event SObjects and calls `EventBus.publish(...)`. It maps each
-`Database.SaveResult` into an `EventRelay.PublishResult`.
+Publisher results are item-level. If `execute` completes and no item is failed,
+EventRelay marks every selected payload `Done`. Call `fail(record, message)` for
+payloads that should end in `Error` or follow the route's retry cap. Use
+`complete(record)` or `succeed(record)` only when a publisher first marked a
+record failed and later needs to mark it successful again inside the same batch.
 
 ## Testing
 
-Test publisher logic directly. Construct the publisher, pass
-`EventRelay.PublishPayload` values into `publish(...)`, and assert the returned
-results.
-
-```apex
-@istest
-class OrderWebhookPublisherTest {
-    @istest static void publish_missingOrderNumberFailsOnePayload() {
-        OrderWebhookPublisher publisher = new OrderWebhookPublisher();
-
-        List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload>{
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
-                new Generic(new Map<String, Object>{ 'orderNumber' => '1001' })),
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
-                new Generic(new Map<String, Object>{ 'status' => 'Ready' }))
-        });
-
-        Assert.areEqual(2, results.size(), 'Expected one publish result per payload.');
-        Assert.isTrue(results[0].success, 'Expected the complete payload to publish successfully.');
-        Assert.isFalse(results[1].success, 'Expected the payload without an order number to fail.');
-        Assert.areEqual('Order number is required.', results[1].message,
-            'Expected the failure result to explain why the payload was rejected.');
-    }
-}
-```
-
-When testing the facade, mock Bedrock seams instead of depending on real DML or
-Platform Event delivery. `EventRelay` uses `DML`, `Thread`, and `Query` seams, and
-its service properties are virtual so framework tests can replace route,
-publisher, job, and wake behavior.
-
-```apex
-@istest
-class AccountEventRelayTest {
-    @istest static void publish_accountChangedCreatesWork() {
-        EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
-        Thread.setMock(new ThreadMock().mockIds());
-        EventRelay.wakeSignal = new MockWakeService();
-
-        EventRelay.publish(new List<SObject>{
-            new Account_Changed__e(Account_Id__c = '001000000000001AAA')
-        });
-
-        Assert.areEqual(1, dmlMock.inserts.size(), 'Expected one DML insert call for EventRelay work.');
-        Assert.areEqual(1, dmlMock.inserts[0].size(), 'Expected one Event__c work item for one payload.');
-
-        Event__c workItem = (Event__c) dmlMock.inserts[0][0];
-        Assert.areEqual(EventRelay.consts.PENDING, workItem.Status__c,
-            'Expected new EventRelay work to start pending.');
-        Assert.areEqual('Account_Changed__e', workItem.Payload_Type__c,
-            'Expected the work item to preserve the Platform Event API name.');
-    }
-
-    class MockWakeService extends EventRelay.WakeService {
-        public override void signal() {
-        }
-    }
-}
-```
-
-Test handler logic directly by constructing the handler and calling
-`execute(List<Generic>)` with representative payloads.
+Test subscriber logic directly. For handlers, construct the handler and call
+`execute(List<Generic>)` with representative payloads. Mock the collaborators
+your handler uses, then assert the business behavior it owns.
 
 ```apex
 @istest
@@ -619,9 +529,11 @@ class OrderSubmittedHandlerTest {
 }
 ```
 
-Use these patterns by default. They keep application publisher and handler tests
-fast and focused, while Bedrock's own tests cover queue orchestration and wake
-behavior.
+For custom publishers, keep transformation, validation, and delivery code in
+small methods or collaborators that can be tested directly. In subscriber tests,
+do not depend on EventRelay's internal payload/result classes. Bedrock's own
+tests cover durable work creation, queue orchestration, item-level result
+mapping, and background start behavior.
 
 ## How It Works
 
@@ -632,27 +544,20 @@ payload into `Payload1__c` through `Payload4__c`, create one `Event__c` row per
 resolved route, and store the Apex class, route, payload type, lane key, retry
 count, and status.
 
-**Two: wake events start Thread-managed lanes.** Creating work reopens the
-owning `Thread__c` lane and publishes `EventRelay_Wake__e`. The wake trigger
-calls `EventRelay.wake()`, which asks `Thread` to start pending work in the
-`EventRelayPublish` and `EventRelayProcess` pools.
+**Two: lanes preserve order.** Creating work assigns each item to a lane. Work in
+the same lane drains in order; separate lanes can drain independently when
+capacity is available.
 
-**Three: Queueables write outcomes.** The dispatcher selects the next strict
-contiguous batch, marks it `Running`, and enqueues `PublishJob` or `ProcessJob`.
-Publish jobs call publishers and write item-level results. Process jobs call
-handlers and mark the selected work items `Done` when the handler completes.
-
-If a Queueable fails before normal result handling, its finalizer marks the
-selected work items `Error`, records the exception details, and lets Thread
-continue the lane with an incremented failure count.
+**Three: handlers and publishers write outcomes.** Publish work calls the
+selected publisher. Ingest work calls the selected handler. Successful items
+become `Done`; failed items become `Error` or return to `Pending` when
+`Max_Retries__c` allows another attempt.
 
 ## Public API
 
 > **A note on access modifiers.** In Apex, an omitted modifier means `private`.
-> Members listed here are the intended app-facing surface. EventRelay exposes
-> framework services because Bedrock is source-first and tests need seams, but
-> app teams should treat undocumented services and helpers as framework
-> internals.
+> Members listed here are the intended app-facing surface. Treat other visible
+> framework services and helpers as internal unless this page documents them.
 
 ### Static entry points
 
@@ -665,16 +570,13 @@ continue the lane with an incremented failure count.
 | `ingest` | `public static List<Id> ingest(List<SObject> events, Type handlerType)` | Creates durable process work for Platform Event SObjects and routes it to the explicit handler class. |
 | `ingest` | `public static List<Id> ingest(List<Generic> payloads)` | Creates durable process work for generic payloads. Requires an active matching `Event_Config__mdt` ingest route. |
 | `ingest` | `public static List<Id> ingest(List<Generic> payloads, Type handlerType)` | Creates durable process work for generic payloads and routes it to the explicit handler class. |
-| `retry` | `public static List<Id> retry(Set<Id> workItemIds)` | Moves `Error` work back to `Pending`, preserves `Retry_Count__c`, clears latest error details, reopens drained lanes, and signals EventRelay wake processing. Returns the requeued work item Ids. |
 | `stage` | `public static void stage(List<SObject> events)` | Adds Platform Event SObjects to the current transaction buffer. |
 | `flush` | `public static List<Id> flush()` | Persists buffered Platform Events and returns the new `Event__c` Ids. Returns an empty list when the buffer is empty. |
-| `wake` | `public static void wake()` | Starts pending work in the EventRelay publish and process pools. The wake Platform Event trigger calls this method. |
 
 ### Handler contract
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `process` | `public virtual List<ProcessResult> process(List<Generic> records)` | Initializes item-level process results, calls `execute`, and returns one result per payload. Most handlers do not override this method. |
 | `execute` | `public virtual void execute(List<Generic> records)` | Override this in every handler. Receives the current batch of event payloads as `Generic` records. The base implementation throws. |
 | `complete` | `public void complete(Generic record)` | Marks one generic payload successful in the current handler batch. Items are successful by default, so this is only needed after an earlier `fail`. |
 | `fail` | `public void fail(Generic record, String message)` | Marks one generic payload failed in the current handler batch with a message. |
@@ -683,7 +585,6 @@ continue the lane with an incremented failure count.
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `publish` | `public virtual List<PublishResult> publish(List<PublishPayload> publishPayloads)` | Converts payloads into the supported record shape, calls `execute`, and returns one result per payload. Most custom publishers do not override this method. |
 | `execute` | `public virtual void execute(List<SObject> records)` | Override this for Platform Event-shaped payloads or other SObject payloads. The base implementation throws. |
 | `execute` | `public virtual void execute(List<Generic> records)` | Override this for generic payloads. The base implementation throws. |
 | `complete` | `public void complete(SObject record)` | Marks one SObject payload successful in the current batch. |
@@ -693,23 +594,11 @@ continue the lane with an incremented failure count.
 | `fail` | `public void fail(SObject record, String message)` | Marks one SObject payload failed in the current batch with a message. |
 | `fail` | `public void fail(Generic record, String message)` | Marks one generic payload failed in the current batch with a message. |
 
-### Public value types
-
-| Type | Members | Description |
-| --- | --- | --- |
-| `EventRelay.Route` | `route`, `apexClass`, `publisherClass`, `payloadType`, `threadKey` | Resolved route used to create work. `apexClass` is the clearer name; `publisherClass` remains as a compatibility alias. |
-| `EventRelay.PublishPayload` | `workItemId`, `route`, `payloadType`, `payload` | Payload passed to publishers after work items are read from storage. |
-| `EventRelay.PublishResult` | `success`, `message` | Item-level publisher outcome. `success` is stored as `true` only when the constructor receives `true`. |
-| `EventRelay.ProcessResult` | `status`, `message` | Item-level handler outcome used internally by `Handler.process(...)`. |
-| `EventRelay.Handler` | `process(List<Generic>)`, `execute(List<Generic>)`, `complete(Generic)`, `fail(Generic, String)` | Base class for process-side handlers. |
-| `EventRelay.PlatformEventPublisher` | extends `EventRelay.Publisher` | Built-in publisher that calls `EventBus.publish(...)` and maps `Database.SaveResult` values to `PublishResult` values. |
-| `EventRelay.EventRelayException` | extends `Exception` | Exception type thrown for invalid payloads, routing gaps, and publisher contract errors. |
-
 ### Work metadata
 
 | Artifact | Field | Purpose |
 | --- | --- | --- |
-| `Event__c` | `Apex__c` | Publisher or handler class name. Blank publish values are treated as the built-in Platform Event publisher by `PublisherService`. |
+| `Event__c` | `Apex__c` | Publisher or handler class name. Blank publish values use the built-in Platform Event publisher. |
 | `Event__c` | `Job_Type__c` | `Publish` for outbound publication work or `Process` for inbound handler work. |
 | `Event__c` | `Status__c` | Work state. Implemented statuses include `Pending`, `Running`, `Done`, `Stale`, and `Error`. |
 | `Event__c` | `Route__c` | Route or destination key selected for the payload. |
@@ -717,11 +606,11 @@ continue the lane with an incremented failure count.
 | `Event__c` | `Thread__c` | Lookup to the `Thread__c` lane that owns the work. |
 | `Event__c` | `Thread_Key__c` | FIFO lane key. |
 | `Event__c` | `Order__c` | Per-create-call ordering value used after `CreatedDate`. |
-| `Event__c` | `Retry_Count__c` | Stored retry count. Automatic retry increments this value when a failed item is requeued below its configured cap. Manual retry preserves it. |
+| `Event__c` | `Retry_Count__c` | Stored retry count. Automatic retry increments this value when a failed item is requeued below its configured cap. |
 | `Event__c` | `Idempotency_Key__c` | Optional framework-derived logical work key. Duplicate accepted work for the same job type and route is inserted as `Stale`. |
 | `Event__c` | `Payload1__c` - `Payload4__c` | Serialized payload chunks. Each chunk stores up to 32,768 characters. |
-| `Event__c` | `Error_Message__c` | Publisher result error, stale duplicate reason, or Queueable failure message. |
-| `Event__c` | `Error_Stack_Trace__c` | Queueable failure stack trace when available. |
+| `Event__c` | `Error_Message__c` | Publisher or handler error, stale duplicate reason, or runtime failure message. |
+| `Event__c` | `Error_Stack_Trace__c` | Runtime failure stack trace when available. |
 
 ### Route metadata
 
@@ -738,7 +627,7 @@ continue the lane with an incremented failure count.
 | `Event_Config__mdt` | `Max_Retries__c` | Optional automatic retry cap for failed publish and process work on this route. Blank or zero disables automatic retry. |
 | `Event_Config__mdt` | `Idempotency_Key_Path__c` | Optional Platform Event field API name or `Generic` path used to derive `Event__c.Idempotency_Key__c` during intake. |
 
-### Defaults
+### Runtime defaults
 
 | Setting | Value | Description |
 | --- | --- | --- |
@@ -749,10 +638,10 @@ continue the lane with an incremented failure count.
 
 ## Notes & Edge Cases
 
-- **`publish` does not publish inline.** It records work and signals the wake
-  event. Publication runs later in a Bedrock-managed Queueable.
-- **`ingest` does not process inline.** It records process work and signals the
-  wake event. Handler execution runs later in a Bedrock-managed Queueable.
+- **`publish` does not publish inline.** It records work. Publication runs
+  later in a background transaction.
+- **`ingest` does not process inline.** It records process work. Handler
+  execution runs later in a background transaction.
 - **Only Platform Event SObjects are accepted by the SObject overloads.** The
   API name must end in `__e`.
 - **No-handler ingest requires config.** The no-handler `ingest` overloads throw
@@ -762,7 +651,7 @@ continue the lane with an incremented failure count.
 - **Platform Event publication has a default route.** If no SObject routes are
   resolved, EventRelay uses the built-in Platform Event publisher route.
 - **Payload storage is finite.** Serialized payloads are stored in four long text
-  chunks. Payloads larger than that capacity throw an `EventRelayException`.
+  chunks. Payloads larger than that capacity throw an error.
 - **Custom publishers are item-level.** If `execute` completes and no item is
   failed, every item is marked successful.
 - **Custom handlers can be item-level.** If `execute` completes and no item is
@@ -774,12 +663,8 @@ continue the lane with an incremented failure count.
 - **Built-in Platform Event publishing checks limits.** When the Platform Event
   limit is not safe at the configured threshold, the owning `Thread__c` is
   marked `Paused` and the publish work remains `Pending`.
-- **Manual retry is operator-owned.** `EventRelay.retry(...)` requeues only
-  `Error` work, preserves the existing retry count, and reopens the owning lane
-  if it had already drained. The Event Console exposes selected-row retry and
-  delete actions for failed publish work.
 - **Idempotency is intake-only.** Duplicate idempotency keys create terminal
-  `Stale` rows for audit. Stale rows do not run and do not wake processing.
+  `Stale` rows for audit. Stale rows do not run.
 - **Strict contiguous batching can make smaller batches.** A lane may select
   fewer than the configured batch size when the next pending work item has a
   different publisher, handler, route, or payload type.

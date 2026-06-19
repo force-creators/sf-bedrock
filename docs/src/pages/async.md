@@ -18,8 +18,6 @@ sections:
     href: "#staging-work"
   - label: Configuration
     href: "#configuration"
-  - label: Multithreading
-    href: "#multithreading"
   - label: Testing
     href: "#testing"
   - label: How It Works
@@ -43,8 +41,9 @@ The public model is intentionally small:
 - **Start work:** call `Async.enqueue(...)` with records or Ids.
 - **Coordinate work:** call `Async.stage(...)` from several services, then
   `Async.flush()` once.
-- **Tune behavior:** use `Async_Job__mdt` and `Async_Settings__c` metadata for
-  batch size, retry, priority, and per-user concurrency.
+- **Tune behavior:** use `Async_Job__mdt`, `Thread_Settings__c`, and
+  `Async_Settings__c` settings for batch size, retry, priority, concurrency,
+  and archival cleanup.
 
 Use `Async` when you need background work that is tracked, retryable,
 configurable, and able to drain record backlogs in tuned batches without
@@ -209,10 +208,10 @@ insert operation, whose row count scales with the number of Ids, and the
 framework may start one managed Queueable chain when a concurrency slot is
 available. Processing happens later in background batches.
 
-When `enqueue` is called from inside an `Async` job, Bedrock defers the new work
-until the job finalizer runs. That lets a job touch setup objects and still add
-follow-up work without mixing setup-object DML with work-item DML in the same
-Queueable transaction.
+When `enqueue` is called from inside an `Async` job, Bedrock saves the new work
+after the current job finishes. That lets a job touch setup objects and still
+add follow-up work without mixing setup-object DML with work-item DML in the
+same transaction.
 
 ### Why Ids, not SObjects
 
@@ -247,8 +246,8 @@ This pattern is especially useful in trigger orchestration: domain services can
 stage the work they own, while the trigger handler or service boundary flushes
 once after all decisions have been made.
 
-If `flush` runs inside an `Async` job, the staged work is moved into the job
-finalizer instead of inserted directly in the Queueable transaction.
+If `flush` runs inside an `Async` job, the staged work is saved after the
+current job finishes instead of inserted directly in the same transaction.
 
 ## Configuration
 
@@ -302,7 +301,7 @@ Manual recovery still works separately: changing an errored work item back to
 `Pending` is recognized by the framework and is not limited by
 `Max_Retries__c`.
 
-### Thread concurrency
+### Concurrency settings
 
 `Thread_Settings__c.Max_Threads__c` controls how many framework-managed thread
 chains may run at the same time. It is a hierarchical custom setting, so you can
@@ -313,37 +312,16 @@ Blank, `0`, and negative values default to **1**. A value of 1 keeps work
 straight-line for that user. Higher values let separate enqueueing transactions
 drain in parallel up to the configured soft cap.
 
-## Multithreading
+### Archive settings
 
-Async multithreading is backlog-based, not record-sharding-based. The important
-unit is the enqueueing transaction.
+`Async_Settings__c` controls archival cleanup for completed work. These settings
+matter operationally; subscriber classes do not read them directly.
 
-One synchronous transaction creates one logical backlog. All work created in that
-transaction stays linear inside that backlog: Bedrock pulls one configured batch,
-calls `execute(Set<Id> ids)`, records the outcome, then chains to the next batch
-until that backlog is empty.
-
-Branching happens between backlogs. If several synchronous transactions create
-work and `Thread_Settings__c.Max_Threads__c` allows more than one chain, those
-backlogs can drain side by side. If the cap is `1`, one backlog drains while the
-others wait.
-
-![Subway-style map showing Async enqueue, Async work records, ThreadRunner, Async dispatcher, subscriber execution, and finalizer handoff.](/images/threading-async-subway.svg)
-
-That model gives high-volume users more throughput without changing the
-subscriber contract. The job still receives `Set<Id> ids`; configuration decides
-how many framework-managed chains may run for the user.
-
-There are two practical rules to remember:
-
-- A single large `Async.enqueue(...)` call does not split itself across several
-  parallel chains. It creates one backlog that drains batch by batch.
-- Async and finalizer contexts stay conservative. When an async job performs DML
-  and that DML fires triggers, the practical Queueable enqueue limit is 1, so
-  Bedrock does not use those contexts to fan out extra chains.
-
-> Branching is a throughput tool for independent synchronous transactions, not a
-> way to make one subscriber process the same record set in parallel.
+| Field | Meaning |
+| --- | --- |
+| `Archive_Threshold_Hours__c` | How old completed work must be before the archive batch moves it out of `Async__c`. Blank defaults to 24 hours. |
+| `Enable_Archive_Cleanup__c` | Enables cleanup of old `Async_Archive__c` rows after archival runs. |
+| `Max_Archive_Age__c` | How many days archived rows are retained when cleanup is enabled. Blank defaults to 30 days. |
 
 ## Testing
 
@@ -429,7 +407,7 @@ business code.
 | `enqueue` | `public static void enqueue(Type jobType, Set<Id> recordIds)` | Creates tracked work for each Id. |
 | `stage` | `public static void stage(Type jobType, List<SObject> records)` | Adds record Ids to the current transaction's async work buffer. |
 | `stage` | `public static void stage(Type jobType, Set<Id> recordIds)` | Adds Ids to the current transaction's async work buffer. Duplicate Ids are merged by job type. |
-| `flush` | `public static void flush()` | Creates all buffered work items in one operation, or defers them to the finalizer when called from inside an `Async` job. |
+| `flush` | `public static void flush()` | Creates all buffered work items in one operation, or saves them after the current job finishes when called from inside an `Async` job. |
 
 ### Metadata and settings
 
@@ -440,7 +418,9 @@ business code.
 | `Async_Job__mdt` | `Max_Retries__c` | Cap on framework auto-retries. Blank or `0` means auto-retry is off. |
 | `Async_Job__mdt` | `Priority__c` | Assigned priorities run lowest to highest within the same backlog. Blank values leave work unprioritized and sort last. |
 | `Thread_Settings__c` | `Max_Threads__c` | Maximum concurrent framework-managed thread chains. Blank or non-positive values default to 1. |
-| `Thread_Settings__c` | `Recovery_Limit_Threshold_Pct__c` | Shared limiter threshold used by Thread recovery and pause/resume checks. Blank defaults to 90. |
+| `Async_Settings__c` | `Archive_Threshold_Hours__c` | Age threshold for archiving completed `Async__c` work. Blank defaults to 24. |
+| `Async_Settings__c` | `Enable_Archive_Cleanup__c` | Enables cleanup of old archive rows after archival runs. |
+| `Async_Settings__c` | `Max_Archive_Age__c` | Archive retention in days when cleanup is enabled. Blank defaults to 30. |
 
 ## Notes & Edge Cases
 
@@ -451,9 +431,6 @@ business code.
 - **Work from Ids, not captured records.** Even when you enqueue a
   `List<SObject>`, only Ids are kept. Re-query inside `execute` so you act on
   current data.
-- **Async limit pressure parks threads.** When Queueable or daily async limits
-  are unsafe, `Async__c` rows stay `Pending` and the owning `Thread__c` becomes
-  `Paused` until recovery resumes it.
 - **Override only `execute(Set<Id> ids)`.** The rest of the class is framework
   machinery.
 - **Setup-object support applies inside Bedrock-managed async work.** When an
@@ -471,10 +448,5 @@ business code.
   parallel.
 - **Errors are recorded, not hidden.** A failing batch marks its work items
   `Error` with the exception message and stack trace saved for review.
-- **Failed items can be retried two ways.** Configure bounded auto-retry with
-  `Async_Job__mdt.Max_Retries__c`, or use the Console/operator recovery path
-  where retry actions are available and permissions allow them. Manual recovery
-  is an operational workflow, not a direct object-editing recipe.
-- **Stuck-running work is recoverable.** Thread recovery can reset stranded
-  `Running` `Async__c` rows back to `Pending` and restart the owning thread
-  when limits and capacity are safe.
+- **Failed items can be retried automatically.** Configure bounded auto-retry
+  with `Async_Job__mdt.Max_Retries__c` for transient failures.
