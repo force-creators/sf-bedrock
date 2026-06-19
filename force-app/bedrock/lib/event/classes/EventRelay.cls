@@ -309,6 +309,21 @@ public virtual with sharing class EventRelay {
             DML.updateRecords(updates);
         }
 
+        public virtual void applyProcessResults(List<Event__c> workItems, List<ProcessResult> results) {
+            if (workItems == null || workItems.isEmpty()) return;
+
+            List<SObject> updates = new List<SObject>();
+            List<ProcessResult> safeResults = results == null ? new List<ProcessResult>() : results;
+            for (Integer i = 0; i < workItems.size(); i++) {
+                ProcessResult result = i < safeResults.size()
+                    ? safeResults[i]
+                    : new ProcessResult(ERROR, 'Handler returned no result for work item ' + workItems[i].Id);
+
+                updates.add(processUpdate(workItems[i], result));
+            }
+            DML.updateRecords(updates);
+        }
+
         void applyFailure(List<Event__c> workItems, PublishResult result, String stackTrace) {
             if (workItems == null || workItems.isEmpty()) return;
 
@@ -321,6 +336,11 @@ public virtual with sharing class EventRelay {
 
         Event__c successUpdate(Event__c workItem) {
             return new Event__c(Id = workItem.Id, Status__c = DONE);
+        }
+
+        Event__c processUpdate(Event__c workItem, ProcessResult result) {
+            if (result.status == DONE) return successUpdate(workItem);
+            return failureUpdate(workItem, new PublishResult(false, result.message), null);
         }
 
         Event__c failureUpdate(Event__c workItem, PublishResult result, String stackTrace) {
@@ -756,8 +776,45 @@ public virtual with sharing class EventRelay {
     }
 
     public virtual with sharing class Handler {
+        List<ProcessResult> results = new List<ProcessResult>();
+        List<Generic> currentRecords = new List<Generic>();
+
+        public virtual List<ProcessResult> process(List<Generic> records) {
+            try {
+                currentRecords = records == null ? new List<Generic>() : records;
+                results = successProcessResults(currentRecords);
+                execute(currentRecords);
+                return new List<ProcessResult>(results);
+            } finally {
+                results = new List<ProcessResult>();
+                currentRecords = new List<Generic>();
+            }
+        }
+
         public virtual void execute(List<Generic> records) {
             throw new EventRelayException('Handler must override execute(List<Generic>).');
+        }
+
+        public void complete(Generic record) {
+            mark(indexOf(record), DONE, null);
+        }
+
+        public void fail(Generic record, String message) {
+            mark(indexOf(record), ERROR, message);
+        }
+
+        void mark(Integer index, String status, String message) {
+            if (index == null || index < 0 || index >= results.size()) {
+                throw new EventRelayException('Handler result item is not part of the current batch.');
+            }
+            results[index] = new ProcessResult(status, message);
+        }
+
+        Integer indexOf(Generic record) {
+            for (Integer i = 0; i < currentRecords.size(); i++) {
+                if (currentRecords[i] == record) return i;
+            }
+            throw new EventRelayException('Generic handler result item is not part of the current batch.');
         }
     }
 
@@ -830,6 +887,14 @@ public virtual with sharing class EventRelay {
 
         public void succeed(Generic record) {
             mark(indexOf(record), true, null);
+        }
+
+        public void complete(SObject record) {
+            succeed(record);
+        }
+
+        public void complete(Generic record) {
+            succeed(record);
         }
 
         public void fail(SObject record, String message) {
@@ -1078,6 +1143,16 @@ public virtual with sharing class EventRelay {
         return results;
     }
 
+    static List<ProcessResult> successProcessResults(List<Generic> records) {
+        List<ProcessResult> results = new List<ProcessResult>();
+        if (records == null) return results;
+
+        for (Generic record : records) {
+            results.add(new ProcessResult(DONE, null));
+        }
+        return results;
+    }
+
     public with sharing class PublishPayload {
         public Id workItemId;
         public String route;
@@ -1098,6 +1173,16 @@ public virtual with sharing class EventRelay {
 
         public PublishResult(Boolean success, String message) {
             this.success = success == true;
+            this.message = message;
+        }
+    }
+
+    public with sharing class ProcessResult {
+        public String status;
+        public String message;
+
+        public ProcessResult(String status, String message) {
+            this.status = String.isBlank(status) ? DONE : status.trim();
             this.message = message;
         }
     }
@@ -1150,8 +1235,7 @@ public virtual with sharing class EventRelay {
             jobs.attachFinalizer(jobs.watchProcess(threadId, workItemIds, failures, runKey));
 
             List<Event__c> workItems = queries.getWorkItemsById(workItemIds);
-            handlers.forWorkItems(workItems).execute(payloads.toGenericEvents(workItems));
-            work.complete(new Set<Id>(workItemIds));
+            work.applyProcessResults(workItems, handlers.forWorkItems(workItems).process(payloads.toGenericEvents(workItems)));
         }
     }
 

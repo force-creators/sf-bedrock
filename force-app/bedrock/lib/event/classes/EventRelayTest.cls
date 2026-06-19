@@ -505,6 +505,55 @@ private class EventRelayTest {
             'Successful handler execution should mark the second work item done.');
     }
 
+    @istest static void processJob_appliesExplicitHandlerFailures() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+
+        Id threadId = (Id) new TestData(Thread__c.sObjectType).mockIds().build()[0].Id;
+        Event__c explicitCompleted = processWorkItem('1001');
+        Event__c failed = processWorkItem('1002');
+        Event__c defaultCompleted = processWorkItem('1003');
+        Event_Config__mdt config = eventConfig(
+            explicitCompleted.Route__c,
+            EventRelay.INGEST,
+            EventRelay.GENERIC_PAYLOAD,
+            'type',
+            'order',
+            PartialResultHandler.class.getName(),
+            null
+        );
+        config.Max_Retries__c = 1;
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> { config });
+        EventRelay.queries = new MockQueryService(new List<Event__c> { explicitCompleted, failed, defaultCompleted });
+        PartialResultHandler handler = new PartialResultHandler();
+        EventRelay.handlers = new MockHandlerService(handler);
+        EventRelay.jobs = new MockJobService();
+
+        new EventRelay.ProcessJob(threadId, new List<Id> {
+            explicitCompleted.Id,
+            failed.Id,
+            defaultCompleted.Id
+        }, 0, 'run').execute(null);
+
+        Assert.areEqual(3, handler.records.size(),
+            'The process job should pass every selected work item payload to the handler.');
+        Map<Id, Event__c> updatesById = new Map<Id, Event__c>();
+        for (SObject updateRecord : dmlMock.updates[0]) {
+            updatesById.put(updateRecord.Id, (Event__c) updateRecord);
+        }
+        Assert.areEqual(EventRelay.DONE, updatesById.get(explicitCompleted.Id).Status__c,
+            'An explicitly completed handler record should be marked done.');
+        Assert.areEqual(EventRelay.PENDING, updatesById.get(failed.Id).Status__c,
+            'A handler-failed record below the configured retry cap should move back to pending.');
+        Assert.areEqual(1, updatesById.get(failed.Id).Retry_Count__c,
+            'A handler-failed record below the configured retry cap should increment retry count.');
+        Assert.areEqual('handler rejected record', updatesById.get(failed.Id).Error_Message__c,
+            'A handler-failed record should preserve the failure message.');
+        Assert.areEqual(EventRelay.DONE, updatesById.get(defaultCompleted.Id).Status__c,
+            'A handler record with no explicit result should be marked done.');
+    }
+
     @istest static void workFail_retriesProcessWorkUntilConfiguredCap() {
         EventRelay.reset();
         DMLMock dmlMock = new DMLMock();
@@ -597,6 +646,30 @@ private class EventRelayTest {
             'GenericPublisher should fail only the record passed to fail.');
         Assert.areEqual('rejected', results[1].message,
             'GenericPublisher should preserve the item-level failure message.');
+    }
+
+    @istest static void genericPublisher_canExplicitlyCompleteAndFailRecords() {
+        PartialResultGenericPublisher publisher = new PartialResultGenericPublisher();
+
+        List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload> {
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+                new Generic(new Map<String, Object> { 'orderNumber' => '1001' })),
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+                new Generic(new Map<String, Object> { 'orderNumber' => '1002' })),
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+                new Generic(new Map<String, Object> { 'orderNumber' => '1003' }))
+        });
+
+        Assert.areEqual(3, results.size(),
+            'GenericPublisher should return one result per payload after explicit item-level result handling.');
+        Assert.isTrue(results[0].success,
+            'GenericPublisher.complete should mark the selected record successful.');
+        Assert.isFalse(results[1].success,
+            'GenericPublisher.fail should fail only the selected record.');
+        Assert.areEqual('rejected', results[1].message,
+            'GenericPublisher.fail should preserve the item-level failure message.');
+        Assert.isTrue(results[2].success,
+            'GenericPublisher should mark records successful when they are not explicitly failed.');
     }
 
     @istest static void sObjectPublisher_executeCompletesPayloadsAsSuccessfulResults() {
@@ -801,6 +874,16 @@ private class EventRelayTest {
         }
     }
 
+    private class PartialResultHandler extends EventRelay.Handler {
+        List<Generic> records = new List<Generic>();
+
+        public override void execute(List<Generic> records) {
+            this.records = records;
+            complete(records[0]);
+            fail(records[1], 'handler rejected record');
+        }
+    }
+
     private class MockGenericPublisher extends EventRelay.Publisher {
         List<Generic> executedPayloads = new List<Generic>();
 
@@ -811,6 +894,13 @@ private class EventRelayTest {
 
     private class FailingGenericPublisher extends EventRelay.Publisher {
         public override void execute(List<Generic> records) {
+            fail(records[1], 'rejected');
+        }
+    }
+
+    private class PartialResultGenericPublisher extends EventRelay.Publisher {
+        public override void execute(List<Generic> records) {
+            complete(records[0]);
             fail(records[1], 'rejected');
         }
     }
