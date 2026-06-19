@@ -12,6 +12,8 @@ sections:
     href: "#quickstart"
   - label: Examples
     href: "#examples"
+  - label: Configuration
+    href: "#configuration"
   - label: Ingesting Work
     href: "#ingesting-work"
   - label: Publishing Work
@@ -63,9 +65,8 @@ non-critical, and does not need durable status, ordered lanes, or item-level
 operational review. Reach for a normal Platform Event trigger when native
 trigger behavior is enough and you do not need durable handler status.
 
-> Metadata-backed routing, auto-retry, stale-event policy, and richer operator
-> controls are still future work. This page documents only the Apex and metadata
-> that exist now.
+> Auto-retry, stale-event policy, and richer operator controls are still future
+> work. This page documents only the Apex and metadata that exist now.
 
 ## Quickstart
 
@@ -103,7 +104,7 @@ trigger AccountChangedTrigger on Account_Changed__e (after insert) {
 public with sharing class AccountChangedHandler extends EventRelay.Handler {
     public override void execute(List<Generic> records) {
         for (Generic record : records) {
-            Id accountId = record.get('Account_Id__c', Id.class);
+            Id accountId = (Id) record.get('Account_Id__c', Id.class);
             // Process the event payload.
         }
     }
@@ -186,7 +187,7 @@ public with sharing class OrderSubmittedHandler extends EventRelay.Handler {
     public override void execute(List<Generic> records) {
         Set<Id> orderIds = new Set<Id>();
         for (Generic record : records) {
-            orderIds.add(record.get('Order_Id__c', Id.class));
+            orderIds.add((Id) record.get('Order_Id__c', Id.class));
         }
 
         List<Order__c> orders = (List<Order__c>) Query.records([
@@ -252,7 +253,7 @@ class and lane should receive the payload.
 public with sharing class OrderWebhookPublisher extends EventRelay.Publisher {
     public override void execute(List<Generic> records) {
         for (Generic record : records) {
-            String orderNumber = record.get('orderNumber', String.class);
+            String orderNumber = (String) record.get('orderNumber', String.class);
             if (String.isBlank(orderNumber)) {
                 fail(record, 'Order number is required.');
                 continue;
@@ -277,9 +278,63 @@ EventRelay.publish(new List<Generic>{
 });
 ```
 
-The default `RouteService` does not resolve generic publish routes. Until
-metadata-backed routing is implemented, generic publishing needs a project-owned
-`RouteService` implementation wired into `EventRelay.routes`.
+Generic publishing requires an active `Event_Config__mdt` record whose
+`Source_Type__c`, `Direction__c`, `Routing_Key__c`, and `Routing_Value__c`
+match the payload.
+
+## Configuration
+
+Use `Event_Config__mdt` when EventRelay should resolve the publisher or handler
+without an explicit Apex type. One config record defines one route.
+
+For Platform Event ingestion, configure a route like this:
+
+| Field | Value |
+| --- | --- |
+| `DeveloperName` | `OrderSubmittedIngest` |
+| `Active__c` | `true` |
+| `Direction__c` | `Ingest` |
+| `Source_Type__c` | `PlatformEvent` |
+| `Routing_Key__c` | `SObjectType` |
+| `Routing_Value__c` | `Order_Submitted__e` |
+| `Apex__c` | `OrderSubmittedHandler` |
+| `Batch_Size__c` | `50` |
+
+Then the trigger can rely on metadata routing:
+
+```apex
+trigger OrderSubmittedTrigger on Order_Submitted__e (after insert) {
+    EventRelay.ingest(Trigger.new);
+}
+```
+
+For generic payloads, `Routing_Key__c` is the key EventRelay reads from the
+`Generic` payload, and `Routing_Value__c` is the value that selects the route.
+
+```apex
+EventRelay.ingest(new List<Generic>{
+    new Generic(new Map<String, Object>{
+        'EventType' => 'OrderSubmitted',
+        'orderNumber' => '1001'
+    })
+});
+```
+
+That payload resolves to a config like this:
+
+| Field | Value |
+| --- | --- |
+| `DeveloperName` | `OrderSubmittedGenericIngest` |
+| `Direction__c` | `Ingest` |
+| `Source_Type__c` | `Generic` |
+| `Routing_Key__c` | `EventType` |
+| `Routing_Value__c` | `OrderSubmitted` |
+| `Apex__c` | `OrderSubmittedHandler` |
+
+`DeveloperName` is the route and thread key for metadata-backed routes. Keep it
+stable once work exists. `Batch_Size__c` overrides EventRelay's default batch
+size for that route. `Max_Retries__c` exists on the metadata type for parity
+with Bedrock config conventions, but automatic retry is not implemented yet.
 
 ## Ingesting Work
 
@@ -294,15 +349,17 @@ The Platform Event overload accepts only SObjects whose API names end in `__e`.
 Each payload becomes an `Event__c` row with `Job_Type__c = 'Process'` on the
 `EventRelayProcess` pool.
 
-The explicit handler overload is the practical path today:
+You can pass a handler explicitly:
 
 ```apex
 EventRelay.ingest(Trigger.new, AccountChangedHandler.class);
 ```
 
-The overloads without a handler type use `RouteService`. The default
-`RouteService` returns no process routes, so those overloads throw until
-metadata-backed routing or a project-owned route service is added.
+The overloads without a handler type resolve active `Event_Config__mdt` records.
+Platform Event routes match `Source_Type__c = 'PlatformEvent'`,
+`Routing_Key__c = 'SObjectType'`, and `Routing_Value__c` equal to the Platform
+Event API name. Generic routes match the configured key and value from the
+payload.
 
 ## Publishing Work
 
@@ -355,6 +412,10 @@ Route service implementations can fan one payload out to several routes. In
 that case, EventRelay creates one `Event__c` row per resolved route. Each row can
 have its own publisher class and thread key.
 
+Metadata-backed routes use the `Event_Config__mdt.DeveloperName` as both the
+stored route and thread key. That keeps the lane stable without adding a
+separate thread-key field to the config.
+
 When an explicit handler type is passed to `ingest`, the process lane uses
 `Process`, the payload type, and the handler route:
 
@@ -388,7 +449,7 @@ public with sharing class ContactChangedHandler extends EventRelay.Handler {
     public override void execute(List<Generic> records) {
         Set<Id> contactIds = new Set<Id>();
         for (Generic record : records) {
-            contactIds.add(record.get('Contact_Id__c', Id.class));
+            contactIds.add((Id) record.get('Contact_Id__c', Id.class));
         }
 
         processContacts(contactIds);
@@ -413,7 +474,7 @@ that matches your payload shape.
 public with sharing class ContactWebhookPublisher extends EventRelay.Publisher {
     public override void execute(List<Generic> records) {
         for (Generic record : records) {
-            if (String.isBlank(record.get('email', String.class))) {
+            if (String.isBlank((String) record.get('email', String.class))) {
                 fail(record, 'Email is required.');
             }
         }
@@ -551,12 +612,12 @@ continue the lane with an incremented failure count.
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `publish` | `public static List<Id> publish(List<SObject> events)` | Creates durable publish work for Platform Event SObjects. Uses resolved routes when `routes.forSObject(...)` returns them; otherwise uses the built-in Platform Event publisher route. |
+| `publish` | `public static List<Id> publish(List<SObject> events)` | Creates durable publish work for Platform Event SObjects. Uses active `Event_Config__mdt` publish routes when they match; otherwise uses the built-in Platform Event publisher route. |
 | `publish` | `public static List<Id> publish(List<SObject> events, Type publisherType)` | Creates durable publish work for Platform Event SObjects and routes it to the explicit publisher class. |
-| `publish` | `public static List<Id> publish(List<Generic> payloads)` | Creates durable publish work for generic payloads. Requires `routes.forGeneric(...)` to resolve at least one route. |
-| `ingest` | `public static List<Id> ingest(List<SObject> events)` | Creates durable process work for Platform Event SObjects. Requires `routes.forSObject(...)` to resolve at least one route. |
+| `publish` | `public static List<Id> publish(List<Generic> payloads)` | Creates durable publish work for generic payloads. Requires an active matching `Event_Config__mdt` publish route. |
+| `ingest` | `public static List<Id> ingest(List<SObject> events)` | Creates durable process work for Platform Event SObjects. Requires an active matching `Event_Config__mdt` ingest route. |
 | `ingest` | `public static List<Id> ingest(List<SObject> events, Type handlerType)` | Creates durable process work for Platform Event SObjects and routes it to the explicit handler class. |
-| `ingest` | `public static List<Id> ingest(List<Generic> payloads)` | Creates durable process work for generic payloads. Requires `routes.forGeneric(...)` to resolve at least one route. |
+| `ingest` | `public static List<Id> ingest(List<Generic> payloads)` | Creates durable process work for generic payloads. Requires an active matching `Event_Config__mdt` ingest route. |
 | `ingest` | `public static List<Id> ingest(List<Generic> payloads, Type handlerType)` | Creates durable process work for generic payloads and routes it to the explicit handler class. |
 | `stage` | `public static void stage(List<SObject> events)` | Adds Platform Event SObjects to the current transaction buffer. |
 | `flush` | `public static List<Id> flush()` | Persists buffered Platform Events and returns the new `Event__c` Ids. Returns an empty list when the buffer is empty. |
@@ -608,13 +669,27 @@ continue the lane with an incremented failure count.
 | `Event__c` | `Error_Message__c` | Publisher result error, pause reason, or Queueable failure message. |
 | `Event__c` | `Error_Stack_Trace__c` | Queueable failure stack trace when available. |
 
+### Route metadata
+
+| Artifact | Field | Purpose |
+| --- | --- | --- |
+| `Event_Config__mdt` | `DeveloperName` | Stable route name. Metadata-backed work stores this value in `Event__c.Route__c` and `Event__c.Thread_Key__c`. |
+| `Event_Config__mdt` | `Active__c` | Enables the route when `true`. Inactive routes are ignored. |
+| `Event_Config__mdt` | `Direction__c` | `Publish`, `Ingest`, or `Both`. |
+| `Event_Config__mdt` | `Source_Type__c` | `PlatformEvent` or `Generic`. |
+| `Event_Config__mdt` | `Routing_Key__c` | `SObjectType` for Platform Event routes; a payload key such as `EventType` for generic routes. |
+| `Event_Config__mdt` | `Routing_Value__c` | Platform Event API name or generic payload value that selects the route. |
+| `Event_Config__mdt` | `Apex__c` | Publisher class for publish routes or handler class for ingest routes. Platform Event publish routes may leave this blank to use the built-in publisher. |
+| `Event_Config__mdt` | `Batch_Size__c` | Optional batch size override for this route. |
+| `Event_Config__mdt` | `Max_Retries__c` | Reserved for future automatic retry behavior. |
+
 ### Defaults
 
 | Setting | Value | Description |
 | --- | --- | --- |
 | Publish pool | `EventRelayPublish` | Thread pool used by EventRelay publication lanes. |
 | Process pool | `EventRelayProcess` | Thread pool used by EventRelay process lanes. |
-| Batch size | `50` | Default number of work items selected for one publish or process job. |
+| Batch size | `50` | Default number of work items selected for one publish or process job when the route has no `Batch_Size__c`. |
 | Limit threshold | `90` | Platform Event publish limit safety threshold used with `Limiter` for the built-in publisher. |
 
 ## Notes & Edge Cases
@@ -625,11 +700,10 @@ continue the lane with an incremented failure count.
   wake event. Handler execution runs later in a Bedrock-managed Queueable.
 - **Only Platform Event SObjects are accepted by the SObject overloads.** The
   API name must end in `__e`.
-- **Explicit handlers are the usable ingest path today.** The no-handler
-  `ingest` overloads depend on `RouteService`, and the default service returns
-  no process routes.
-- **Generic publishing needs routes.** The default `RouteService` returns no
-  generic routes, so generic payloads throw unless a route service resolves them.
+- **No-handler ingest requires config.** The no-handler `ingest` overloads throw
+  when no active `Event_Config__mdt` record matches the payload.
+- **Generic publishing needs config.** Generic payloads throw when no active
+  `Event_Config__mdt` publish route matches the configured routing key/value.
 - **Platform Event publication has a default route.** If no SObject routes are
   resolved, EventRelay uses the built-in Platform Event publisher route.
 - **Payload storage is finite.** Serialized payloads are stored in four long text

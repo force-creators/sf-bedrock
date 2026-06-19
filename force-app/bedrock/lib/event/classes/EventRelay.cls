@@ -3,6 +3,10 @@ public virtual with sharing class EventRelay {
     public static final String PROCESS_POOL = 'EventRelayProcess';
     public static final String PLATFORM_EVENT_PUBLISHER = PlatformEventPublisher.class.getName();
     public static final String GENERIC_PAYLOAD = 'Generic';
+    public static final String PLATFORM_EVENT = 'PlatformEvent';
+    public static final String BOTH = 'Both';
+    public static final String ROUTING_KEY_SOBJECT_TYPE = 'SObjectType';
+    public static final String INGEST = 'Ingest';
     public static final String PUBLISH = 'Publish';
     public static final String PROCESS = 'Process';
     public static final String PENDING = 'Pending';
@@ -17,6 +21,7 @@ public virtual with sharing class EventRelay {
     public static PayloadService payloads = new PayloadService();
     public static HandlerService handlers = new HandlerService();
     public static PublisherService publishers = new PublisherService();
+    public static MetadataService metadata = new MetadataService();
     public static RouteService routes = new RouteService();
     public static SettingsService settings = new SettingsService();
     public static WakeService wakeSignal = new WakeService();
@@ -28,6 +33,7 @@ public virtual with sharing class EventRelay {
         payloads = new PayloadService();
         handlers = new HandlerService();
         publishers = new PublisherService();
+        metadata = new MetadataService();
         routes = new RouteService();
         settings = new SettingsService();
         wakeSignal = new WakeService();
@@ -181,7 +187,7 @@ public virtual with sharing class EventRelay {
                     throw new EventRelayException('EventRelay.publish requires non-null generic payloads.');
                 }
 
-                List<Route> resolvedRoutes = routes.forGeneric(payload);
+                List<Route> resolvedRoutes = routes.forGeneric(payload, PUBLISH);
                 if (resolvedRoutes == null || resolvedRoutes.isEmpty()) {
                     throw new EventRelayException('EventRelay.publish requires route metadata for generic payloads.');
                 }
@@ -369,7 +375,7 @@ public virtual with sharing class EventRelay {
                 };
             }
 
-            List<Route> resolvedRoutes = routes.forSObject(eventType);
+            List<Route> resolvedRoutes = routes.forSObject(eventType, PUBLISH);
             return resolvedRoutes == null || resolvedRoutes.isEmpty()
                 ? new List<Route> { defaultPlatformEventRoute(eventType) }
                 : resolvedRoutes;
@@ -383,7 +389,7 @@ public virtual with sharing class EventRelay {
                 };
             }
 
-            List<Route> resolvedRoutes = routes.forSObject(eventType);
+            List<Route> resolvedRoutes = routes.forSObject(eventType, INGEST);
             if (resolvedRoutes == null || resolvedRoutes.isEmpty()) {
                 throw new EventRelayException('EventRelay.ingest requires route metadata or an explicit handler class.');
             }
@@ -398,7 +404,7 @@ public virtual with sharing class EventRelay {
                 };
             }
 
-            List<Route> resolvedRoutes = routes.forGeneric(payload);
+            List<Route> resolvedRoutes = routes.forGeneric(payload, INGEST);
             if (resolvedRoutes == null || resolvedRoutes.isEmpty()) {
                 throw new EventRelayException('EventRelay.ingest requires route metadata or an explicit handler class.');
             }
@@ -501,6 +507,21 @@ public virtual with sharing class EventRelay {
         public virtual List<Event__c> getPendingWorkItems(Id threadId, Integer batchSize, String jobType) {
             Integer safeBatchSize = batchSize == null || batchSize < 1 ? settings.batchSize() : batchSize;
             String safeJobType = String.isBlank(jobType) ? PUBLISH : jobType.trim();
+            List<Event__c> heads = (List<Event__c>) Query.records(Database.query(
+                'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
+                    ', Apex__c, Route__c ' +
+                'FROM Event__c ' +
+                'WHERE Thread__c = :threadId ' +
+                    'AND Job_Type__c = :safeJobType ' +
+                    'AND Status__c = \'Pending\' ' +
+                'ORDER BY CreatedDate ASC, Order__c ASC, Name ASC ' +
+                'LIMIT 1'
+            ));
+            if (heads.isEmpty()) return new List<Event__c>();
+
+            Event__c head = heads[0];
+            safeBatchSize = metadata.batchSize(head.Route__c, safeBatchSize);
+
             List<Event__c> workItems = (List<Event__c>) Query.records(Database.query(
                 'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
                     ', Apex__c, Route__c ' +
@@ -875,13 +896,100 @@ public virtual with sharing class EventRelay {
         }
     }
 
+    public virtual with sharing class MetadataService {
+        @testVisible List<Event_Config__mdt> configs;
+        @testVisible Map<String, Event_Config__mdt> configByDeveloperName;
+
+        public virtual List<Event_Config__mdt> getConfigs() {
+            if (configs == null) configs = loadConfigs();
+            return configs;
+        }
+
+        public virtual Event_Config__mdt getConfig(String developerName) {
+            if (String.isBlank(developerName)) return null;
+            if (configByDeveloperName == null) {
+                configByDeveloperName = new Map<String, Event_Config__mdt>();
+                for (Event_Config__mdt config : getConfigs()) {
+                    configByDeveloperName.put(config.DeveloperName, config);
+                }
+            }
+            return configByDeveloperName.get(developerName.trim());
+        }
+
+        public virtual Integer batchSize(String route, Integer defaultBatchSize) {
+            Integer safeDefault = defaultBatchSize == null || defaultBatchSize < 1 ? settings.batchSize() : defaultBatchSize;
+            Event_Config__mdt config = getConfig(route);
+            if (config == null || config.Batch_Size__c == null || config.Batch_Size__c < 1) return safeDefault;
+            return config.Batch_Size__c.intValue();
+        }
+
+        protected virtual List<Event_Config__mdt> loadConfigs() {
+            return (List<Event_Config__mdt>) Query.records([
+                SELECT DeveloperName, Active__c, Direction__c, Source_Type__c, Routing_Key__c, Routing_Value__c,
+                    Apex__c, Batch_Size__c, Max_Retries__c
+                FROM Event_Config__mdt
+                WHERE Active__c = true
+            ]);
+        }
+    }
+
     public virtual with sharing class RouteService {
         public virtual List<Route> forSObject(String payloadType) {
-            return new List<Route>();
+            return forSObject(payloadType, null);
+        }
+
+        public virtual List<Route> forSObject(String payloadType, String direction) {
+            List<Route> resolvedRoutes = new List<Route>();
+            for (Event_Config__mdt config : metadata.getConfigs()) {
+                if (!matches(config, PLATFORM_EVENT, ROUTING_KEY_SOBJECT_TYPE, payloadType, direction)) continue;
+                resolvedRoutes.add(toRoute(config, payloadType, direction));
+            }
+            return resolvedRoutes;
         }
 
         public virtual List<Route> forGeneric(Generic payload) {
-            return new List<Route>();
+            return forGeneric(payload, null);
+        }
+
+        public virtual List<Route> forGeneric(Generic payload, String direction) {
+            List<Route> resolvedRoutes = new List<Route>();
+            if (payload == null) return resolvedRoutes;
+
+            for (Event_Config__mdt config : metadata.getConfigs()) {
+                if (!matchesSourceAndDirection(config, GENERIC_PAYLOAD, direction) || String.isBlank(config.Routing_Key__c)) {
+                    continue;
+                }
+
+                String routingValue = (String) payload.get(config.Routing_Key__c, String.class);
+                if (routingValue == config.Routing_Value__c) {
+                    resolvedRoutes.add(toRoute(config, GENERIC_PAYLOAD, direction));
+                }
+            }
+            return resolvedRoutes;
+        }
+
+        Boolean matches(Event_Config__mdt config, String sourceType, String routingKey, String routingValue, String direction) {
+            return matchesSourceAndDirection(config, sourceType, direction)
+                && config.Routing_Key__c == routingKey
+                && config.Routing_Value__c == routingValue;
+        }
+
+        Boolean matchesSourceAndDirection(Event_Config__mdt config, String sourceType, String direction) {
+            if (config == null || config.Active__c != true) return false;
+            if (config.Source_Type__c != sourceType) return false;
+            if (String.isBlank(direction)) return true;
+            return config.Direction__c == direction || config.Direction__c == BOTH;
+        }
+
+        Route toRoute(Event_Config__mdt config, String payloadType, String direction) {
+            String apexClass = config.Apex__c;
+            if (direction == PUBLISH && payloadType != GENERIC_PAYLOAD && String.isBlank(apexClass)) {
+                apexClass = PLATFORM_EVENT_PUBLISHER;
+            }
+            if (String.isBlank(apexClass)) {
+                throw new EventRelayException('Event_Config__mdt ' + config.DeveloperName + ' requires Apex__c.');
+            }
+            return new Route(config.DeveloperName, apexClass, payloadType, config.DeveloperName);
         }
     }
 

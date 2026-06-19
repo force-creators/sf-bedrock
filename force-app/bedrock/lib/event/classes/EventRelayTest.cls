@@ -85,6 +85,41 @@ private class EventRelayTest {
             'SObject metadata routing should choose the configured publisher class.');
     }
 
+    @istest static void publish_sObjectConfig_createsDurablePublishWork() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> {
+            eventConfig(
+                'BedrockTestPublish',
+                EventRelay.PUBLISH,
+                EventRelay.PLATFORM_EVENT,
+                EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+                'Bedrock_Test_Event__e',
+                MockSObjectPublisher.class.getName(),
+                25
+            )
+        });
+
+        EventRelay.publish(new List<SObject> {
+            new Bedrock_Test_Event__e(Message__c = 'configured')
+        });
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(1, insertedEvents.size(),
+            'One platform event should create one Event__c work item from Event_Config__mdt.');
+
+        Event__c workItem = insertedEvents[0];
+        Assert.areEqual('BedrockTestPublish', workItem.Route__c,
+            'Configured routes should store the Event_Config__mdt DeveloperName as the route.');
+        Assert.areEqual('BedrockTestPublish', workItem.Thread_Key__c,
+            'Configured routes should use the Event_Config__mdt DeveloperName as the thread key.');
+        Assert.areEqual(MockSObjectPublisher.class.getName(), workItem.Apex__c,
+            'Configured platform event publish routes should use Apex__c as the publisher class.');
+    }
+
     @istest static void publish_sObjectMetadata_fansOutToMultipleRouteLanes() {
         EventRelay.reset();
         DMLMock dmlMock = new DMLMock();
@@ -255,6 +290,66 @@ private class EventRelayTest {
             'Generic process work should use a handler-specific process lane.');
         Assert.isTrue(workItem.Payload1__c.contains('1001'),
             'The stored generic process payload should preserve payload values.');
+    }
+
+    @istest static void ingest_genericConfig_createsDurableProcessWork() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> {
+            eventConfig(
+                'OrderSubmittedProcess',
+                EventRelay.INGEST,
+                EventRelay.GENERIC_PAYLOAD,
+                'EventType',
+                'OrderSubmitted',
+                MockHandler.class.getName(),
+                10
+            )
+        });
+
+        EventRelay.ingest(new List<Generic> {
+            new Generic(new Map<String, Object> {
+                'EventType' => 'OrderSubmitted',
+                'orderNumber' => '1001'
+            })
+        });
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(1, insertedEvents.size(),
+            'One generic payload should create one Event__c process work item from Event_Config__mdt.');
+
+        Event__c workItem = insertedEvents[0];
+        Assert.areEqual(EventRelay.PROCESS, workItem.Job_Type__c,
+            'Configured generic ingestion should create process work.');
+        Assert.areEqual('OrderSubmittedProcess', workItem.Route__c,
+            'Configured generic routes should store the Event_Config__mdt DeveloperName as the route.');
+        Assert.areEqual('OrderSubmittedProcess', workItem.Thread_Key__c,
+            'Configured generic routes should use the Event_Config__mdt DeveloperName as the thread key.');
+        Assert.areEqual(MockHandler.class.getName(), workItem.Apex__c,
+            'Configured generic process routes should use Apex__c as the handler class.');
+    }
+
+    @istest static void metadataService_batchSize_usesConfiguredRouteBatchSize() {
+        EventRelay.reset();
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> {
+            eventConfig(
+                'OrderSubmittedProcess',
+                EventRelay.INGEST,
+                EventRelay.GENERIC_PAYLOAD,
+                'EventType',
+                'OrderSubmitted',
+                MockHandler.class.getName(),
+                17
+            )
+        });
+
+        Assert.areEqual(17, EventRelay.metadata.batchSize('OrderSubmittedProcess', 50),
+            'EventRelay should use Event_Config__mdt Batch_Size__c for configured routes.');
+        Assert.areEqual(50, EventRelay.metadata.batchSize('MissingRoute', 50),
+            'EventRelay should fall back to the provided batch size when no config route exists.');
     }
 
     @istest static void flush_stagedEvents_createsWorkAndClearsBuffer() {
@@ -486,6 +581,28 @@ private class EventRelayTest {
         return events;
     }
 
+    static Event_Config__mdt eventConfig(
+        String developerName,
+        String direction,
+        String sourceType,
+        String routingKey,
+        String routingValue,
+        String apexClass,
+        Integer batchSize
+    ) {
+        return new Event_Config__mdt(
+            DeveloperName = developerName,
+            MasterLabel = developerName,
+            Active__c = true,
+            Direction__c = direction,
+            Source_Type__c = sourceType,
+            Routing_Key__c = routingKey,
+            Routing_Value__c = routingValue,
+            Apex__c = apexClass,
+            Batch_Size__c = batchSize
+        );
+    }
+
     private class MockQueryService extends EventRelay.QueryService {
         List<Event__c> workItems;
 
@@ -533,8 +650,28 @@ private class EventRelayTest {
             return routes;
         }
 
+        public override List<EventRelay.Route> forSObject(String payloadType, String direction) {
+            return routes;
+        }
+
         public override List<EventRelay.Route> forGeneric(Generic payload) {
             return routes;
+        }
+
+        public override List<EventRelay.Route> forGeneric(Generic payload, String direction) {
+            return routes;
+        }
+    }
+
+    private class MockMetadataService extends EventRelay.MetadataService {
+        List<Event_Config__mdt> configs;
+
+        MockMetadataService(List<Event_Config__mdt> configs) {
+            this.configs = configs;
+        }
+
+        protected override List<Event_Config__mdt> loadConfigs() {
+            return configs;
         }
     }
 
