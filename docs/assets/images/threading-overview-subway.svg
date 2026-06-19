@@ -82,7 +82,7 @@
 
   <circle class="station" cx="1140" cy="596" r="14"/>
   <text class="label" x="1056" y="636">Event.Handler</text>
-  <text class="small" x="1056" y="658">execute(List&lt;Generic&gt;)</text>
+  <text class="small" x="1056" y="658">execute(SObject or Generic)</text>
 
   <circle class="station" cx="300" cy="360" r="14"/>
   <text class="label" x="236" y="334">Thread__c</text>

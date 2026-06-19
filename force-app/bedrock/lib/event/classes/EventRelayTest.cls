@@ -668,6 +668,56 @@ class EventRelayTest {
             'Successful handler execution should mark the second work item done.');
     }
 
+    @istest static void sObjectHandler_executeCompletesPayloadsAsSuccessfulResults() {
+        MockSObjectHandler handler = new MockSObjectHandler();
+
+        List<EventRelay.ProcessResult> results = handler.process(new List<Event__c> {
+            workItem('handled')
+        });
+
+        Assert.areEqual(1, handler.executedRecords.size(),
+            'SObject handlers should receive SObject records for Platform Event payloads.');
+        Assert.areEqual('handled', ((Bedrock_Test_Event__e) handler.executedRecords[0]).Message__c,
+            'SObject handlers should receive rehydrated typed Platform Event values.');
+        Assert.areEqual(1, results.size(),
+            'SObject handlers should return one result per processed payload.');
+        Assert.areEqual(EventRelay.consts.DONE, results[0].status,
+            'SObject handler payloads should be marked done when execute completes.');
+    }
+
+    @istest static void sObjectHandler_canFailSpecificRecord() {
+        FailingSObjectHandler handler = new FailingSObjectHandler();
+
+        List<EventRelay.ProcessResult> results = handler.process(new List<Event__c> {
+            workItem('accepted'),
+            workItem('rejected')
+        });
+
+        Assert.areEqual(2, results.size(),
+            'SObject handlers should return one result per payload after item-level failure handling.');
+        Assert.areEqual(EventRelay.consts.DONE, results[0].status,
+            'SObject handlers should leave unfailed records successful.');
+        Assert.areEqual(EventRelay.consts.ERROR, results[1].status,
+            'SObject handlers should fail only the record passed to fail.');
+        Assert.areEqual('rejected', results[1].message,
+            'SObject handlers should preserve the item-level failure message.');
+    }
+
+    @istest static void sObjectHandler_fallsBackToGenericExecuteWhenSObjectExecuteIsNotOverridden() {
+        MockHandler handler = new MockHandler();
+
+        List<EventRelay.ProcessResult> results = handler.process(new List<Event__c> {
+            workItem('fallback')
+        });
+
+        Assert.areEqual(1, handler.records.size(),
+            'Existing Generic handlers should still receive Platform Event payloads when they do not override the SObject overload.');
+        Assert.areEqual('fallback', handler.records[0].get('Message__c', String.class),
+            'Generic fallback should preserve Platform Event payload values.');
+        Assert.areEqual(EventRelay.consts.DONE, results[0].status,
+            'Generic fallback handlers should keep the default successful result.');
+    }
+
     @istest static void processJob_appliesExplicitHandlerFailures() {
         EventRelay.reset();
         DMLMock dmlMock = new DMLMock();
@@ -1280,6 +1330,20 @@ class EventRelayTest {
     }
 
     class FailingSObjectPublisher extends EventRelay.Publisher {
+        public override void execute(List<SObject> records) {
+            fail(records[1], 'rejected');
+        }
+    }
+
+    class MockSObjectHandler extends EventRelay.Handler {
+        List<SObject> executedRecords = new List<SObject>();
+
+        public override void execute(List<SObject> records) {
+            this.executedRecords = records;
+        }
+    }
+
+    class FailingSObjectHandler extends EventRelay.Handler {
         public override void execute(List<SObject> records) {
             fail(records[1], 'rejected');
         }

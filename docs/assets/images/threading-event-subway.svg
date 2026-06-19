@@ -74,7 +74,7 @@
 
   <circle class="station" cx="884" cy="444" r="14"/>
   <text class="label" x="806" y="486">Event.Handler</text>
-  <text class="small" x="806" y="508">execute(List&lt;Generic&gt;)</text>
+  <text class="small" x="806" y="508">execute(SObject or Generic)</text>
 
   <circle class="station" cx="1084" cy="444" r="14"/>
   <text class="label" x="1000" y="486">Business work</text>

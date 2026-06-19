@@ -105,26 +105,56 @@ public virtual with sharing class EventRelay {
 
     public virtual with sharing class Handler {
         List<ProcessResult> results = new List<ProcessResult>();
-        List<Generic> currentRecords = new List<Generic>();
+        List<SObject> currentSObjectRecords = new List<SObject>();
+        List<Generic> currentGenericRecords = new List<Generic>();
 
-        public virtual List<ProcessResult> process(List<Generic> records) {
+        public virtual List<ProcessResult> process(List<Event__c> workItems) {
             try {
-                currentRecords = records == null ? new List<Generic>() : records;
-                results = successProcessResults(currentRecords);
-                execute(currentRecords);
+                if (isGeneric(workItems)) {
+                    currentGenericRecords = payloads.toGenericEvents(workItems);
+                    results = successProcessResults(currentGenericRecords.size());
+                    execute(currentGenericRecords);
+                } else {
+                    currentSObjectRecords = payloads.toSObjects(workItems);
+                    results = successProcessResults(currentSObjectRecords.size());
+                    execute(currentSObjectRecords);
+                }
                 return new List<ProcessResult>(results);
             } finally {
-                results = new List<ProcessResult>();
-                currentRecords = new List<Generic>();
+                reset();
             }
         }
 
+        public virtual List<ProcessResult> process(List<Generic> records) {
+            try {
+                currentGenericRecords = records == null ? new List<Generic>() : records;
+                results = successProcessResults(currentGenericRecords.size());
+                execute(currentGenericRecords);
+                return new List<ProcessResult>(results);
+            } finally {
+                reset();
+            }
+        }
+
+        public virtual void execute(List<SObject> records) {
+            currentGenericRecords = toGenericRecords(records);
+            execute(currentGenericRecords);
+        }
+
         public virtual void execute(List<Generic> records) {
-            throw new EventRelayException('Handler must override execute(List<Generic>).');
+            throw new EventRelayException('Handler does not support generic payloads.');
+        }
+
+        public void complete(SObject record) {
+            mark(indexOf(record), consts.DONE, null);
         }
 
         public void complete(Generic record) {
             mark(indexOf(record), consts.DONE, null);
+        }
+
+        public void fail(SObject record, String message) {
+            mark(indexOf(record), consts.ERROR, message);
         }
 
         public void fail(Generic record, String message) {
@@ -138,11 +168,38 @@ public virtual with sharing class EventRelay {
             results[index] = new ProcessResult(status, message);
         }
 
+        Integer indexOf(SObject record) {
+            for (Integer i = 0; i < currentSObjectRecords.size(); i++) {
+                if (currentSObjectRecords[i] == record) return i;
+            }
+            throw new EventRelayException('SObject handler result item is not part of the current batch.');
+        }
+
         Integer indexOf(Generic record) {
-            for (Integer i = 0; i < currentRecords.size(); i++) {
-                if (currentRecords[i] == record) return i;
+            for (Integer i = 0; i < currentGenericRecords.size(); i++) {
+                if (currentGenericRecords[i] == record) return i;
             }
             throw new EventRelayException('Generic handler result item is not part of the current batch.');
+        }
+
+        Boolean isGeneric(List<Event__c> workItems) {
+            return workItems != null
+                && !workItems.isEmpty()
+                && workItems[0].Payload_Type__c == consts.GENERIC_PAYLOAD;
+        }
+
+        List<Generic> toGenericRecords(List<SObject> records) {
+            List<Generic> genericRecords = new List<Generic>();
+            if (records == null) return genericRecords;
+
+            for (SObject record : records) genericRecords.add(new Generic(record.getPopulatedFieldsAsMap()));
+            return genericRecords;
+        }
+
+        void reset() {
+            results = new List<ProcessResult>();
+            currentSObjectRecords = new List<SObject>();
+            currentGenericRecords = new List<Generic>();
         }
     }
 
@@ -294,11 +351,11 @@ public virtual with sharing class EventRelay {
         return results;
     }
 
-    static List<ProcessResult> successProcessResults(List<Generic> records) {
+    static List<ProcessResult> successProcessResults(Integer resultCount) {
         List<ProcessResult> results = new List<ProcessResult>();
-        if (records == null) return results;
+        if (resultCount == null) return results;
 
-        for (Generic record : records) {
+        for (Integer i = 0; i < resultCount; i++) {
             results.add(new ProcessResult(consts.DONE, null));
         }
         return results;
@@ -407,7 +464,7 @@ public virtual with sharing class EventRelay {
             jobs.attachFinalizer(jobs.watchProcess(threadId, workItemIds, failures, runKey));
 
             List<Event__c> workItems = queries.getWorkItemsById(workItemIds);
-            work.applyProcessResults(workItems, handlers.forWorkItems(workItems).process(payloads.toGenericEvents(workItems)));
+            work.applyProcessResults(workItems, handlers.forWorkItems(workItems).process(workItems));
         }
     }
 

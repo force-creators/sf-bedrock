@@ -49,7 +49,7 @@ The public model is intentionally small:
 - **Coordinate work:** call `EventRelay.stage(...)` and `EventRelay.flush()` when
   several services need to add publish-side Platform Events in one transaction.
 - **Customize processing:** extend `EventRelay.Handler` and override
-  `execute(List<Generic>)`.
+  `execute(List<SObject>)` or `execute(List<Generic>)`.
 - **Customize publication:** extend `EventRelay.Publisher` and override
   `execute(List<SObject>)` or `execute(List<Generic>)`.
 - **Keep lanes ordered:** route work into a stable lane key so each lane drains
@@ -99,9 +99,9 @@ trigger AccountChangedTrigger on Account_Changed__e (after insert) {
 
 ```apex
 public with sharing class AccountChangedHandler extends EventRelay.Handler {
-    public override void execute(List<Generic> records) {
-        for (Generic record : records) {
-            Id accountId = (Id) record.get('Account_Id__c', Id.class);
+    public override void execute(List<SObject> records) {
+        for (SObject record : records) {
+            Id accountId = (Id) record.get('Account_Id__c');
             // Process the event payload.
         }
     }
@@ -180,10 +180,10 @@ trigger OrderSubmittedTrigger on Order_Submitted__e (after insert) {
 
 ```apex
 public with sharing class OrderSubmittedHandler extends EventRelay.Handler {
-    public override void execute(List<Generic> records) {
+    public override void execute(List<SObject> records) {
         Set<Id> orderIds = new Set<Id>();
-        for (Generic record : records) {
-            orderIds.add((Id) record.get('Order_Id__c', Id.class));
+        for (SObject record : records) {
+            orderIds.add((Id) record.get('Order_Id__c'));
         }
 
         List<Order__c> orders = (List<Order__c>) Query.records([
@@ -201,8 +201,8 @@ public with sharing class OrderSubmittedHandler extends EventRelay.Handler {
 }
 ```
 
-The handler receives `Generic` payloads, not SObjects. That keeps the ingest
-contract the same for Platform Event and generic payloads.
+The handler receives SObjects for Platform Event payloads. For generic payloads,
+override `execute(List<Generic>)` instead.
 
 ### Publish through a custom SObject publisher
 
@@ -459,15 +459,15 @@ shape while preserving the lane's order.
 
 ## Custom Handlers
 
-Custom handlers extend `EventRelay.Handler` and override
-`execute(List<Generic>)`.
+Custom handlers extend `EventRelay.Handler`. Override the `execute` overload
+that matches your payload shape.
 
 ```apex
 public with sharing class ContactChangedHandler extends EventRelay.Handler {
-    public override void execute(List<Generic> records) {
+    public override void execute(List<SObject> records) {
         Set<Id> contactIds = new Set<Id>();
-        for (Generic record : records) {
-            contactIds.add((Id) record.get('Contact_Id__c', Id.class));
+        for (SObject record : records) {
+            contactIds.add((Id) record.get('Contact_Id__c'));
         }
 
         processContacts(contactIds);
@@ -479,11 +479,29 @@ public with sharing class ContactChangedHandler extends EventRelay.Handler {
 }
 ```
 
+```apex
+public with sharing class OrderWebhookHandler extends EventRelay.Handler {
+    public override void execute(List<Generic> records) {
+        for (Generic record : records) {
+            String orderNumber = (String) record.get('orderNumber', String.class);
+            if (String.isBlank(orderNumber)) {
+                fail(record, 'Order number is required.');
+            }
+        }
+    }
+}
+```
+
 If `execute` completes, EventRelay marks selected process work items `Done` by
 default. A handler may call `complete(record)` or `fail(record, message)` for
 individual records when it wants item-level results. Failed items follow the
 route's `Max_Retries__c` cap: under the cap they return to `Pending` with
 `Retry_Count__c` incremented; at the cap they become `Error`.
+
+Platform Event handlers that already override `execute(List<Generic>)` continue
+to work because the base SObject handler path can convert Platform Event records
+to `Generic`. New handlers should prefer `execute(List<SObject>)` when they want
+the Platform Event shape.
 
 ## Custom Publishers
 
@@ -511,8 +529,8 @@ record failed and later needs to mark it successful again inside the same batch.
 ## Testing
 
 Test subscriber logic directly. For handlers, construct the handler and call
-`execute(List<Generic>)` with representative payloads. Mock the collaborators
-your handler uses, then assert the business behavior it owns.
+the `execute` overload it owns with representative payloads. Mock the
+collaborators your handler uses, then assert the business behavior it owns.
 
 ```apex
 @istest
@@ -520,8 +538,8 @@ class OrderSubmittedHandlerTest {
     @istest static void execute_updatesSubmittedOrders() {
         OrderSubmittedHandler handler = new OrderSubmittedHandler();
 
-        handler.execute(new List<Generic>{
-            new Generic(new Map<String, Object>{ 'Order_Id__c' => 'a00000000000001AAA' })
+        handler.execute(new List<SObject>{
+            new Order_Submitted__e(Order_Id__c = 'a00000000000001AAA')
         });
 
         // Assert the DML or service behavior the handler owns.
@@ -577,15 +595,18 @@ become `Done`; failed items become `Error` or return to `Pending` when
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `execute` | `public virtual void execute(List<Generic> records)` | Override this in every handler. Receives the current batch of event payloads as `Generic` records. The base implementation throws. |
+| `execute` | `public virtual void execute(List<SObject> records)` | Override this for Platform Event-shaped payloads. The base implementation converts records to `Generic` and calls `execute(List<Generic>)`, preserving existing Generic handlers. |
+| `execute` | `public virtual void execute(List<Generic> records)` | Override this for generic payloads. The base implementation throws. |
+| `complete` | `public void complete(SObject record)` | Marks one SObject payload successful in the current handler batch. Items are successful by default, so this is only needed after an earlier `fail`. |
 | `complete` | `public void complete(Generic record)` | Marks one generic payload successful in the current handler batch. Items are successful by default, so this is only needed after an earlier `fail`. |
+| `fail` | `public void fail(SObject record, String message)` | Marks one SObject payload failed in the current handler batch with a message. |
 | `fail` | `public void fail(Generic record, String message)` | Marks one generic payload failed in the current handler batch with a message. |
 
 ### Publisher contract
 
 | Member | Signature | Description |
 | --- | --- | --- |
-| `execute` | `public virtual void execute(List<SObject> records)` | Override this for Platform Event-shaped payloads or other SObject payloads. The base implementation throws. |
+| `execute` | `public virtual void execute(List<SObject> records)` | Override this for Platform Event-shaped payloads. The base implementation throws. |
 | `execute` | `public virtual void execute(List<Generic> records)` | Override this for generic payloads. The base implementation throws. |
 | `complete` | `public void complete(SObject record)` | Marks one SObject payload successful in the current batch. |
 | `complete` | `public void complete(Generic record)` | Marks one generic payload successful in the current batch. |
@@ -656,7 +677,7 @@ become `Done`; failed items become `Error` or return to `Pending` when
   failed, every item is marked successful.
 - **Custom handlers can be item-level.** If `execute` completes and no item is
   failed, every item is marked successful. Use `fail(record, message)` for the
-  records that should retry or become terminal errors.
+  SObject or Generic records that should retry or become terminal errors.
 - **Publisher result records must come from the current batch.** Calling
   `complete(...)`, `fail(...)`, or `succeed(...)` with another object instance
   throws.
