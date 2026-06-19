@@ -236,20 +236,12 @@ public virtual with sharing class EventRelay {
             throw new EventRelayException('Publisher does not support generic payloads.');
         }
 
-        public void succeed(SObject record) {
-            mark(indexOf(record), true, null);
-        }
-
-        public void succeed(Generic record) {
-            mark(indexOf(record), true, null);
-        }
-
         public void complete(SObject record) {
-            succeed(record);
+            mark(indexOf(record), true, null);
         }
 
         public void complete(Generic record) {
-            succeed(record);
+            mark(indexOf(record), true, null);
         }
 
         public void fail(SObject record, String message) {
