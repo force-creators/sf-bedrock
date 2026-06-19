@@ -1,8 +1,10 @@
 public virtual with sharing class EventRelay {
     public static final String PUBLISH_POOL = 'EventRelayPublish';
+    public static final String PROCESS_POOL = 'EventRelayProcess';
     public static final String PLATFORM_EVENT_PUBLISHER = PlatformEventPublisher.class.getName();
     public static final String GENERIC_PAYLOAD = 'Generic';
     public static final String PUBLISH = 'Publish';
+    public static final String PROCESS = 'Process';
     public static final String PENDING = 'Pending';
     public static final String RUNNING = 'Running';
     public static final String PAUSED = 'Paused';
@@ -13,6 +15,7 @@ public virtual with sharing class EventRelay {
     public static WorkService work = new WorkService();
     public static QueryService queries = new QueryService();
     public static PayloadService payloads = new PayloadService();
+    public static HandlerService handlers = new HandlerService();
     public static PublisherService publishers = new PublisherService();
     public static RouteService routes = new RouteService();
     public static SettingsService settings = new SettingsService();
@@ -23,6 +26,7 @@ public virtual with sharing class EventRelay {
         work = new WorkService();
         queries = new QueryService();
         payloads = new PayloadService();
+        handlers = new HandlerService();
         publishers = new PublisherService();
         routes = new RouteService();
         settings = new SettingsService();
@@ -42,12 +46,27 @@ public virtual with sharing class EventRelay {
         return work.create(payloads);
     }
 
-    public static List<Id> publish(String json) {
-        return work.create(EventRelay.payloads.fromJson(json));
+    public static List<Id> ingest(List<SObject> events) {
+        return work.createProcess(events);
+    }
+
+    public static List<Id> ingest(List<SObject> events, Type handlerType) {
+        return work.createProcess(events, handlerType);
+    }
+
+    public static List<Id> ingest(List<Generic> payloads) {
+        return work.createProcess(payloads);
+    }
+
+    public static List<Id> ingest(List<Generic> payloads, Type handlerType) {
+        return work.createProcess(payloads, handlerType);
     }
 
     public static void wake() {
-        Thread.wake(PUBLISH_POOL);
+        if (!Thread.service.canEnqueue() || Thread.service.hasEnqueued || System.isQueueable() || Thread.service.isFinalizer) return;
+
+        Thread.service.fillAvailableSlots(PUBLISH_POOL);
+        Thread.service.fillAvailableSlots(PROCESS_POOL);
     }
 
     public static void stage(List<SObject> events) {
@@ -56,6 +75,11 @@ public virtual with sharing class EventRelay {
 
     public static List<Id> flush() {
         return work.flush();
+    }
+
+    public static Boolean isEventPool(String pool) {
+        String normalizedPool = String.isBlank(pool) ? '' : pool.trim();
+        return normalizedPool == PUBLISH_POOL || normalizedPool == PROCESS_POOL;
     }
 
     public virtual with sharing class WorkService {
@@ -87,6 +111,26 @@ public virtual with sharing class EventRelay {
 
         public virtual List<Id> create(List<Generic> genericPayloads) {
             List<Event__c> workItems = newWorkItems(genericPayloads);
+            return create(workItems);
+        }
+
+        public virtual List<Id> createProcess(List<SObject> events) {
+            List<Event__c> workItems = newProcessWorkItems(events, null);
+            return create(workItems);
+        }
+
+        public virtual List<Id> createProcess(List<SObject> events, Type handlerType) {
+            List<Event__c> workItems = newProcessWorkItems(events, handlerType);
+            return create(workItems);
+        }
+
+        public virtual List<Id> createProcess(List<Generic> genericPayloads) {
+            List<Event__c> workItems = newProcessWorkItems(genericPayloads, null);
+            return create(workItems);
+        }
+
+        public virtual List<Id> createProcess(List<Generic> genericPayloads, Type handlerType) {
+            List<Event__c> workItems = newProcessWorkItems(genericPayloads, handlerType);
             return create(workItems);
         }
 
@@ -163,6 +207,65 @@ public virtual with sharing class EventRelay {
             return workItems;
         }
 
+        public virtual List<Event__c> newProcessWorkItems(List<SObject> events, Type handlerType) {
+            List<Event__c> workItems = new List<Event__c>();
+            if (events == null || events.isEmpty()) return workItems;
+
+            Integer order = 0;
+            for (SObject eventRecord : events) {
+                String eventType = eventType(eventRecord);
+                for (Route route : sObjectProcessRoutes(eventType, handlerType)) {
+                    Id threadId = Thread.currentOrCreate(PROCESS_POOL, route.threadKey);
+                    Event__c workItem = new Event__c(
+                        Apex__c = route.publisherClass,
+                        Job_Type__c = PROCESS,
+                        Status__c = PENDING,
+                        Route__c = route.route,
+                        Payload_Type__c = route.payloadType,
+                        Thread__c = threadId,
+                        Thread_Key__c = route.threadKey,
+                        Order__c = order,
+                        Retry_Count__c = 0
+                    );
+                    payloads.write(workItem, payloads.serialize(eventRecord));
+                    workItems.add(workItem);
+                    order++;
+                }
+            }
+            return workItems;
+        }
+
+        public virtual List<Event__c> newProcessWorkItems(List<Generic> genericPayloads, Type handlerType) {
+            List<Event__c> workItems = new List<Event__c>();
+            if (genericPayloads == null || genericPayloads.isEmpty()) return workItems;
+
+            Integer order = 0;
+            for (Generic payload : genericPayloads) {
+                if (payload == null) {
+                    throw new EventRelayException('EventRelay.ingest requires non-null generic payloads.');
+                }
+
+                for (Route route : genericProcessRoutes(payload, handlerType)) {
+                    Id threadId = Thread.currentOrCreate(PROCESS_POOL, route.threadKey);
+                    Event__c workItem = new Event__c(
+                        Apex__c = route.publisherClass,
+                        Job_Type__c = PROCESS,
+                        Status__c = PENDING,
+                        Route__c = route.route,
+                        Payload_Type__c = GENERIC_PAYLOAD,
+                        Thread__c = threadId,
+                        Thread_Key__c = route.threadKey,
+                        Order__c = order,
+                        Retry_Count__c = 0
+                    );
+                    payloads.write(workItem, payload.json());
+                    workItems.add(workItem);
+                    order++;
+                }
+            }
+            return workItems;
+        }
+
         public virtual void running(Set<Id> workItemIds) {
             updateStatus(workItemIds, new Event__c(Status__c = RUNNING));
         }
@@ -202,7 +305,11 @@ public virtual with sharing class EventRelay {
         }
 
         public virtual void prepareRecovery(Id threadId) {
-            updateStatus(queries.getRunningWorkItemIds(threadId), new Event__c(Status__c = PENDING));
+            prepareRecovery(threadId, PUBLISH);
+        }
+
+        public virtual void prepareRecovery(Id threadId, String jobType) {
+            updateStatus(queries.getRunningWorkItemIds(threadId, jobType), new Event__c(Status__c = PENDING));
         }
 
         void updateStatus(Set<Id> workItemIds, Event__c values) {
@@ -237,12 +344,12 @@ public virtual with sharing class EventRelay {
 
         String eventType(SObject eventRecord) {
             if (eventRecord == null) {
-                throw new EventRelayException('EventRelay.publish requires platform event records.');
+                throw new EventRelayException('EventRelay requires platform event records.');
             }
 
             String eventType = eventRecord.getSObjectType().getDescribe().getName();
             if (!eventType.endsWith('__e')) {
-                throw new EventRelayException('EventRelay.publish only accepts platform event SObjects.');
+                throw new EventRelayException('EventRelay only accepts platform event SObjects.');
             }
             return eventType;
         }
@@ -268,6 +375,43 @@ public virtual with sharing class EventRelay {
                 : resolvedRoutes;
         }
 
+        List<Route> sObjectProcessRoutes(String eventType, Type handlerType) {
+            if (handlerType != null) {
+                String route = eventType + ':' + handlerType.getName();
+                return new List<Route> {
+                    new Route(route, handlerClass(handlerType), eventType, routeThreadKey(PROCESS, eventType, route))
+                };
+            }
+
+            List<Route> resolvedRoutes = routes.forSObject(eventType);
+            if (resolvedRoutes == null || resolvedRoutes.isEmpty()) {
+                throw new EventRelayException('EventRelay.ingest requires route metadata or an explicit handler class.');
+            }
+            return resolvedRoutes;
+        }
+
+        List<Route> genericProcessRoutes(Generic payload, Type handlerType) {
+            if (handlerType != null) {
+                String route = GENERIC_PAYLOAD + ':' + handlerType.getName();
+                return new List<Route> {
+                    new Route(route, handlerClass(handlerType), GENERIC_PAYLOAD, routeThreadKey(PROCESS, GENERIC_PAYLOAD, route))
+                };
+            }
+
+            List<Route> resolvedRoutes = routes.forGeneric(payload);
+            if (resolvedRoutes == null || resolvedRoutes.isEmpty()) {
+                throw new EventRelayException('EventRelay.ingest requires route metadata or an explicit handler class.');
+            }
+            return resolvedRoutes;
+        }
+
+        String handlerClass(Type handlerType) {
+            if (handlerType == null) {
+                throw new EventRelayException('EventRelay.ingest requires a handler class.');
+            }
+            return handlerType.getName();
+        }
+
         String truncate(String value) {
             if (value == null || value.length() <= 32768) return value;
 
@@ -277,6 +421,7 @@ public virtual with sharing class EventRelay {
 
     public virtual with sharing class JobService {
         @testVisible PublishWatcher watcher;
+        @testVisible ProcessWatcher processWatcher;
 
         public virtual void enqueue(List<Event__c> workItems) {
             if (workItems == null || workItems.isEmpty()) return;
@@ -307,9 +452,30 @@ public virtual with sharing class EventRelay {
             new PublishJob(threadId, workItemIds, failures, runKey).enqueue();
         }
 
+        public virtual void enqueueNextProcessJob(Id threadId, Integer failures) {
+            enqueueNextProcessJob(threadId, failures, Thread.service.currentRunKey(threadId));
+        }
+
+        public virtual void enqueueNextProcessJob(Id threadId, Integer failures, String runKey) {
+            List<Event__c> workItems = queries.getPendingProcessWorkItems(threadId, settings.batchSize());
+            if (workItems.isEmpty()) {
+                Thread.continueCurrent(failures, runKey);
+                return;
+            }
+
+            List<Id> workItemIds = idsFrom(workItems);
+            work.running(new Set<Id>(workItemIds));
+            new ProcessJob(threadId, workItemIds, failures, runKey).enqueue();
+        }
+
         public virtual PublishWatcher watch(Id threadId, List<Id> workItemIds, Integer failures, String runKey) {
             watcher = new PublishWatcher(threadId, workItemIds, failures, runKey);
             return watcher;
+        }
+
+        public virtual ProcessWatcher watchProcess(Id threadId, List<Id> workItemIds, Integer failures, String runKey) {
+            processWatcher = new ProcessWatcher(threadId, workItemIds, failures, runKey);
+            return processWatcher;
         }
 
         public virtual void attachFinalizer(Finalizer finalizer) {
@@ -325,13 +491,22 @@ public virtual with sharing class EventRelay {
 
     public virtual with sharing class QueryService {
         public virtual List<Event__c> getPendingWorkItems(Id threadId, Integer batchSize) {
+            return getPendingWorkItems(threadId, batchSize, PUBLISH);
+        }
+
+        public virtual List<Event__c> getPendingProcessWorkItems(Id threadId, Integer batchSize) {
+            return getPendingWorkItems(threadId, batchSize, PROCESS);
+        }
+
+        public virtual List<Event__c> getPendingWorkItems(Id threadId, Integer batchSize, String jobType) {
             Integer safeBatchSize = batchSize == null || batchSize < 1 ? settings.batchSize() : batchSize;
+            String safeJobType = String.isBlank(jobType) ? PUBLISH : jobType.trim();
             List<Event__c> workItems = (List<Event__c>) Query.records(Database.query(
                 'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
                     ', Apex__c, Route__c ' +
                 'FROM Event__c ' +
                 'WHERE Thread__c = :threadId ' +
-                    'AND Job_Type__c = \'Publish\' ' +
+                    'AND Job_Type__c = :safeJobType ' +
                     'AND Status__c = \'Pending\' ' +
                 'ORDER BY CreatedDate ASC, Order__c ASC, Name ASC ' +
                 'LIMIT :safeBatchSize'
@@ -354,12 +529,17 @@ public virtual with sharing class EventRelay {
         }
 
         public virtual Set<Id> getRunningWorkItemIds(Id threadId) {
+            return getRunningWorkItemIds(threadId, PUBLISH);
+        }
+
+        public virtual Set<Id> getRunningWorkItemIds(Id threadId, String jobType) {
             Set<Id> workItemIds = new Set<Id>();
+            String safeJobType = String.isBlank(jobType) ? PUBLISH : jobType.trim();
             for (Event__c workItem : (List<Event__c>) Query.records([
                 SELECT Id
                 FROM Event__c
                 WHERE Thread__c = :threadId
-                    AND Job_Type__c = 'Publish'
+                    AND Job_Type__c = :safeJobType
                     AND Status__c = 'Running'
             ])) {
                 workItemIds.add(workItem.Id);
@@ -448,6 +628,14 @@ public virtual with sharing class EventRelay {
             return records;
         }
 
+        public virtual List<Generic> toGenericEvents(List<Event__c> workItems) {
+            List<Generic> records = new List<Generic>();
+            if (workItems == null) return records;
+
+            for (Event__c workItem : workItems) records.add(toGeneric(workItem));
+            return records;
+        }
+
         public virtual SObject toSObject(Event__c workItem) {
             return toSObject(new PublishPayload(
                 workItem.Id,
@@ -476,26 +664,6 @@ public virtual with sharing class EventRelay {
 
         public virtual Generic toGeneric(Event__c workItem) {
             return new Generic(read(workItem));
-        }
-
-        public virtual List<Generic> fromJson(String serializedPayload) {
-            List<Generic> genericPayloads = new List<Generic>();
-            if (String.isBlank(serializedPayload)) return genericPayloads;
-
-            Object value = JSON.deserializeUntyped(serializedPayload);
-            if (value instanceof Map<String, Object>) {
-                genericPayloads.add(new Generic((Map<String, Object>) value));
-                return genericPayloads;
-            }
-
-            if (value instanceof List<Object>) {
-                for (Object item : (List<Object>) value) {
-                    genericPayloads.add(new Generic((Map<String, Object>) item));
-                }
-                return genericPayloads;
-            }
-
-            throw new EventRelayException('EventRelay.publish JSON must be an object or a list of objects.');
         }
 
         public virtual void write(Event__c workItem, String payload) {
@@ -531,6 +699,44 @@ public virtual with sharing class EventRelay {
 
         String value(String text) {
             return text == null ? '' : text;
+        }
+    }
+
+    public virtual with sharing class Handler {
+        public virtual void execute(List<Generic> records) {
+            throw new EventRelayException('Handler must override execute(List<Generic>).');
+        }
+    }
+
+    public virtual with sharing class HandlerService {
+        public virtual Handler forWorkItems(List<Event__c> workItems) {
+            if (workItems == null || workItems.isEmpty()) return new Handler();
+
+            String handlerClass = workItems[0].Apex__c;
+            for (Event__c workItem : workItems) {
+                if (workItem.Apex__c != handlerClass) {
+                    throw new EventRelayException('A process batch can only contain one handler class.');
+                }
+            }
+            return forClass(handlerClass);
+        }
+
+        public virtual Handler forClass(String handlerClass) {
+            if (String.isBlank(handlerClass)) {
+                throw new EventRelayException('EventRelay process work requires a handler class.');
+            }
+
+            String safeHandlerClass = handlerClass.trim();
+            Type handlerType = Type.forName(safeHandlerClass);
+            if (handlerType == null) {
+                throw new EventRelayException('Unknown EventRelay handler class ' + safeHandlerClass + '.');
+            }
+
+            Object handlerInstance = handlerType.newInstance();
+            if (!(handlerInstance instanceof Handler)) {
+                throw new EventRelayException(safeHandlerClass + ' must extend EventRelay.Handler.');
+            }
+            return (Handler) handlerInstance;
         }
     }
 
@@ -750,7 +956,7 @@ public virtual with sharing class EventRelay {
         }
     }
 
-    public with sharing class PublishJob implements Queueable {
+    public with sharing class PublishJob implements Queueable, Database.AllowsCallouts {
         Id threadId;
         Integer failures;
         List<Id> workItemIds;
@@ -776,6 +982,33 @@ public virtual with sharing class EventRelay {
         }
     }
 
+    public with sharing class ProcessJob implements Queueable, Database.AllowsCallouts {
+        Id threadId;
+        Integer failures;
+        List<Id> workItemIds;
+        String runKey;
+
+        public ProcessJob(Id threadId, List<Id> workItemIds, Integer failures, String runKey) {
+            this.threadId = threadId;
+            this.workItemIds = workItemIds == null ? new List<Id>() : workItemIds;
+            this.failures = failures == null ? 0 : failures;
+            this.runKey = runKey;
+        }
+
+        public void enqueue() {
+            System.enqueueJob(this);
+        }
+
+        public void execute(QueueableContext context) {
+            Thread.setCurrent(threadId);
+            jobs.attachFinalizer(jobs.watchProcess(threadId, workItemIds, failures, runKey));
+
+            List<Event__c> workItems = queries.getWorkItemsById(workItemIds);
+            handlers.forWorkItems(workItems).execute(payloads.toGenericEvents(workItems));
+            work.complete(new Set<Id>(workItemIds));
+        }
+    }
+
     public with sharing class PublishWatcher implements Finalizer {
         Id threadId;
         Integer failures;
@@ -783,6 +1016,41 @@ public virtual with sharing class EventRelay {
         String runKey;
 
         public PublishWatcher(Id threadId, List<Id> workItemIds, Integer failures, String runKey) {
+            this.threadId = threadId;
+            this.workItemIds = workItemIds == null ? new Set<Id>() : new Set<Id>(workItemIds);
+            this.failures = failures == null ? 0 : failures;
+            this.runKey = runKey;
+        }
+
+        public void execute(FinalizerContext context) {
+            Thread.setCurrent(threadId);
+            Thread.service.isFinalizer = true;
+            try {
+                if (context.getResult() == ParentJobResult.SUCCESS) {
+                    Thread.continueCurrent(runKey);
+                    return;
+                }
+
+                Exception error = context.getException();
+                work.fail(
+                    workItemIds,
+                    error == null ? String.valueOf(context.getResult()) : error.getMessage(),
+                    error == null ? null : error.getStackTraceString()
+                );
+                Thread.continueCurrent(failures + 1, runKey);
+            } finally {
+                Thread.service.isFinalizer = false;
+            }
+        }
+    }
+
+    public with sharing class ProcessWatcher implements Finalizer {
+        Id threadId;
+        Integer failures;
+        Set<Id> workItemIds;
+        String runKey;
+
+        public ProcessWatcher(Id threadId, List<Id> workItemIds, Integer failures, String runKey) {
             this.threadId = threadId;
             this.workItemIds = workItemIds == null ? new Set<Id>() : new Set<Id>(workItemIds);
             this.failures = failures == null ? 0 : failures;
@@ -830,6 +1098,28 @@ public virtual with sharing class EventRelay {
 
         public override void prepareRecovery(Id threadId) {
             work.prepareRecovery(threadId);
+        }
+    }
+
+    public virtual with sharing class ProcessThreadDispatcher extends ThreadRunner.Dispatcher {
+        public override void dispatch(Id threadId, Integer failures) {
+            jobs.enqueueNextProcessJob(threadId, failures);
+        }
+
+        public override void dispatch(Id threadId, Integer failures, String runKey) {
+            jobs.enqueueNextProcessJob(threadId, failures, runKey);
+        }
+
+        public override Boolean hasPendingWork(Id threadId) {
+            return !queries.getPendingProcessWorkItems(threadId, 1).isEmpty();
+        }
+
+        public override Boolean hasRecoverableWork(Id threadId) {
+            return hasPendingWork(threadId) || !queries.getRunningWorkItemIds(threadId, PROCESS).isEmpty();
+        }
+
+        public override void prepareRecovery(Id threadId) {
+            work.prepareRecovery(threadId, PROCESS);
         }
     }
 

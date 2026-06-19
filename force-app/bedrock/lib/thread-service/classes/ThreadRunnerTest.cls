@@ -86,6 +86,28 @@ public with sharing class ThreadRunnerTest {
             'Expected the Async dispatcher to receive the original EventRelay thread id.');
     }
 
+    @istest static void testDispatch_processPoolFallsBackToSameThreadAsyncWork() {
+        Thread__c threadRecord = thread(EventRelay.PROCESS_POOL, 'Bedrock_Test_Event__e');
+        insert threadRecord;
+        SpyDispatcher processDispatcher = new SpyDispatcher();
+        processDispatcher.hasPendingWork = false;
+        SpyDispatcher asyncDispatcher = new SpyDispatcher();
+        asyncDispatcher.hasPendingWork = true;
+        ThreadRunner.Service runner = new ThreadRunner.Service();
+        runner.register(EventRelay.PROCESS_POOL, processDispatcher);
+        runner.register(Thread.ASYNC_POOL, asyncDispatcher);
+        ThreadRunner.setMock(runner);
+
+        ThreadRunner.service.dispatch(threadRecord.Id, 0, 'active-run-key');
+
+        Assert.areEqual(0, processDispatcher.dispatchCalls,
+            'Expected EventRelay process dispatch to stop when the process lane has no pending work.');
+        Assert.areEqual(1, asyncDispatcher.dispatchCalls,
+            'Expected same-thread Async work to run after EventRelay process work drains.');
+        Assert.areEqual(threadRecord.Id, asyncDispatcher.lastThreadId,
+            'Expected the Async dispatcher to receive the original EventRelay process thread id.');
+    }
+
     public with sharing class SpyDispatcher extends ThreadRunner.Dispatcher {
         public Boolean hasPendingWork = false;
         public Integer dispatchCalls = 0;

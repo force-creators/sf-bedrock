@@ -73,7 +73,7 @@ public virtual with sharing class ThreadRunner implements Queueable {
         }
 
         public virtual String fallbackPoolAfterDrain(String pool) {
-            return normalizePool(pool) == EventRelay.PUBLISH_POOL ? Thread.ASYNC_POOL : null;
+            return EventRelay.isEventPool(normalizePool(pool)) ? Thread.ASYNC_POOL : null;
         }
 
         public virtual Integer maxThreads(String pool) {
@@ -96,7 +96,7 @@ public virtual with sharing class ThreadRunner implements Queueable {
                 ? Thread.ASYNC_POOL
                 : normalizePool(threadRecord.Pool__c);
             Dispatcher poolDispatcher = dispatcherForPool(pool);
-            if (pool != EventRelay.PUBLISH_POOL || poolDispatcher.hasPendingWork(threadId)) {
+            if (!EventRelay.isEventPool(pool) || poolDispatcher.hasPendingWork(threadId)) {
                 return poolDispatcher;
             }
 
@@ -114,6 +114,9 @@ public virtual with sharing class ThreadRunner implements Queueable {
             }
             if (normalizedPool == EventRelay.PUBLISH_POOL) {
                 return new EventRelay.ThreadDispatcher();
+            }
+            if (normalizedPool == EventRelay.PROCESS_POOL) {
+                return new EventRelay.ProcessThreadDispatcher();
             }
             throw new ThreadRunnerException('No ThreadRunner dispatcher is registered for pool ' + normalizedPool + '.');
         }

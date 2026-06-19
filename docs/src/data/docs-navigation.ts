@@ -43,7 +43,7 @@ export const navGroups: NavGroup[] = [
     label: 'Frameworks',
     items: [
       { label: 'Async', href: '/async' },
-      { label: 'Event', href: '#', status: 'Roadmap' },
+      { label: 'EventRelay', href: '/event-relay' },
       { label: 'Scheduler', href: '/scheduler' },
       { label: 'REST', href: '#', status: 'Roadmap' },
       { label: 'Data', href: '#', status: 'Roadmap' }

@@ -23,8 +23,8 @@ public with sharing class ThreadTest {
         Thread.setMock(new ThreadMock());
 
         Id asyncThreadId = Thread.currentOrCreate();
-        Id eventThreadId = Thread.currentOrCreate('EventConsume', 'AccountChanged');
-        Id sameEventThreadId = Thread.currentOrCreate('EventConsume', 'AccountChanged');
+        Id eventThreadId = Thread.currentOrCreate(EventRelay.PROCESS_POOL, 'AccountChanged');
+        Id sameEventThreadId = Thread.currentOrCreate(EventRelay.PROCESS_POOL, 'AccountChanged');
         List<Thread__c> threads = [
             SELECT Pool__c, Thread_Key__c, Unique_Key__c
             FROM Thread__c
@@ -42,10 +42,10 @@ public with sharing class ThreadTest {
 
     @istest static void testQueryService_getNextPendingThreadFiltersByPool() {
         Thread__c asyncThread = thread(Thread.ASYNC_POOL, 'request:oldest');
-        Thread__c eventThread = thread('EventConsume', 'AccountChanged');
+        Thread__c eventThread = thread(EventRelay.PROCESS_POOL, 'AccountChanged');
         insert new List<Thread__c> { asyncThread, eventThread };
 
-        Thread__c nextEventThread = new Thread.QueryService().getNextPendingThread('EventConsume');
+        Thread__c nextEventThread = new Thread.QueryService().getNextPendingThread(EventRelay.PROCESS_POOL);
 
         Assert.areEqual(eventThread.Id, nextEventThread.Id,
             'Expected pending-thread claims to select work from the requested pool.');

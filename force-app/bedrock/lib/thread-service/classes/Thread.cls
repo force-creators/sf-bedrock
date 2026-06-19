@@ -394,7 +394,7 @@ public virtual with sharing class Thread {
         }
 
         Boolean isUserScoped(String pool) {
-            return normalizePool(pool) != EventRelay.PUBLISH_POOL;
+            return !EventRelay.isEventPool(normalizePool(pool));
         }
 
         public virtual void deleteDrained(Set<Id> threadIds) {
@@ -527,7 +527,7 @@ public virtual with sharing class Thread {
                     ORDER BY CreatedDate ASC
                     LIMIT 1
                 ]);
-            } else if (normalizedPool == EventRelay.PUBLISH_POOL) {
+            } else if (EventRelay.isEventPool(normalizedPool)) {
                 candidates = (List<Thread__c>) Query.records([
                     SELECT Id
                     FROM Thread__c

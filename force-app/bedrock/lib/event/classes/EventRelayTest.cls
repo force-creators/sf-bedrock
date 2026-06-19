@@ -172,11 +172,11 @@ private class EventRelayTest {
         Assert.areEqual('Webhook:OrderService', workItem.Route__c,
             'Generic metadata routing should store the configured route.');
         Assert.areEqual(EventRelay.GENERIC_PAYLOAD, workItem.Payload_Type__c,
-            'Generic metadata routing should mark the payload as generic JSON.');
+            'Generic metadata routing should mark the payload as generic.');
         Assert.areEqual('Publish:Generic:Webhook:OrderService', workItem.Thread_Key__c,
             'Generic metadata routing should use the configured route-specific lane key.');
         Assert.isTrue(workItem.Payload1__c.contains('1001'),
-            'The stored generic payload should preserve JSON values.');
+            'The stored generic payload should preserve payload values.');
     }
 
     @istest static void publish_nonPlatformEvent_throws() {
@@ -191,6 +191,70 @@ private class EventRelayTest {
 
         Assert.isTrue(threwExpectedError,
             'EventRelay.publish should reject non-platform-event SObjects with a clear error.');
+    }
+
+    @istest static void ingest_platformEventsWithHandler_createsDurableProcessWork() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        MockWakeService wakeSignal = new MockWakeService();
+        EventRelay.wakeSignal = wakeSignal;
+
+        EventRelay.ingest(new List<SObject> {
+            new Bedrock_Test_Event__e(Message__c = 'received')
+        }, MockHandler.class);
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(1, insertedEvents.size(),
+            'One ingested platform event should create one Event__c process work item.');
+
+        Event__c workItem = insertedEvents[0];
+        Assert.areEqual(EventRelay.PROCESS, workItem.Job_Type__c,
+            'Platform event ingestion should create process work.');
+        Assert.areEqual(EventRelay.PENDING, workItem.Status__c,
+            'New EventRelay process work should start as pending.');
+        Assert.areEqual(MockHandler.class.getName(), workItem.Apex__c,
+            'Process work should store the handler class name.');
+        Assert.areEqual('Bedrock_Test_Event__e', workItem.Payload_Type__c,
+            'Process work should preserve the platform event API name.');
+        Assert.areEqual('Process:Bedrock_Test_Event__e:Bedrock_Test_Event__e:' + MockHandler.class.getName(), workItem.Thread_Key__c,
+            'Process work should use a handler-specific process lane.');
+        Assert.isTrue(workItem.Payload1__c.contains('received'),
+            'The serialized process payload should carry populated platform event fields.');
+        Assert.areEqual(1, wakeSignal.signalCalls,
+            'Persisting EventRelay process work should signal the wake event.');
+    }
+
+    @istest static void ingest_genericWithHandler_createsDurableProcessWork() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+
+        EventRelay.ingest(new List<Generic> {
+            new Generic(new Map<String, Object> {
+                'orderNumber' => '1001',
+                'status' => 'Ready'
+            })
+        }, MockHandler.class);
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(1, insertedEvents.size(),
+            'One generic payload should create one Event__c process work item.');
+
+        Event__c workItem = insertedEvents[0];
+        Assert.areEqual(EventRelay.PROCESS, workItem.Job_Type__c,
+            'Generic ingestion should create process work.');
+        Assert.areEqual(MockHandler.class.getName(), workItem.Apex__c,
+            'Generic process work should store the handler class name.');
+        Assert.areEqual(EventRelay.GENERIC_PAYLOAD, workItem.Payload_Type__c,
+            'Generic process work should mark the payload as generic.');
+        Assert.areEqual('Process:Generic:Generic:' + MockHandler.class.getName(), workItem.Thread_Key__c,
+            'Generic process work should use a handler-specific process lane.');
+        Assert.isTrue(workItem.Payload1__c.contains('1001'),
+            'The stored generic process payload should preserve payload values.');
     }
 
     @istest static void flush_stagedEvents_createsWorkAndClearsBuffer() {
@@ -263,6 +327,40 @@ private class EventRelayTest {
             'Failed publish results should mark the work item errored.');
         Assert.areEqual('publish failed', updatesById.get(failure.Id).Error_Message__c,
             'Failed publish results should preserve the publisher error message.');
+    }
+
+    @istest static void processJob_executesHandlerAndCompletesWorkItems() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+
+        Id threadId = (Id) new TestData(Thread__c.sObjectType).mockIds().build()[0].Id;
+        Event__c first = processWorkItem('1001');
+        Event__c second = processWorkItem('1002');
+        EventRelay.queries = new MockQueryService(new List<Event__c> { first, second });
+        MockHandler handler = new MockHandler();
+        EventRelay.handlers = new MockHandlerService(handler);
+        EventRelay.jobs = new MockJobService();
+
+        new EventRelay.ProcessJob(threadId, new List<Id> { first.Id, second.Id }, 0, 'run').execute(null);
+
+        Assert.areEqual(2, handler.records.size(),
+            'The process job should pass every selected work item payload to the handler.');
+        Assert.areEqual('1001', handler.records[0].get('orderNumber', String.class),
+            'The first handled payload should come from the first process work item.');
+        Assert.areEqual('1002', handler.records[1].get('orderNumber', String.class),
+            'The second handled payload should preserve selected FIFO order.');
+        Assert.areEqual(1, dmlMock.updates.size(),
+            'Successful handler execution should update process work in one DML call.');
+
+        Map<Id, Event__c> updatesById = new Map<Id, Event__c>();
+        for (SObject updateRecord : dmlMock.updates[0]) {
+            updatesById.put(updateRecord.Id, (Event__c) updateRecord);
+        }
+        Assert.areEqual(EventRelay.DONE, updatesById.get(first.Id).Status__c,
+            'Successful handler execution should mark the first work item done.');
+        Assert.areEqual(EventRelay.DONE, updatesById.get(second.Id).Status__c,
+            'Successful handler execution should mark the second work item done.');
     }
 
     @istest static void publisherService_requiresPlatformEventLimitOnlyForBuiltInPublisher() {
@@ -363,6 +461,19 @@ private class EventRelayTest {
         return workItem;
     }
 
+    static Event__c processWorkItem(String orderNumber) {
+        EventRelay.PayloadService payloads = new EventRelay.PayloadService();
+        Event__c workItem = (Event__c) new TestData(Event__c.sObjectType)
+            .mockIds()
+            .build()[0];
+        workItem.Apex__c = MockHandler.class.getName();
+        workItem.Job_Type__c = EventRelay.PROCESS;
+        workItem.Route__c = 'Webhook:OrderService';
+        workItem.Payload_Type__c = EventRelay.GENERIC_PAYLOAD;
+        payloads.write(workItem, new Generic(new Map<String, Object> { 'orderNumber' => orderNumber }).json());
+        return workItem;
+    }
+
     static List<Event__c> eventInserts(DMLMock dmlMock) {
         List<Event__c> events = new List<Event__c>();
         for (List<SObject> insertCall : dmlMock.inserts) {
@@ -396,6 +507,18 @@ private class EventRelayTest {
 
         public override EventRelay.Publisher forWorkItems(List<Event__c> workItems) {
             return publisher;
+        }
+    }
+
+    private class MockHandlerService extends EventRelay.HandlerService {
+        EventRelay.Handler handler;
+
+        MockHandlerService(EventRelay.Handler handler) {
+            this.handler = handler;
+        }
+
+        public override EventRelay.Handler forWorkItems(List<Event__c> workItems) {
+            return handler;
         }
     }
 
@@ -438,6 +561,14 @@ private class EventRelayTest {
         public override List<EventRelay.PublishResult> publish(List<EventRelay.PublishPayload> publishPayloads) {
             this.publishPayloads = publishPayloads;
             return results;
+        }
+    }
+
+    private class MockHandler extends EventRelay.Handler {
+        List<Generic> records = new List<Generic>();
+
+        public override void execute(List<Generic> records) {
+            this.records = records;
         }
     }
 
