@@ -120,6 +120,169 @@ private class EventRelayTest {
             'Configured platform event publish routes should use Apex__c as the publisher class.');
     }
 
+    @istest static void publish_withConfiguredDuplicateIdempotencyKey_marksLaterBatchWorkStale() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+
+        Event_Config__mdt config = eventConfig(
+            'BedrockTestPublish',
+            EventRelay.PUBLISH,
+            EventRelay.PLATFORM_EVENT,
+            EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+            'Bedrock_Test_Event__e',
+            MockSObjectPublisher.class.getName(),
+            25
+        );
+        config.Idempotency_Key_Path__c = 'Message__c';
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> { config });
+
+        EventRelay.publish(new List<SObject> {
+            new Bedrock_Test_Event__e(Message__c = 'message:1001'),
+            new Bedrock_Test_Event__e(Message__c = 'message:1001')
+        });
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(2, insertedEvents.size(),
+            'Expected both idempotent intake attempts to be auditable.');
+        Assert.areEqual(EventRelay.PENDING, insertedEvents[0].Status__c,
+            'Expected the first work item for an idempotency key to remain runnable.');
+        Assert.areEqual('message:1001', insertedEvents[0].Idempotency_Key__c,
+            'Expected EventRelay to store the supplied idempotency key.');
+        Assert.areEqual(EventRelay.STALE, insertedEvents[1].Status__c,
+            'Expected later work with the same route and idempotency key to be stale.');
+        Assert.areEqual('Duplicate idempotency key already accepted in this transaction.', insertedEvents[1].Error_Message__c,
+            'Expected stale work to explain the duplicate key.');
+    }
+
+    @istest static void publish_explicitPublisherWithConfiguredIdempotencyKey_marksDuplicateWorkStale() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+
+        Event_Config__mdt config = eventConfig(
+            'BedrockTestPublish',
+            EventRelay.PUBLISH,
+            EventRelay.PLATFORM_EVENT,
+            EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+            'Bedrock_Test_Event__e',
+            MockSObjectPublisher.class.getName(),
+            25
+        );
+        config.Idempotency_Key_Path__c = 'Message__c';
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> { config });
+
+        EventRelay.publish(
+            new List<SObject> {
+                new Bedrock_Test_Event__e(Message__c = 'message:1004'),
+                new Bedrock_Test_Event__e(Message__c = 'message:1004')
+            },
+            MockSObjectPublisher.class
+        );
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(2, insertedEvents.size(),
+            'Expected both explicit-publisher idempotent intake attempts to be auditable.');
+        Assert.areEqual('Bedrock_Test_Event__e:' + MockSObjectPublisher.class.getName(), insertedEvents[0].Route__c,
+            'Expected explicit publisher routes to keep their explicit route key.');
+        Assert.areEqual('message:1004', insertedEvents[0].Idempotency_Key__c,
+            'Expected explicit publisher work to read the configured idempotency key path.');
+        Assert.areEqual(EventRelay.STALE, insertedEvents[1].Status__c,
+            'Expected duplicate explicit publisher work for the same route and idempotency key to be stale.');
+    }
+
+    @istest static void publish_withConfiguredPreviouslyCompletedIdempotencyKey_marksNewWorkStale() {
+        EventRelay.reset();
+        MockWakeService wakeSignal = new MockWakeService();
+        EventRelay.wakeSignal = wakeSignal;
+
+        Event_Config__mdt config = eventConfig(
+            'BedrockTestPublish',
+            EventRelay.PUBLISH,
+            EventRelay.PLATFORM_EVENT,
+            EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+            'Bedrock_Test_Event__e',
+            MockSObjectPublisher.class.getName(),
+            25
+        );
+        config.Idempotency_Key_Path__c = 'Message__c';
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> { config });
+
+        Id threadId = Thread.currentOrCreate(EventRelay.PUBLISH_POOL, 'BedrockTestPublish');
+        Event__c completed = workItem('already processed');
+        completed.Id = null;
+        completed.Job_Type__c = EventRelay.PUBLISH;
+        completed.Status__c = EventRelay.DONE;
+        completed.Thread__c = threadId;
+        completed.Route__c = 'BedrockTestPublish';
+        completed.Thread_Key__c = 'BedrockTestPublish';
+        completed.Idempotency_Key__c = 'message:1002';
+        insert completed;
+
+        List<Id> workItemIds = EventRelay.publish(new List<SObject> {
+            new Bedrock_Test_Event__e(Message__c = 'message:1002')
+        });
+
+        Event__c stale = [
+            SELECT Status__c, Idempotency_Key__c, Error_Message__c
+            FROM Event__c
+            WHERE Id = :workItemIds[0]
+        ];
+        Assert.areEqual(EventRelay.STALE, stale.Status__c,
+            'Expected new work with a completed idempotency key to be terminal stale.');
+        Assert.areEqual('message:1002', stale.Idempotency_Key__c,
+            'Expected stale work to keep the duplicate idempotency key for audit.');
+        Assert.isTrue(stale.Error_Message__c.contains(String.valueOf(completed.Id)),
+            'Expected stale work to reference the accepted work item.');
+        Assert.areEqual(0, wakeSignal.signalCalls,
+            'Stale-only intake should not wake EventRelay processing.');
+    }
+
+    @istest static void publish_genericWithConfiguredIdempotencyKey_marksDuplicateWorkStale() {
+        EventRelay.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Thread.setMock(new ThreadMock().mockIds());
+        EventRelay.wakeSignal = new MockWakeService();
+
+        Event_Config__mdt config = eventConfig(
+            'OrderSubmittedPublish',
+            EventRelay.PUBLISH,
+            EventRelay.GENERIC_PAYLOAD,
+            'EventType',
+            'OrderSubmitted',
+            MockGenericPublisher.class.getName(),
+            25
+        );
+        config.Idempotency_Key_Path__c = 'order.number';
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> { config });
+
+        EventRelay.publish(new List<Generic> {
+            new Generic(new Map<String, Object>{
+                'EventType' => 'OrderSubmitted',
+                'order' => new Map<String, Object>{ 'number' => '1003' }
+            }),
+            new Generic(new Map<String, Object>{
+                'EventType' => 'OrderSubmitted',
+                'order' => new Map<String, Object>{ 'number' => '1003' }
+            })
+        });
+
+        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        Assert.areEqual(2, insertedEvents.size(),
+            'Expected both generic idempotent intake attempts to be auditable.');
+        Assert.areEqual(EventRelay.PENDING, insertedEvents[0].Status__c,
+            'Expected the first generic work item for an idempotency key to remain runnable.');
+        Assert.areEqual('1003', insertedEvents[0].Idempotency_Key__c,
+            'Expected EventRelay to read the configured Generic idempotency path.');
+        Assert.areEqual(EventRelay.STALE, insertedEvents[1].Status__c,
+            'Expected duplicate Generic work for the same route and idempotency key to be stale.');
+    }
+
     @istest static void publish_sObjectMetadata_fansOutToMultipleRouteLanes() {
         EventRelay.reset();
         DMLMock dmlMock = new DMLMock();

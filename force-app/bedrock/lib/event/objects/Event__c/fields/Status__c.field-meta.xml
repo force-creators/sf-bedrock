@@ -29,6 +29,11 @@
                 <default>false</default>
                 <label>Running</label>
             </value>
+            <value>
+                <fullName>Stale</fullName>
+                <default>false</default>
+                <label>Stale</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

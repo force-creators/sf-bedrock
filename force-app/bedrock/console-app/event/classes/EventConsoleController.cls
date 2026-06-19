@@ -104,7 +104,7 @@ public with sharing class EventConsoleController {
         Set<String> statuses = backlogStatuses();
 
         return rowsFrom([
-            SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c,
+            SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
                 Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
                 Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
             FROM Event__c
@@ -117,7 +117,7 @@ public with sharing class EventConsoleController {
 
     static List<EventRow> runningRows() {
         return rowsFrom([
-            SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c,
+            SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
                 Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
                 Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
             FROM Event__c
@@ -130,7 +130,7 @@ public with sharing class EventConsoleController {
 
     static List<EventRow> errorRows() {
         return rowsFrom([
-            SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c,
+            SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
                 Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
                 Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
             FROM Event__c
@@ -142,13 +142,14 @@ public with sharing class EventConsoleController {
     }
 
     static List<EventRow> archiveRows() {
+        Set<String> terminalStatuses = new Set<String> { EventRelay.DONE, EventRelay.STALE };
         return rowsFrom([
-            SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c,
+            SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
                 Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
                 Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
             FROM Event__c
             WHERE Job_Type__c = :EventRelay.PUBLISH
-                AND Status__c = :EventRelay.DONE
+                AND Status__c IN :terminalStatuses
             ORDER BY LastModifiedDate DESC, CreatedDate DESC
             LIMIT :MAX_ROWS
         ]);
@@ -237,6 +238,7 @@ public with sharing class EventConsoleController {
         @AuraEnabled public String jobType;
         @AuraEnabled public String route;
         @AuraEnabled public String payloadType;
+        @AuraEnabled public String idempotencyKey;
         @AuraEnabled public Id threadId;
         @AuraEnabled public String threadName;
         @AuraEnabled public String threadKey;
@@ -253,6 +255,7 @@ public with sharing class EventConsoleController {
             this.jobType = workItem.Job_Type__c;
             this.route = workItem.Route__c;
             this.payloadType = workItem.Payload_Type__c;
+            this.idempotencyKey = workItem.Idempotency_Key__c;
             this.threadId = workItem.Thread__c;
             this.threadName = workItem.Thread__r == null ? null : workItem.Thread__r.Name;
             this.threadKey = workItem.Thread_Key__c;

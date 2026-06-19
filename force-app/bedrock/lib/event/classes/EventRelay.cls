@@ -11,6 +11,7 @@ public virtual with sharing class EventRelay {
     public static final String PROCESS = 'Process';
     public static final String PENDING = 'Pending';
     public static final String RUNNING = 'Running';
+    public static final String STALE = 'Stale';
     public static final String DONE = 'Done';
     public static final String ERROR = 'Error';
 
@@ -91,6 +92,14 @@ public virtual with sharing class EventRelay {
         return normalizedPool == PUBLISH_POOL || normalizedPool == PROCESS_POOL;
     }
 
+    static String idempotencyLookupKey(Event__c workItem) {
+        return JSON.serialize(new List<String>{
+            workItem.Job_Type__c,
+            workItem.Route__c,
+            workItem.Idempotency_Key__c
+        });
+    }
+
     public virtual with sharing class WorkService {
         @testVisible List<SObject> buffer = new List<SObject>();
 
@@ -146,9 +155,11 @@ public virtual with sharing class EventRelay {
         public virtual List<Id> create(List<Event__c> workItems) {
             if (workItems.isEmpty()) return new List<Id>();
 
+            markStaleWork(workItems);
             DML.insertRecords(workItems);
-            Thread.reopen(threadIdsFrom(workItems));
-            jobs.enqueue(workItems);
+            List<Event__c> runnableWorkItems = runnableWorkItems(workItems);
+            Thread.reopen(threadIdsFrom(runnableWorkItems));
+            jobs.enqueue(runnableWorkItems);
             return idsFrom(workItems);
         }
 
@@ -172,6 +183,7 @@ public virtual with sharing class EventRelay {
                         Order__c = order,
                         Retry_Count__c = 0
                     );
+                    workItem.Idempotency_Key__c = idempotencyKey(eventRecord, route);
                     payloads.write(workItem, payloads.serialize(eventRecord));
                     workItems.add(workItem);
                     order++;
@@ -208,6 +220,7 @@ public virtual with sharing class EventRelay {
                         Order__c = order,
                         Retry_Count__c = 0
                     );
+                    workItem.Idempotency_Key__c = idempotencyKey(payload, route);
                     payloads.write(workItem, payload.json());
                     workItems.add(workItem);
                     order++;
@@ -236,6 +249,7 @@ public virtual with sharing class EventRelay {
                         Order__c = order,
                         Retry_Count__c = 0
                     );
+                    workItem.Idempotency_Key__c = idempotencyKey(eventRecord, route);
                     payloads.write(workItem, payloads.serialize(eventRecord));
                     workItems.add(workItem);
                     order++;
@@ -267,12 +281,70 @@ public virtual with sharing class EventRelay {
                         Order__c = order,
                         Retry_Count__c = 0
                     );
+                    workItem.Idempotency_Key__c = idempotencyKey(payload, route);
                     payloads.write(workItem, payload.json());
                     workItems.add(workItem);
                     order++;
                 }
             }
             return workItems;
+        }
+
+        void markStaleWork(List<Event__c> workItems) {
+            Map<String, Event__c> acceptedWorkByKey = queries.getAcceptedWorkByIdempotencyKey(workItems);
+            for (Event__c workItem : workItems) {
+                if (String.isBlank(workItem.Idempotency_Key__c)) continue;
+
+                String lookupKey = EventRelay.idempotencyLookupKey(workItem);
+                if (acceptedWorkByKey.containsKey(lookupKey)) {
+                    markStale(workItem, acceptedWorkByKey.get(lookupKey));
+                    continue;
+                }
+                acceptedWorkByKey.put(lookupKey, workItem);
+            }
+        }
+
+        void markStale(Event__c workItem, Event__c acceptedWork) {
+            workItem.Status__c = STALE;
+            workItem.Error_Message__c = acceptedWork.Id == null
+                ? 'Duplicate idempotency key already accepted in this transaction.'
+                : 'Duplicate idempotency key already accepted by Event work item ' + acceptedWork.Id + '.';
+        }
+
+        List<Event__c> runnableWorkItems(List<Event__c> workItems) {
+            List<Event__c> runnable = new List<Event__c>();
+            for (Event__c workItem : workItems) {
+                if (workItem.Status__c == PENDING) runnable.add(workItem);
+            }
+            return runnable;
+        }
+
+        String idempotencyKey(SObject eventRecord, Route route) {
+            if (route == null || String.isBlank(route.idempotencyKeyPath)) return null;
+
+            String fieldName = route.idempotencyKeyPath.trim();
+            try {
+                return normalizedIdempotencyKey(eventRecord.get(fieldName));
+            } catch (Exception e) {
+                throw new EventRelayException('Event route ' + route.route + ' has invalid idempotency key field ' + fieldName + '.');
+            }
+        }
+
+        String idempotencyKey(Generic payload, Route route) {
+            if (route == null || String.isBlank(route.idempotencyKeyPath)) return null;
+
+            return normalizedIdempotencyKey(payload.get(route.idempotencyKeyPath.trim(), String.class));
+        }
+
+        String normalizedIdempotencyKey(Object value) {
+            if (value == null) return null;
+
+            String key = String.valueOf(value).trim();
+            if (String.isBlank(key)) return null;
+            if (key.length() > 255) {
+                throw new EventRelayException('EventRelay idempotency keys must be 255 characters or fewer.');
+            }
+            return key;
         }
 
         public virtual void running(Set<Id> workItemIds) {
@@ -440,8 +512,15 @@ public virtual with sharing class EventRelay {
         List<Route> sObjectRoutes(String eventType, Type publisherType) {
             if (publisherType != null) {
                 String route = eventType + ':' + publisherType.getName();
+                String publisher = publisherClass(publisherType);
                 return new List<Route> {
-                    new Route(route, publisherClass(publisherType), eventType, routeThreadKey(PUBLISH, eventType, route))
+                    new Route(
+                        route,
+                        publisher,
+                        eventType,
+                        routeThreadKey(PUBLISH, eventType, route),
+                        routes.idempotencyKeyPathForSObject(eventType, PUBLISH, publisher)
+                    )
                 };
             }
 
@@ -454,8 +533,15 @@ public virtual with sharing class EventRelay {
         List<Route> sObjectProcessRoutes(String eventType, Type handlerType) {
             if (handlerType != null) {
                 String route = eventType + ':' + handlerType.getName();
+                String handler = handlerClass(handlerType);
                 return new List<Route> {
-                    new Route(route, handlerClass(handlerType), eventType, routeThreadKey(PROCESS, eventType, route))
+                    new Route(
+                        route,
+                        handler,
+                        eventType,
+                        routeThreadKey(PROCESS, eventType, route),
+                        routes.idempotencyKeyPathForSObject(eventType, INGEST, handler)
+                    )
                 };
             }
 
@@ -469,8 +555,15 @@ public virtual with sharing class EventRelay {
         List<Route> genericProcessRoutes(Generic payload, Type handlerType) {
             if (handlerType != null) {
                 String route = GENERIC_PAYLOAD + ':' + handlerType.getName();
+                String handler = handlerClass(handlerType);
                 return new List<Route> {
-                    new Route(route, handlerClass(handlerType), GENERIC_PAYLOAD, routeThreadKey(PROCESS, GENERIC_PAYLOAD, route))
+                    new Route(
+                        route,
+                        handler,
+                        GENERIC_PAYLOAD,
+                        routeThreadKey(PROCESS, GENERIC_PAYLOAD, route),
+                        routes.idempotencyKeyPathForGeneric(payload, INGEST, handler)
+                    )
                 };
             }
 
@@ -678,6 +771,36 @@ public virtual with sharing class EventRelay {
                     AND Status__c = :ERROR
                 ORDER BY CreatedDate ASC, Order__c ASC, Name ASC
             ]);
+        }
+
+        public virtual Map<String, Event__c> getAcceptedWorkByIdempotencyKey(List<Event__c> candidates) {
+            Map<String, Event__c> workByKey = new Map<String, Event__c>();
+            if (candidates == null || candidates.isEmpty()) return workByKey;
+
+            Set<String> idempotencyKeys = new Set<String>();
+            Set<String> lookupKeys = new Set<String>();
+            for (Event__c candidate : candidates) {
+                if (String.isBlank(candidate.Idempotency_Key__c)) continue;
+
+                idempotencyKeys.add(candidate.Idempotency_Key__c);
+                lookupKeys.add(EventRelay.idempotencyLookupKey(candidate));
+            }
+            if (idempotencyKeys.isEmpty()) return workByKey;
+
+            Set<String> acceptedStatuses = new Set<String> { PENDING, RUNNING, DONE };
+            for (Event__c workItem : (List<Event__c>) Query.records([
+                SELECT Id, Job_Type__c, Route__c, Idempotency_Key__c
+                FROM Event__c
+                WHERE Idempotency_Key__c IN :idempotencyKeys
+                    AND Status__c IN :acceptedStatuses
+                ORDER BY CreatedDate ASC, Order__c ASC, Name ASC
+            ])) {
+                String lookupKey = EventRelay.idempotencyLookupKey(workItem);
+                if (lookupKeys.contains(lookupKey) && !workByKey.containsKey(lookupKey)) {
+                    workByKey.put(lookupKey, workItem);
+                }
+            }
+            return workByKey;
         }
 
         List<Event__c> strictContiguous(List<Event__c> workItems) {
@@ -1069,7 +1192,7 @@ public virtual with sharing class EventRelay {
         protected virtual List<Event_Config__mdt> loadConfigs() {
             return (List<Event_Config__mdt>) Query.records([
                 SELECT DeveloperName, Active__c, Direction__c, Source_Type__c, Routing_Key__c, Routing_Value__c,
-                    Apex__c, Batch_Size__c, Max_Retries__c
+                    Apex__c, Batch_Size__c, Max_Retries__c, Idempotency_Key_Path__c
                 FROM Event_Config__mdt
                 WHERE Active__c = true
             ]);
@@ -1111,6 +1234,30 @@ public virtual with sharing class EventRelay {
             return resolvedRoutes;
         }
 
+        public virtual String idempotencyKeyPathForSObject(String payloadType, String direction, String apexClass) {
+            for (Event_Config__mdt config : metadata.getConfigs()) {
+                if (!matches(config, PLATFORM_EVENT, ROUTING_KEY_SOBJECT_TYPE, payloadType, direction)) continue;
+                if (matchesApex(config, PLATFORM_EVENT, direction, apexClass)) return config.Idempotency_Key_Path__c;
+            }
+            return null;
+        }
+
+        public virtual String idempotencyKeyPathForGeneric(Generic payload, String direction, String apexClass) {
+            if (payload == null) return null;
+
+            for (Event_Config__mdt config : metadata.getConfigs()) {
+                if (!matchesSourceAndDirection(config, GENERIC_PAYLOAD, direction)
+                    || String.isBlank(config.Routing_Key__c)
+                    || !matchesApex(config, GENERIC_PAYLOAD, direction, apexClass)) {
+                    continue;
+                }
+
+                String routingValue = (String) payload.get(config.Routing_Key__c, String.class);
+                if (routingValue == config.Routing_Value__c) return config.Idempotency_Key_Path__c;
+            }
+            return null;
+        }
+
         Boolean matches(Event_Config__mdt config, String sourceType, String routingKey, String routingValue, String direction) {
             return matchesSourceAndDirection(config, sourceType, direction)
                 && config.Routing_Key__c == routingKey
@@ -1124,6 +1271,14 @@ public virtual with sharing class EventRelay {
             return config.Direction__c == direction || config.Direction__c == BOTH;
         }
 
+        Boolean matchesApex(Event_Config__mdt config, String sourceType, String direction, String apexClass) {
+            String configuredApex = config.Apex__c;
+            if (sourceType == PLATFORM_EVENT && direction == PUBLISH && String.isBlank(configuredApex)) {
+                configuredApex = PLATFORM_EVENT_PUBLISHER;
+            }
+            return configuredApex == apexClass;
+        }
+
         Route toRoute(Event_Config__mdt config, String payloadType, String direction) {
             String apexClass = config.Apex__c;
             if (direction == PUBLISH && payloadType != GENERIC_PAYLOAD && String.isBlank(apexClass)) {
@@ -1132,7 +1287,7 @@ public virtual with sharing class EventRelay {
             if (String.isBlank(apexClass)) {
                 throw new EventRelayException('Event_Config__mdt ' + config.DeveloperName + ' requires Apex__c.');
             }
-            return new Route(config.DeveloperName, apexClass, payloadType, config.DeveloperName);
+            return new Route(config.DeveloperName, apexClass, payloadType, config.DeveloperName, config.Idempotency_Key_Path__c);
         }
     }
 
@@ -1147,12 +1302,18 @@ public virtual with sharing class EventRelay {
         public String publisherClass;
         public String payloadType;
         public String threadKey;
+        public String idempotencyKeyPath;
 
         public Route(String route, String publisherClass, String payloadType, String threadKey) {
+            this(route, publisherClass, payloadType, threadKey, null);
+        }
+
+        public Route(String route, String publisherClass, String payloadType, String threadKey, String idempotencyKeyPath) {
             this.route = route;
             this.publisherClass = publisherClass;
             this.payloadType = payloadType;
             this.threadKey = threadKey;
+            this.idempotencyKeyPath = idempotencyKeyPath;
         }
     }
 

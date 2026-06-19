@@ -10,6 +10,7 @@ public with sharing class EventConsoleControllerTest {
             workItem(EventRelay.RUNNING, EventRelay.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', null),
             workItem(EventRelay.ERROR, EventRelay.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', 'Publish failed.'),
             workItem(EventRelay.DONE, EventRelay.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', null),
+            workItem(EventRelay.STALE, EventRelay.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', 'Duplicate idempotency key.'),
             workItem(EventRelay.ERROR, 'Process', processThread.Id, 'Account', 'Processing failed.')
         });
 
@@ -24,9 +25,9 @@ public with sharing class EventConsoleControllerTest {
         Assert.areEqual(1, state.backlogRows.size(), 'Expected backlog rows to include pending publish work.');
         Assert.areEqual(1, state.runningRows.size(), 'Expected running rows to include running publish work.');
         Assert.areEqual(1, state.errorRows.size(), 'Expected error rows to include failed publish work.');
-        Assert.areEqual(1, state.archiveRows.size(), 'Expected archive rows to include completed publish work.');
+        Assert.areEqual(2, state.archiveRows.size(), 'Expected archive rows to include completed and stale publish work.');
         Assert.areEqual(1, state.configRows.size(), 'Expected config rows to summarize publish routes from Event records.');
-        Assert.areEqual(4, state.configRows[0].workItems, 'Expected config rows to count only publish work items.');
+        Assert.areEqual(5, state.configRows[0].workItems, 'Expected config rows to count only publish work items.');
         Assert.areEqual(50, state.settings.publishBatchSize, 'Expected settings to expose the effective publish batch size.');
         Assert.areEqual(90, state.settings.limitThresholdPct, 'Expected settings to expose the event limit safety threshold.');
         Assert.areEqual(EventRelay.PUBLISH_POOL, state.settings.publishPool, 'Expected settings to expose the publish thread pool.');

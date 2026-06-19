@@ -65,8 +65,8 @@ non-critical, and does not need durable status, ordered lanes, or item-level
 operational review. Reach for a normal Platform Event trigger when native
 trigger behavior is enough and you do not need durable handler status.
 
-> Stale-event policy is still future work. This page documents only the Apex,
-> metadata, and console controls that exist now.
+> TTL and sequence-based stale policy are still future work. This page documents
+> the Apex, metadata, and console controls that exist now.
 
 ## Quickstart
 
@@ -282,6 +282,27 @@ Generic publishing requires an active `Event_Config__mdt` record whose
 `Source_Type__c`, `Direction__c`, `Routing_Key__c`, and `Routing_Value__c`
 match the payload.
 
+### Idempotent Intake
+
+Configure `Idempotency_Key_Path__c` on a route when repeated delivery should
+create an audit row without running duplicate work. For Platform Event routes,
+the value is a field API name. For `Generic` routes, the value is a `Generic`
+path. Explicit class calls, such as `publish(events, MyPublisher.class)`, also
+read the path when matching route metadata exists.
+
+```apex
+List<Id> workIds = EventRelay.publish(new List<SObject>{
+    new Order_Submitted__e(
+        Order_Number__c = '1001',
+        Status__c = 'Ready'
+    )
+});
+```
+
+If EventRelay has already accepted or completed work for the same job type,
+route, and key, the new `Event__c` row is inserted as `Stale` with an
+explanatory message and is not enqueued.
+
 ## Configuration
 
 Use `Event_Config__mdt` when EventRelay should resolve the publisher or handler
@@ -334,7 +355,8 @@ That payload resolves to a config like this:
 `DeveloperName` is the route and thread key for metadata-backed routes. Keep it
 stable once work exists. `Batch_Size__c` overrides EventRelay's default batch
 size for that route. `Max_Retries__c` caps framework-managed automatic retry for
-failed publish and process work on that route.
+failed publish and process work on that route. `Idempotency_Key_Path__c` enables
+duplicate detection for the route.
 
 ## Ingesting Work
 
@@ -669,15 +691,16 @@ continue the lane with an incremented failure count.
 | --- | --- | --- |
 | `Event__c` | `Apex__c` | Publisher or handler class name. Blank publish values are treated as the built-in Platform Event publisher by `PublisherService`. |
 | `Event__c` | `Job_Type__c` | `Publish` for outbound publication work or `Process` for inbound handler work. |
-| `Event__c` | `Status__c` | Work state. Implemented statuses include `Pending`, `Running`, `Done`, and `Error`. |
+| `Event__c` | `Status__c` | Work state. Implemented statuses include `Pending`, `Running`, `Done`, `Stale`, and `Error`. |
 | `Event__c` | `Route__c` | Route or destination key selected for the payload. |
 | `Event__c` | `Payload_Type__c` | Platform Event API name or `Generic`. |
 | `Event__c` | `Thread__c` | Lookup to the `Thread__c` lane that owns the work. |
 | `Event__c` | `Thread_Key__c` | FIFO lane key. |
 | `Event__c` | `Order__c` | Per-create-call ordering value used after `CreatedDate`. |
 | `Event__c` | `Retry_Count__c` | Stored retry count. Automatic retry increments this value when a failed item is requeued below its configured cap. Manual retry preserves it. |
+| `Event__c` | `Idempotency_Key__c` | Optional framework-derived logical work key. Duplicate accepted work for the same job type and route is inserted as `Stale`. |
 | `Event__c` | `Payload1__c` - `Payload4__c` | Serialized payload chunks. Each chunk stores up to 32,768 characters. |
-| `Event__c` | `Error_Message__c` | Publisher result error, pause reason, or Queueable failure message. |
+| `Event__c` | `Error_Message__c` | Publisher result error, stale duplicate reason, or Queueable failure message. |
 | `Event__c` | `Error_Stack_Trace__c` | Queueable failure stack trace when available. |
 
 ### Route metadata
@@ -693,6 +716,7 @@ continue the lane with an incremented failure count.
 | `Event_Config__mdt` | `Apex__c` | Publisher class for publish routes or handler class for ingest routes. Platform Event publish routes may leave this blank to use the built-in publisher. |
 | `Event_Config__mdt` | `Batch_Size__c` | Optional batch size override for this route. |
 | `Event_Config__mdt` | `Max_Retries__c` | Optional automatic retry cap for failed publish and process work on this route. Blank or zero disables automatic retry. |
+| `Event_Config__mdt` | `Idempotency_Key_Path__c` | Optional Platform Event field API name or `Generic` path used to derive `Event__c.Idempotency_Key__c` during intake. |
 
 ### Defaults
 
@@ -734,6 +758,8 @@ continue the lane with an incremented failure count.
   `Error` work, preserves the existing retry count, and reopens the owning lane
   if it had already drained. The Event Console exposes selected-row retry and
   delete actions for failed publish work.
+- **Idempotency is intake-only.** Duplicate idempotency keys create terminal
+  `Stale` rows for audit. Stale rows do not run and do not wake processing.
 - **Strict contiguous batching can make smaller batches.** A lane may select
   fewer than the configured batch size when the next pending work item has a
   different publisher, handler, route, or payload type.
