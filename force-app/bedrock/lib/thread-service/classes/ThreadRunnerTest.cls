@@ -2,7 +2,7 @@
 public with sharing class ThreadRunnerTest {
     @istest static void testExecute_usesDispatcherForThreadPool() {
         Thread__c threadRecord = new Thread__c(
-            Status__c = Thread.RUNNING,
+            Status__c = Thread.consts.RUNNING,
             Pool__c = 'TestPool',
             Thread_Key__c = 'TestLane',
             Unique_Key__c = 'TestPoolTestLane000000000000000000000000000000000000000000000000',
@@ -25,7 +25,7 @@ public with sharing class ThreadRunnerTest {
 
     @istest static void testHasPendingWork_usesDispatcherForThreadPool() {
         Thread__c threadRecord = new Thread__c(
-            Status__c = Thread.RUNNING,
+            Status__c = Thread.consts.RUNNING,
             Pool__c = 'TestPool',
             Thread_Key__c = 'PendingLane',
             Unique_Key__c = 'TestPoolPendingLane00000000000000000000000000000000000000000000'
@@ -45,15 +45,16 @@ public with sharing class ThreadRunnerTest {
     }
 
     @istest static void testDispatch_eventPoolPrioritizesEventWorkBeforeAsyncWork() {
-        Thread__c threadRecord = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        Thread__c threadRecord = thread(EventRelay.consts.PUBLISH_POOL, 'Bedrock_Test_Event__e');
         insert threadRecord;
         SpyDispatcher eventDispatcher = new SpyDispatcher();
         eventDispatcher.hasPendingWork = true;
+        eventDispatcher.fallbackPool = Thread.consts.ASYNC_POOL;
         SpyDispatcher asyncDispatcher = new SpyDispatcher();
         asyncDispatcher.hasPendingWork = true;
         ThreadRunner.Service runner = new ThreadRunner.Service();
-        runner.register(EventRelay.PUBLISH_POOL, eventDispatcher);
-        runner.register(Thread.ASYNC_POOL, asyncDispatcher);
+        runner.register(EventRelay.consts.PUBLISH_POOL, eventDispatcher);
+        runner.register(Thread.consts.ASYNC_POOL, asyncDispatcher);
         ThreadRunner.setMock(runner);
 
         ThreadRunner.service.dispatch(threadRecord.Id, 0, 'active-run-key');
@@ -65,15 +66,16 @@ public with sharing class ThreadRunnerTest {
     }
 
     @istest static void testDispatch_eventPoolFallsBackToSameThreadAsyncWork() {
-        Thread__c threadRecord = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        Thread__c threadRecord = thread(EventRelay.consts.PUBLISH_POOL, 'Bedrock_Test_Event__e');
         insert threadRecord;
         SpyDispatcher eventDispatcher = new SpyDispatcher();
         eventDispatcher.hasPendingWork = false;
+        eventDispatcher.fallbackPool = Thread.consts.ASYNC_POOL;
         SpyDispatcher asyncDispatcher = new SpyDispatcher();
         asyncDispatcher.hasPendingWork = true;
         ThreadRunner.Service runner = new ThreadRunner.Service();
-        runner.register(EventRelay.PUBLISH_POOL, eventDispatcher);
-        runner.register(Thread.ASYNC_POOL, asyncDispatcher);
+        runner.register(EventRelay.consts.PUBLISH_POOL, eventDispatcher);
+        runner.register(Thread.consts.ASYNC_POOL, asyncDispatcher);
         ThreadRunner.setMock(runner);
 
         ThreadRunner.service.dispatch(threadRecord.Id, 0, 'active-run-key');
@@ -87,15 +89,16 @@ public with sharing class ThreadRunnerTest {
     }
 
     @istest static void testDispatch_processPoolFallsBackToSameThreadAsyncWork() {
-        Thread__c threadRecord = thread(EventRelay.PROCESS_POOL, 'Bedrock_Test_Event__e');
+        Thread__c threadRecord = thread(EventRelay.consts.PROCESS_POOL, 'Bedrock_Test_Event__e');
         insert threadRecord;
         SpyDispatcher processDispatcher = new SpyDispatcher();
         processDispatcher.hasPendingWork = false;
+        processDispatcher.fallbackPool = Thread.consts.ASYNC_POOL;
         SpyDispatcher asyncDispatcher = new SpyDispatcher();
         asyncDispatcher.hasPendingWork = true;
         ThreadRunner.Service runner = new ThreadRunner.Service();
-        runner.register(EventRelay.PROCESS_POOL, processDispatcher);
-        runner.register(Thread.ASYNC_POOL, asyncDispatcher);
+        runner.register(EventRelay.consts.PROCESS_POOL, processDispatcher);
+        runner.register(Thread.consts.ASYNC_POOL, asyncDispatcher);
         ThreadRunner.setMock(runner);
 
         ThreadRunner.service.dispatch(threadRecord.Id, 0, 'active-run-key');
@@ -113,6 +116,7 @@ public with sharing class ThreadRunnerTest {
         public Integer dispatchCalls = 0;
         public Integer lastFailures;
         public Id lastThreadId;
+        public String fallbackPool;
 
         public override void dispatch(Id threadId, Integer failures) {
             this.dispatchCalls++;
@@ -124,11 +128,15 @@ public with sharing class ThreadRunnerTest {
             this.lastThreadId = threadId;
             return this.hasPendingWork;
         }
+
+        public override String fallbackPoolAfterDrain() {
+            return fallbackPool;
+        }
     }
 
     static Thread__c thread(String pool, String threadKey) {
         return new Thread__c(
-            Status__c = Thread.RUNNING,
+            Status__c = Thread.consts.RUNNING,
             Pool__c = pool,
             Thread_Key__c = threadKey,
             Unique_Key__c = EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(pool + ':' + threadKey))),

@@ -320,6 +320,7 @@ tool's detail up front.
 | `TriggerHandler` | [`lib/trigger-handler/AGENTS.md`](force-app/bedrock/lib/trigger-handler/AGENTS.md) |
 | `Async` (framework) | [`lib/async/AGENTS.md`](force-app/bedrock/lib/async/AGENTS.md) |
 | `Thread` | [`lib/thread-service/AGENTS.md`](force-app/bedrock/lib/thread-service/AGENTS.md) |
+| `EventRelay` | [`lib/event/AGENTS.md`](force-app/bedrock/lib/event/AGENTS.md) |
 | `Scheduler` | [`lib/scheduler/AGENTS.md`](force-app/bedrock/lib/scheduler/AGENTS.md) |
 | `Pluck` | [`lib/pluck/AGENTS.md`](force-app/bedrock/lib/pluck/AGENTS.md) |
 | `FeatureFlag` | [`lib/feature-flag/AGENTS.md`](force-app/bedrock/lib/feature-flag/AGENTS.md) |

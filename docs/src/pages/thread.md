@@ -195,6 +195,6 @@ directly.
   recovery resumes the thread when limits and capacity are safe.
 - **Handoff is FIFO by creation time.** The service first selects the oldest
   pending thread, then locks that row by Id in a second query.
-- **There is no reaper yet.** A platform incident, aborted job, or finalizer
-  failure could theoretically leave a thread stuck in `Running`; recovery is a
-  future hardening item.
+- **Recovery resumes stale work.** The scheduled recovery job can resume paused
+  threads and restart stale non-done threads when limits and capacity are safe.
+  Framework dispatchers decide how to reset their own stranded work items.

@@ -77,7 +77,18 @@ public virtual with sharing class ThreadRunner implements Queueable {
         }
 
         public virtual String fallbackPoolAfterDrain(String pool) {
-            return EventRelay.isEventPool(normalizePool(pool)) ? Thread.ASYNC_POOL : null;
+            return dispatcherForPool(pool).fallbackPoolAfterDrain();
+        }
+
+        public virtual Boolean isUserScoped(String pool) {
+            String normalizedPool = normalizePool(pool);
+            if (this.dispatchers.containsKey(normalizedPool)) {
+                return this.dispatchers.get(normalizedPool).isUserScoped();
+            }
+            if (normalizedPool == EventRelay.consts.PUBLISH_POOL || normalizedPool == EventRelay.consts.PROCESS_POOL) {
+                return false;
+            }
+            return true;
         }
 
         public virtual Integer maxThreads(String pool) {
@@ -90,22 +101,23 @@ public virtual with sharing class ThreadRunner implements Queueable {
 
         public virtual Dispatcher dispatcherFor(Id threadId) {
             Thread__c threadRecord = Thread.queries.getThread(threadId);
-            String pool = threadRecord == null || String.isBlank(threadRecord.Pool__c) ? Thread.ASYNC_POOL : threadRecord.Pool__c;
+            String pool = threadRecord == null || String.isBlank(threadRecord.Pool__c) ? Thread.consts.ASYNC_POOL : threadRecord.Pool__c;
             return dispatcherForPool(pool);
         }
 
         public virtual Dispatcher dispatcherForWork(Id threadId) {
             Thread__c threadRecord = Thread.queries.getThread(threadId);
             String pool = threadRecord == null || String.isBlank(threadRecord.Pool__c)
-                ? Thread.ASYNC_POOL
+                ? Thread.consts.ASYNC_POOL
                 : normalizePool(threadRecord.Pool__c);
             Dispatcher poolDispatcher = dispatcherForPool(pool);
-            if (!EventRelay.isEventPool(pool) || poolDispatcher.hasPendingWork(threadId)) {
+            String fallbackPool = poolDispatcher.fallbackPoolAfterDrain();
+            if (String.isBlank(fallbackPool) || poolDispatcher.hasPendingWork(threadId)) {
                 return poolDispatcher;
             }
 
-            Dispatcher asyncDispatcher = dispatcherForPool(Thread.ASYNC_POOL);
-            return asyncDispatcher.hasPendingWork(threadId) ? asyncDispatcher : poolDispatcher;
+            Dispatcher fallbackDispatcher = dispatcherForPool(fallbackPool);
+            return fallbackDispatcher.hasPendingWork(threadId) ? fallbackDispatcher : poolDispatcher;
         }
 
         public virtual Dispatcher dispatcherForPool(String pool) {
@@ -113,20 +125,20 @@ public virtual with sharing class ThreadRunner implements Queueable {
             if (this.dispatchers.containsKey(normalizedPool)) {
                 return this.dispatchers.get(normalizedPool);
             }
-            if (normalizedPool == Thread.ASYNC_POOL) {
+            if (normalizedPool == Thread.consts.ASYNC_POOL) {
                 return new Async.ThreadDispatcher();
             }
-            if (normalizedPool == EventRelay.PUBLISH_POOL) {
+            if (normalizedPool == EventRelay.consts.PUBLISH_POOL) {
                 return new EventRelay.ThreadDispatcher();
             }
-            if (normalizedPool == EventRelay.PROCESS_POOL) {
+            if (normalizedPool == EventRelay.consts.PROCESS_POOL) {
                 return new EventRelay.ProcessThreadDispatcher();
             }
             throw new ThreadRunnerException('No ThreadRunner dispatcher is registered for pool ' + normalizedPool + '.');
         }
 
         String normalizePool(String pool) {
-            return String.isBlank(pool) ? Thread.ASYNC_POOL : pool.trim();
+            return String.isBlank(pool) ? Thread.consts.ASYNC_POOL : pool.trim();
         }
     }
 
@@ -152,6 +164,14 @@ public virtual with sharing class ThreadRunner implements Queueable {
 
         public virtual Integer maxThreads() {
             return 1;
+        }
+
+        public virtual Boolean isUserScoped() {
+            return true;
+        }
+
+        public virtual String fallbackPoolAfterDrain() {
+            return null;
         }
     }
 

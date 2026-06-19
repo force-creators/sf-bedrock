@@ -50,7 +50,7 @@ public with sharing class ThreadMock {
         public String mockRunKey = 'mock-run-key';
 
         public override Id create() {
-            return create(Thread.ASYNC_POOL, null);
+            return create(Thread.consts.ASYNC_POOL, null);
         }
 
         public override Id create(String pool, String threadKey) {
@@ -107,7 +107,7 @@ public with sharing class ThreadMock {
         }
 
         public override Thread__c getNextPendingThread(String pool) {
-            String normalizedPool = String.isBlank(pool) ? Thread.ASYNC_POOL : pool.trim();
+            String normalizedPool = String.isBlank(pool) ? Thread.consts.ASYNC_POOL : pool.trim();
             if (pendingThreadsByPool.containsKey(normalizedPool)
                 && !pendingThreadsByPool.get(normalizedPool).isEmpty()) {
                 return pendingThreadsByPool.get(normalizedPool).remove(0);

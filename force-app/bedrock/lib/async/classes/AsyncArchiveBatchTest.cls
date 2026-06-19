@@ -1,8 +1,8 @@
 @istest(testFor='ApexClass:AsyncArchiveBatch')
 public with sharing class AsyncArchiveBatchTest {
     @istest static void testArchiveBatch_movesDoneWorkPastThresholdAndDeletesDrainedThreads() {
-        Thread__c archivedThread = new Thread__c(Status__c = Thread.DONE);
-        Thread__c retainedThread = new Thread__c(Status__c = Thread.DONE);
+        Thread__c archivedThread = new Thread__c(Status__c = Thread.consts.DONE);
+        Thread__c retainedThread = new Thread__c(Status__c = Thread.consts.DONE);
         insert new List<Thread__c> { archivedThread, retainedThread };
         archivedThread = [SELECT Id, Name FROM Thread__c WHERE Id = :archivedThread.Id];
         retainedThread = [SELECT Id, Name FROM Thread__c WHERE Id = :retainedThread.Id];
@@ -40,7 +40,7 @@ public with sharing class AsyncArchiveBatchTest {
     }
 
     @istest static void testArchiveBatch_allowsZeroThresholdForImmediateArchive() {
-        Thread__c thread = new Thread__c(Status__c = Thread.DONE);
+        Thread__c thread = new Thread__c(Status__c = Thread.consts.DONE);
         insert thread;
 
         Async__c workItem = workItem('ImmediateArchiveJob', UserInfo.getUserId(), 'Done', thread.Id);

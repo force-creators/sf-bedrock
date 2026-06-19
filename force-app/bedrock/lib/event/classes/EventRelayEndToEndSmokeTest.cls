@@ -1,5 +1,5 @@
 @istest
-private class EventRelayEndToEndSmokeTest {
+class EventRelayEndToEndSmokeTest {
     @istest static void publish_customPublisher_runsAndCompletesWork() {
         resetSeams();
 
@@ -14,7 +14,7 @@ private class EventRelayEndToEndSmokeTest {
         Test.stopTest();
 
         Event__c completedWorkItem = workItem(workItemIds[0]);
-        Assert.areEqual(EventRelay.DONE, completedWorkItem.Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, completedWorkItem.Status__c,
             'Expected custom publisher smoke work to complete successfully.');
 
         List<Contact> contacts = [
@@ -42,7 +42,7 @@ private class EventRelayEndToEndSmokeTest {
         Test.stopTest();
 
         Event__c completedWorkItem = workItem(workItemIds[0]);
-        Assert.areEqual(EventRelay.DONE, completedWorkItem.Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, completedWorkItem.Status__c,
             'Expected ingest smoke work to complete successfully.');
 
         List<Contact> contacts = [
@@ -70,7 +70,7 @@ private class EventRelayEndToEndSmokeTest {
         Test.stopTest();
 
         Event__c completedWorkItem = workItem(workItemIds[0]);
-        Assert.areEqual(EventRelay.DONE, completedWorkItem.Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, completedWorkItem.Status__c,
             'Expected generic ingest smoke work to complete successfully.');
 
         List<Contact> contacts = [

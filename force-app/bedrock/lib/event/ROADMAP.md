@@ -1,28 +1,27 @@
-# Event — Roadmap
+# EventRelay — Roadmap
 
-A planned Bedrock framework. This folder has no implemented Event code yet —
-it is proposed work. Cross-cutting roadmap principles and feature sequencing
-live in the repo root `ROADMAP.md`. Event should use the same `Thread__c`
-container as Async so chained work remains linear and understandable.
+`EventRelay` is implemented in this folder. Cross-cutting roadmap principles
+and feature sequencing live in the repo root `ROADMAP.md`. EventRelay uses the
+same `Thread__c` container as Async so chained work remains linear and
+understandable.
 
-The working architecture sketch lives in `DESIGN.md`.
+The working architecture memory lives in `DESIGN.md`.
 
-These are intended designs, not finalized public APIs. Ask before locking
-names, schemas, metadata objects, or behavior that does not exist yet.
+The Apex source and metadata are the implemented contract. Older roadmap notes
+below may still use planned names such as `Event`, `Event_Job__c`,
+`EventPublish`, and `EventConsume`; map those to the implemented
+`EventRelay`, `Event__c`, `EventRelayPublish`, and `EventRelayProcess` names
+before making new decisions.
 
-## Event
+## EventRelay
 
-Status: ready for sliced planning. The shared `Thread` / `Thread__c` lane
-foundation now exists (`../thread-service/ROADMAP.md`), including
-`ThreadRunner`, pool dispatchers, `Pool__c`, `Thread_Key__c`, and generated
-lane uniqueness. Event still depends on `Limiter` (`../limiter/ROADMAP.md`)
-for org-health checks before publication and processing. Event work is expected
-to stay on the current `Thread__c` when it is created from an existing thread.
-Event should keep the same thread lifecycle model that Async uses today: one
-live Queueable chain per thread, finalizer-based continuation, thread handoff,
-and configurable thread caps. It should **not** copy Async's dispatch policy
-wholesale. Event has its own payload model, table, ordering rules, and no
-priority. It is a sibling framework, not a subclass.
+Status: first durable publication and processing slices are implemented. The
+shared `Thread` / `Thread__c` lane foundation exists
+(`../thread-service/ROADMAP.md`), including `ThreadRunner`, pool dispatchers,
+`Pool__c`, `Thread_Key__c`, generated lane uniqueness, unified recovery, and
+Limiter checks before unsafe async or Platform Event work starts. EventRelay has
+its own payload model, table, ordering rules, and no priority. It is a sibling
+framework, not a subclass.
 
 Adopted direction: treat `Thread__c` as the shared Bedrock lane/worker
 primitive. Async is one consumer of `Thread__c`; Event and future threaded
@@ -30,11 +29,11 @@ frameworks should use the same primitive with their own `Pool__c` and
 `Thread_Key__c` strategy instead of introducing a new lane-owner object per
 framework.
 
-Event is the **stateful** answer to Async. Where Async refuses stateful payloads
-and re-fetches records by Id inside `execute(Set<Id> ids)`, Event serializes the
-payload itself and carries it through the work item. It should interrupt lower-
-urgency Async work on the same thread when reliable publication is needed, while
-preserving the straight-line processing model of the thread.
+EventRelay is the **stateful** answer to Async. Where Async refuses stateful
+payloads and re-fetches records by Id inside `execute(Set<Id> ids)`, EventRelay
+serializes the payload itself and carries it through the work item. EventRelay
+publish/process dispatchers can run before lower-urgency Async work on the same
+thread while preserving the straight-line processing model of the thread.
 
 Event solves **two halves of the same coin** — reliable publication and
 reliable consumption — which is why it is separate from Async. Both halves

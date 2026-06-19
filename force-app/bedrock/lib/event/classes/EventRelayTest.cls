@@ -1,5 +1,5 @@
 @istest
-private class EventRelayTest {
+class EventRelayTest {
     @istest static void publish_platformEvents_createsDurablePublishWork() {
         EventRelay.reset();
         DMLMock dmlMock = new DMLMock();
@@ -17,9 +17,9 @@ private class EventRelayTest {
             'One platform event payload should create one Event__c work item.');
 
         Event__c workItem = insertedEvents[0];
-        Assert.areEqual(EventRelay.PUBLISH, workItem.Job_Type__c,
+        Assert.areEqual(EventRelay.consts.PUBLISH, workItem.Job_Type__c,
             'Platform event publication should create publish work.');
-        Assert.areEqual(EventRelay.PENDING, workItem.Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, workItem.Status__c,
             'New EventRelay work should start as pending.');
         Assert.areEqual('Bedrock_Test_Event__e', workItem.Payload_Type__c,
             'The payload type should preserve the platform event API name.');
@@ -94,9 +94,9 @@ private class EventRelayTest {
         EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> {
             eventConfig(
                 'BedrockTestPublish',
-                EventRelay.PUBLISH,
-                EventRelay.PLATFORM_EVENT,
-                EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+                EventRelay.consts.PUBLISH,
+                EventRelay.consts.PLATFORM_EVENT,
+                EventRelay.consts.ROUTING_KEY_SOBJECT_TYPE,
                 'Bedrock_Test_Event__e',
                 MockSObjectPublisher.class.getName(),
                 25
@@ -129,9 +129,9 @@ private class EventRelayTest {
 
         Event_Config__mdt config = eventConfig(
             'BedrockTestPublish',
-            EventRelay.PUBLISH,
-            EventRelay.PLATFORM_EVENT,
-            EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+            EventRelay.consts.PUBLISH,
+            EventRelay.consts.PLATFORM_EVENT,
+            EventRelay.consts.ROUTING_KEY_SOBJECT_TYPE,
             'Bedrock_Test_Event__e',
             MockSObjectPublisher.class.getName(),
             25
@@ -147,11 +147,11 @@ private class EventRelayTest {
         List<Event__c> insertedEvents = eventInserts(dmlMock);
         Assert.areEqual(2, insertedEvents.size(),
             'Expected both idempotent intake attempts to be auditable.');
-        Assert.areEqual(EventRelay.PENDING, insertedEvents[0].Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, insertedEvents[0].Status__c,
             'Expected the first work item for an idempotency key to remain runnable.');
         Assert.areEqual('message:1001', insertedEvents[0].Idempotency_Key__c,
             'Expected EventRelay to store the supplied idempotency key.');
-        Assert.areEqual(EventRelay.STALE, insertedEvents[1].Status__c,
+        Assert.areEqual(EventRelay.consts.STALE, insertedEvents[1].Status__c,
             'Expected later work with the same route and idempotency key to be stale.');
         Assert.areEqual('Duplicate idempotency key already accepted in this transaction.', insertedEvents[1].Error_Message__c,
             'Expected stale work to explain the duplicate key.');
@@ -166,9 +166,9 @@ private class EventRelayTest {
 
         Event_Config__mdt config = eventConfig(
             'BedrockTestPublish',
-            EventRelay.PUBLISH,
-            EventRelay.PLATFORM_EVENT,
-            EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+            EventRelay.consts.PUBLISH,
+            EventRelay.consts.PLATFORM_EVENT,
+            EventRelay.consts.ROUTING_KEY_SOBJECT_TYPE,
             'Bedrock_Test_Event__e',
             MockSObjectPublisher.class.getName(),
             25
@@ -191,7 +191,7 @@ private class EventRelayTest {
             'Expected explicit publisher routes to keep their explicit route key.');
         Assert.areEqual('message:1004', insertedEvents[0].Idempotency_Key__c,
             'Expected explicit publisher work to read the configured idempotency key path.');
-        Assert.areEqual(EventRelay.STALE, insertedEvents[1].Status__c,
+        Assert.areEqual(EventRelay.consts.STALE, insertedEvents[1].Status__c,
             'Expected duplicate explicit publisher work for the same route and idempotency key to be stale.');
     }
 
@@ -202,9 +202,9 @@ private class EventRelayTest {
 
         Event_Config__mdt config = eventConfig(
             'BedrockTestPublish',
-            EventRelay.PUBLISH,
-            EventRelay.PLATFORM_EVENT,
-            EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+            EventRelay.consts.PUBLISH,
+            EventRelay.consts.PLATFORM_EVENT,
+            EventRelay.consts.ROUTING_KEY_SOBJECT_TYPE,
             'Bedrock_Test_Event__e',
             MockSObjectPublisher.class.getName(),
             25
@@ -212,11 +212,11 @@ private class EventRelayTest {
         config.Idempotency_Key_Path__c = 'Message__c';
         EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> { config });
 
-        Id threadId = Thread.currentOrCreate(EventRelay.PUBLISH_POOL, 'BedrockTestPublish');
+        Id threadId = Thread.currentOrCreate(EventRelay.consts.PUBLISH_POOL, 'BedrockTestPublish');
         Event__c completed = workItem('already processed');
         completed.Id = null;
-        completed.Job_Type__c = EventRelay.PUBLISH;
-        completed.Status__c = EventRelay.DONE;
+        completed.Job_Type__c = EventRelay.consts.PUBLISH;
+        completed.Status__c = EventRelay.consts.DONE;
         completed.Thread__c = threadId;
         completed.Route__c = 'BedrockTestPublish';
         completed.Thread_Key__c = 'BedrockTestPublish';
@@ -232,7 +232,7 @@ private class EventRelayTest {
             FROM Event__c
             WHERE Id = :workItemIds[0]
         ];
-        Assert.areEqual(EventRelay.STALE, stale.Status__c,
+        Assert.areEqual(EventRelay.consts.STALE, stale.Status__c,
             'Expected new work with a completed idempotency key to be terminal stale.');
         Assert.areEqual('message:1002', stale.Idempotency_Key__c,
             'Expected stale work to keep the duplicate idempotency key for audit.');
@@ -251,8 +251,8 @@ private class EventRelayTest {
 
         Event_Config__mdt config = eventConfig(
             'OrderSubmittedPublish',
-            EventRelay.PUBLISH,
-            EventRelay.GENERIC_PAYLOAD,
+            EventRelay.consts.PUBLISH,
+            EventRelay.consts.GENERIC_PAYLOAD,
             'EventType',
             'OrderSubmitted',
             MockGenericPublisher.class.getName(),
@@ -275,11 +275,11 @@ private class EventRelayTest {
         List<Event__c> insertedEvents = eventInserts(dmlMock);
         Assert.areEqual(2, insertedEvents.size(),
             'Expected both generic idempotent intake attempts to be auditable.');
-        Assert.areEqual(EventRelay.PENDING, insertedEvents[0].Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, insertedEvents[0].Status__c,
             'Expected the first generic work item for an idempotency key to remain runnable.');
         Assert.areEqual('1003', insertedEvents[0].Idempotency_Key__c,
             'Expected EventRelay to read the configured Generic idempotency path.');
-        Assert.areEqual(EventRelay.STALE, insertedEvents[1].Status__c,
+        Assert.areEqual(EventRelay.consts.STALE, insertedEvents[1].Status__c,
             'Expected duplicate Generic work for the same route and idempotency key to be stale.');
     }
 
@@ -348,7 +348,7 @@ private class EventRelayTest {
             new EventRelay.Route(
                 'Webhook:OrderService',
                 MockGenericPublisher.class.getName(),
-                EventRelay.GENERIC_PAYLOAD,
+                EventRelay.consts.GENERIC_PAYLOAD,
                 'Publish:Generic:Webhook:OrderService'
             )
         });
@@ -369,7 +369,7 @@ private class EventRelayTest {
             'Generic metadata routing should choose the configured publisher class.');
         Assert.areEqual('Webhook:OrderService', workItem.Route__c,
             'Generic metadata routing should store the configured route.');
-        Assert.areEqual(EventRelay.GENERIC_PAYLOAD, workItem.Payload_Type__c,
+        Assert.areEqual(EventRelay.consts.GENERIC_PAYLOAD, workItem.Payload_Type__c,
             'Generic metadata routing should mark the payload as generic.');
         Assert.areEqual('Publish:Generic:Webhook:OrderService', workItem.Thread_Key__c,
             'Generic metadata routing should use the configured route-specific lane key.');
@@ -408,9 +408,9 @@ private class EventRelayTest {
             'One ingested platform event should create one Event__c process work item.');
 
         Event__c workItem = insertedEvents[0];
-        Assert.areEqual(EventRelay.PROCESS, workItem.Job_Type__c,
+        Assert.areEqual(EventRelay.consts.PROCESS, workItem.Job_Type__c,
             'Platform event ingestion should create process work.');
-        Assert.areEqual(EventRelay.PENDING, workItem.Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, workItem.Status__c,
             'New EventRelay process work should start as pending.');
         Assert.areEqual(MockHandler.class.getName(), workItem.Apex__c,
             'Process work should store the handler class name.');
@@ -443,11 +443,11 @@ private class EventRelayTest {
             'One generic payload should create one Event__c process work item.');
 
         Event__c workItem = insertedEvents[0];
-        Assert.areEqual(EventRelay.PROCESS, workItem.Job_Type__c,
+        Assert.areEqual(EventRelay.consts.PROCESS, workItem.Job_Type__c,
             'Generic ingestion should create process work.');
         Assert.areEqual(MockHandler.class.getName(), workItem.Apex__c,
             'Generic process work should store the handler class name.');
-        Assert.areEqual(EventRelay.GENERIC_PAYLOAD, workItem.Payload_Type__c,
+        Assert.areEqual(EventRelay.consts.GENERIC_PAYLOAD, workItem.Payload_Type__c,
             'Generic process work should mark the payload as generic.');
         Assert.areEqual('Process:Generic:Generic:' + MockHandler.class.getName(), workItem.Thread_Key__c,
             'Generic process work should use a handler-specific process lane.');
@@ -464,8 +464,8 @@ private class EventRelayTest {
         EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> {
             eventConfig(
                 'OrderSubmittedProcess',
-                EventRelay.INGEST,
-                EventRelay.GENERIC_PAYLOAD,
+                EventRelay.consts.INGEST,
+                EventRelay.consts.GENERIC_PAYLOAD,
                 'EventType',
                 'OrderSubmitted',
                 MockHandler.class.getName(),
@@ -485,7 +485,7 @@ private class EventRelayTest {
             'One generic payload should create one Event__c process work item from Event_Config__mdt.');
 
         Event__c workItem = insertedEvents[0];
-        Assert.areEqual(EventRelay.PROCESS, workItem.Job_Type__c,
+        Assert.areEqual(EventRelay.consts.PROCESS, workItem.Job_Type__c,
             'Configured generic ingestion should create process work.');
         Assert.areEqual('OrderSubmittedProcess', workItem.Route__c,
             'Configured generic routes should store the Event_Config__mdt DeveloperName as the route.');
@@ -500,8 +500,8 @@ private class EventRelayTest {
         EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt> {
             eventConfig(
                 'OrderSubmittedProcess',
-                EventRelay.INGEST,
-                EventRelay.GENERIC_PAYLOAD,
+                EventRelay.consts.INGEST,
+                EventRelay.consts.GENERIC_PAYLOAD,
                 'EventType',
                 'OrderSubmitted',
                 MockHandler.class.getName(),
@@ -579,9 +579,9 @@ private class EventRelayTest {
         for (SObject updateRecord : dmlMock.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
-        Assert.areEqual(EventRelay.DONE, updatesById.get(success.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, updatesById.get(success.Id).Status__c,
             'Successful publish results should mark the work item done.');
-        Assert.areEqual(EventRelay.ERROR, updatesById.get(failure.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.ERROR, updatesById.get(failure.Id).Status__c,
             'Failed publish results should mark the work item errored.');
         Assert.areEqual('publish failed', updatesById.get(failure.Id).Error_Message__c,
             'Failed publish results should preserve the publisher error message.');
@@ -598,11 +598,11 @@ private class EventRelayTest {
         terminal.Retry_Count__c = 2;
         Event_Config__mdt config = eventConfig(
             retryable.Route__c,
-            EventRelay.PUBLISH,
-            EventRelay.PLATFORM_EVENT,
-            EventRelay.ROUTING_KEY_SOBJECT_TYPE,
+            EventRelay.consts.PUBLISH,
+            EventRelay.consts.PLATFORM_EVENT,
+            EventRelay.consts.ROUTING_KEY_SOBJECT_TYPE,
             retryable.Payload_Type__c,
-            EventRelay.PLATFORM_EVENT_PUBLISHER,
+            EventRelay.consts.PLATFORM_EVENT_PUBLISHER,
             null
         );
         config.Max_Retries__c = 2;
@@ -620,13 +620,13 @@ private class EventRelayTest {
         for (SObject updateRecord : dmlMock.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
-        Assert.areEqual(EventRelay.PENDING, updatesById.get(retryable.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, updatesById.get(retryable.Id).Status__c,
             'Failed publish work below the configured retry cap should move back to pending.');
         Assert.areEqual(1, updatesById.get(retryable.Id).Retry_Count__c,
             'Failed publish work below the configured retry cap should increment retry count.');
         Assert.areEqual('retryable failure', updatesById.get(retryable.Id).Error_Message__c,
             'Retried publish work should preserve the latest publisher error message.');
-        Assert.areEqual(EventRelay.ERROR, updatesById.get(terminal.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.ERROR, updatesById.get(terminal.Id).Status__c,
             'Failed publish work at the configured retry cap should become terminal error work.');
         Assert.areEqual(null, updatesById.get(terminal.Id).Retry_Count__c,
             'Terminal publish work should not increment retry count beyond the configured cap.');
@@ -662,9 +662,9 @@ private class EventRelayTest {
         for (SObject updateRecord : dmlMock.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
-        Assert.areEqual(EventRelay.DONE, updatesById.get(first.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, updatesById.get(first.Id).Status__c,
             'Successful handler execution should mark the first work item done.');
-        Assert.areEqual(EventRelay.DONE, updatesById.get(second.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, updatesById.get(second.Id).Status__c,
             'Successful handler execution should mark the second work item done.');
     }
 
@@ -679,8 +679,8 @@ private class EventRelayTest {
         Event__c defaultCompleted = processWorkItem('1003');
         Event_Config__mdt config = eventConfig(
             explicitCompleted.Route__c,
-            EventRelay.INGEST,
-            EventRelay.GENERIC_PAYLOAD,
+            EventRelay.consts.INGEST,
+            EventRelay.consts.GENERIC_PAYLOAD,
             'type',
             'order',
             PartialResultHandler.class.getName(),
@@ -705,15 +705,15 @@ private class EventRelayTest {
         for (SObject updateRecord : dmlMock.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
-        Assert.areEqual(EventRelay.DONE, updatesById.get(explicitCompleted.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, updatesById.get(explicitCompleted.Id).Status__c,
             'An explicitly completed handler record should be marked done.');
-        Assert.areEqual(EventRelay.PENDING, updatesById.get(failed.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, updatesById.get(failed.Id).Status__c,
             'A handler-failed record below the configured retry cap should move back to pending.');
         Assert.areEqual(1, updatesById.get(failed.Id).Retry_Count__c,
             'A handler-failed record below the configured retry cap should increment retry count.');
         Assert.areEqual('handler rejected record', updatesById.get(failed.Id).Error_Message__c,
             'A handler-failed record should preserve the failure message.');
-        Assert.areEqual(EventRelay.DONE, updatesById.get(defaultCompleted.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, updatesById.get(defaultCompleted.Id).Status__c,
             'A handler record with no explicit result should be marked done.');
     }
 
@@ -727,8 +727,8 @@ private class EventRelayTest {
         terminal.Retry_Count__c = 1;
         Event_Config__mdt config = eventConfig(
             retryable.Route__c,
-            EventRelay.INGEST,
-            EventRelay.GENERIC_PAYLOAD,
+            EventRelay.consts.INGEST,
+            EventRelay.consts.GENERIC_PAYLOAD,
             'type',
             'order',
             MockHandler.class.getName(),
@@ -744,7 +744,7 @@ private class EventRelayTest {
         for (SObject updateRecord : dmlMock.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
-        Assert.areEqual(EventRelay.PENDING, updatesById.get(retryable.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, updatesById.get(retryable.Id).Status__c,
             'Failed process work below the configured retry cap should move back to pending.');
         Assert.areEqual(1, updatesById.get(retryable.Id).Retry_Count__c,
             'Failed process work below the configured retry cap should increment retry count.');
@@ -752,7 +752,7 @@ private class EventRelayTest {
             'Retried process work should preserve the latest handler error message.');
         Assert.areEqual('handler stack', updatesById.get(retryable.Id).Error_Stack_Trace__c,
             'Retried process work should preserve the latest handler stack trace.');
-        Assert.areEqual(EventRelay.ERROR, updatesById.get(terminal.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.ERROR, updatesById.get(terminal.Id).Status__c,
             'Failed process work at the configured retry cap should become terminal error work.');
         Assert.areEqual(null, updatesById.get(terminal.Id).Retry_Count__c,
             'Terminal process work should not increment retry count beyond the configured cap.');
@@ -762,14 +762,101 @@ private class EventRelayTest {
             'Terminal process work should preserve the latest handler stack trace.');
     }
 
+    @istest static void queryPendingWorkItems_stopsAtFirstIncompatibleWorkItem() {
+        EventRelay.reset();
+        EventRelay.metadata = new MockMetadataService(new List<Event_Config__mdt>());
+
+        Thread__c threadRecord = new Thread__c(
+            Status__c = Thread.consts.RUNNING,
+            Pool__c = EventRelay.consts.PUBLISH_POOL,
+            Thread_Key__c = 'Bedrock_Test_Event__e',
+            Heartbeat__c = System.now()
+        );
+        insert threadRecord;
+
+        Event__c first = workItem('first');
+        Event__c second = workItem('second');
+        Event__c incompatible = workItem('third');
+        Event__c laterCompatible = workItem('fourth');
+        first.Id = null;
+        second.Id = null;
+        incompatible.Id = null;
+        laterCompatible.Id = null;
+        first.Thread__c = threadRecord.Id;
+        second.Thread__c = threadRecord.Id;
+        incompatible.Thread__c = threadRecord.Id;
+        laterCompatible.Thread__c = threadRecord.Id;
+        first.Status__c = EventRelay.consts.PENDING;
+        second.Status__c = EventRelay.consts.PENDING;
+        incompatible.Status__c = EventRelay.consts.PENDING;
+        laterCompatible.Status__c = EventRelay.consts.PENDING;
+        first.Job_Type__c = EventRelay.consts.PUBLISH;
+        second.Job_Type__c = EventRelay.consts.PUBLISH;
+        incompatible.Job_Type__c = EventRelay.consts.PUBLISH;
+        laterCompatible.Job_Type__c = EventRelay.consts.PUBLISH;
+        first.Order__c = 0;
+        second.Order__c = 1;
+        incompatible.Order__c = 2;
+        laterCompatible.Order__c = 3;
+        incompatible.Route__c = 'DifferentRoute';
+        insert new List<Event__c> { first, second, incompatible, laterCompatible };
+
+        List<Event__c> batch = EventRelay.queries.getPendingWorkItems(threadRecord.Id, 4);
+
+        Assert.areEqual(2, batch.size(),
+            'EventRelay should drain only the first contiguous group with the same Apex class, route, and payload type.');
+        Assert.areEqual(first.Id, batch[0].Id,
+            'The first compatible pending work item should remain at the head of the batch.');
+        Assert.areEqual(second.Id, batch[1].Id,
+            'The second compatible pending work item should remain in the batch.');
+    }
+
+    @istest static void prepareRecovery_requeuesRunningPublishAndProcessWork() {
+        EventRelay.reset();
+
+        Thread__c threadRecord = new Thread__c(
+            Status__c = Thread.consts.RUNNING,
+            Pool__c = EventRelay.consts.PUBLISH_POOL,
+            Thread_Key__c = 'Bedrock_Test_Event__e',
+            Heartbeat__c = System.now()
+        );
+        insert threadRecord;
+
+        Event__c publishWork = workItem('publish');
+        Event__c processWork = processWorkItem('process');
+        publishWork.Id = null;
+        processWork.Id = null;
+        publishWork.Thread__c = threadRecord.Id;
+        processWork.Thread__c = threadRecord.Id;
+        publishWork.Status__c = EventRelay.consts.RUNNING;
+        processWork.Status__c = EventRelay.consts.RUNNING;
+        publishWork.Job_Type__c = EventRelay.consts.PUBLISH;
+        processWork.Job_Type__c = EventRelay.consts.PROCESS;
+        insert new List<Event__c> { publishWork, processWork };
+
+        EventRelay.work.prepareRecovery(threadRecord.Id);
+        EventRelay.work.prepareRecovery(threadRecord.Id, EventRelay.consts.PROCESS);
+
+        Set<Id> workItemIds = new Set<Id> { publishWork.Id, processWork.Id };
+        Map<Id, Event__c> workById = new Map<Id, Event__c>([
+            SELECT Status__c
+            FROM Event__c
+            WHERE Id IN :workItemIds
+        ]);
+        Assert.areEqual(EventRelay.consts.PENDING, workById.get(publishWork.Id).Status__c,
+            'Publish recovery should move stranded running publish work back to pending.');
+        Assert.areEqual(EventRelay.consts.PENDING, workById.get(processWork.Id).Status__c,
+            'Process recovery should move stranded running process work back to pending.');
+    }
+
     @istest static void retry_requeuesRetryableWorkAndReopensThread() {
         EventRelay.reset();
         MockWakeService wakeSignal = new MockWakeService();
         EventRelay.wakeSignal = wakeSignal;
 
         Thread__c threadRecord = new Thread__c(
-            Status__c = Thread.DONE,
-            Pool__c = EventRelay.PUBLISH_POOL,
+            Status__c = Thread.consts.DONE,
+            Pool__c = EventRelay.consts.PUBLISH_POOL,
             Thread_Key__c = 'Bedrock_Test_Event__e',
             Completed__c = System.now(),
             Run_Key__c = 'old-run-key',
@@ -779,7 +866,7 @@ private class EventRelayTest {
 
         Event__c errored = workItem('errored');
         errored.Id = null;
-        errored.Status__c = EventRelay.ERROR;
+        errored.Status__c = EventRelay.consts.ERROR;
         errored.Thread__c = threadRecord.Id;
         errored.Thread_Key__c = 'Bedrock_Test_Event__e';
         errored.Retry_Count__c = 3;
@@ -788,7 +875,7 @@ private class EventRelayTest {
 
         Event__c done = workItem('done');
         done.Id = null;
-        done.Status__c = EventRelay.DONE;
+        done.Status__c = EventRelay.consts.DONE;
         done.Thread__c = threadRecord.Id;
         done.Thread_Key__c = 'Bedrock_Test_Event__e';
 
@@ -807,7 +894,7 @@ private class EventRelayTest {
             FROM Event__c
             WHERE Id IN :workItemIds
         ]);
-        Assert.areEqual(EventRelay.PENDING, workById.get(errored.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, workById.get(errored.Id).Status__c,
             'Manual retry should requeue errored work.');
         Assert.areEqual(3, workById.get(errored.Id).Retry_Count__c,
             'Manual retry should preserve the existing retry count.');
@@ -815,7 +902,7 @@ private class EventRelayTest {
             'Manual retry should clear the latest error message.');
         Assert.areEqual(null, workById.get(errored.Id).Error_Stack_Trace__c,
             'Manual retry should clear the latest error stack trace.');
-        Assert.areEqual(EventRelay.DONE, workById.get(done.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, workById.get(done.Id).Status__c,
             'Manual retry should ignore non-retryable work.');
 
         Thread__c reopenedThread = [
@@ -823,7 +910,7 @@ private class EventRelayTest {
             FROM Thread__c
             WHERE Id = :threadRecord.Id
         ];
-        Assert.areEqual(Thread.PENDING, reopenedThread.Status__c,
+        Assert.areEqual(Thread.consts.PENDING, reopenedThread.Status__c,
             'Manual retry should reopen a drained EventRelay lane.');
         Assert.areEqual(null, reopenedThread.Completed__c,
             'Manual retry should clear the lane completed timestamp.');
@@ -840,8 +927,8 @@ private class EventRelayTest {
             .setLimit(Limiter.types.DAILY_STANDARD_VOLUME_PLATFORM_EVENTS, 90, 100));
 
         Thread__c threadRecord = new Thread__c(
-            Status__c = Thread.RUNNING,
-            Pool__c = EventRelay.PUBLISH_POOL,
+            Status__c = Thread.consts.RUNNING,
+            Pool__c = EventRelay.consts.PUBLISH_POOL,
             Thread_Key__c = 'Bedrock_Test_Event__e',
             Run_Key__c = 'run-key',
             Heartbeat__c = System.now()
@@ -850,10 +937,10 @@ private class EventRelayTest {
 
         Event__c work = workItem('pending');
         work.Id = null;
-        work.Status__c = EventRelay.PENDING;
+        work.Status__c = EventRelay.consts.PENDING;
         work.Thread__c = threadRecord.Id;
         work.Thread_Key__c = 'Bedrock_Test_Event__e';
-        work.Apex__c = EventRelay.PLATFORM_EVENT_PUBLISHER;
+        work.Apex__c = EventRelay.consts.PLATFORM_EVENT_PUBLISHER;
         insert work;
 
         EventRelay.jobs.enqueueNextPublishJob(threadRecord.Id, 0, 'run-key');
@@ -868,9 +955,9 @@ private class EventRelayTest {
             FROM Thread__c
             WHERE Id = :threadRecord.Id
         ];
-        Assert.areEqual(EventRelay.PENDING, storedWork.Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, storedWork.Status__c,
             'Unsafe Platform Event limits should leave publish work pending.');
-        Assert.areEqual(Thread.PAUSED, storedThread.Status__c,
+        Assert.areEqual(Thread.consts.PAUSED, storedThread.Status__c,
             'Unsafe Platform Event limits should pause the owning publish thread.');
         Assert.areEqual('Platform Event publication limit is not safe.', storedThread.Pause_Reason__c,
             'Expected the paused thread to explain why publish work is parked.');
@@ -882,7 +969,7 @@ private class EventRelayTest {
         EventRelay.PublisherService publishers = new EventRelay.PublisherService();
 
         Assert.isTrue(publishers.requiresPlatformEventLimit(new List<Event__c> {
-            new Event__c(Apex__c = EventRelay.PLATFORM_EVENT_PUBLISHER)
+            new Event__c(Apex__c = EventRelay.consts.PLATFORM_EVENT_PUBLISHER)
         }), 'The built-in Platform Event publisher should check Platform Event publish limits.');
 
         Assert.isFalse(publishers.requiresPlatformEventLimit(new List<Event__c> {
@@ -893,7 +980,7 @@ private class EventRelayTest {
     @istest static void genericPublisher_executeCompletesPayloadsAsSuccessfulResults() {
         MockGenericPublisher publisher = new MockGenericPublisher();
         List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload> {
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
                 new Generic(new Map<String, Object> { 'orderNumber' => '1001' }))
         });
 
@@ -911,9 +998,9 @@ private class EventRelayTest {
         FailingGenericPublisher publisher = new FailingGenericPublisher();
 
         List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload> {
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
                 new Generic(new Map<String, Object> { 'orderNumber' => '1001' })),
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
                 new Generic(new Map<String, Object> { 'orderNumber' => '1002' }))
         });
 
@@ -931,11 +1018,11 @@ private class EventRelayTest {
         PartialResultGenericPublisher publisher = new PartialResultGenericPublisher();
 
         List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload> {
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
                 new Generic(new Map<String, Object> { 'orderNumber' => '1001' })),
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
                 new Generic(new Map<String, Object> { 'orderNumber' => '1002' })),
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
                 new Generic(new Map<String, Object> { 'orderNumber' => '1003' }))
         });
 
@@ -993,7 +1080,7 @@ private class EventRelayTest {
         Event__c workItem = (Event__c) new TestData(Event__c.sObjectType)
             .mockIds()
             .build()[0];
-        workItem.Apex__c = EventRelay.PLATFORM_EVENT_PUBLISHER;
+        workItem.Apex__c = EventRelay.consts.PLATFORM_EVENT_PUBLISHER;
         workItem.Route__c = 'Bedrock_Test_Event__e';
         workItem.Payload_Type__c = 'Bedrock_Test_Event__e';
         payloads.write(workItem, payloads.serialize(new Bedrock_Test_Event__e(Message__c = message)));
@@ -1006,9 +1093,9 @@ private class EventRelayTest {
             .mockIds()
             .build()[0];
         workItem.Apex__c = MockHandler.class.getName();
-        workItem.Job_Type__c = EventRelay.PROCESS;
+        workItem.Job_Type__c = EventRelay.consts.PROCESS;
         workItem.Route__c = 'Webhook:OrderService';
-        workItem.Payload_Type__c = EventRelay.GENERIC_PAYLOAD;
+        workItem.Payload_Type__c = EventRelay.consts.GENERIC_PAYLOAD;
         payloads.write(workItem, new Generic(new Map<String, Object> { 'orderNumber' => orderNumber }).json());
         return workItem;
     }
@@ -1047,7 +1134,7 @@ private class EventRelayTest {
         );
     }
 
-    private class MockQueryService extends EventRelay.QueryService {
+    class MockQueryService extends EventRelay.QueryService {
         List<Event__c> workItems;
 
         MockQueryService(List<Event__c> workItems) {
@@ -1059,7 +1146,7 @@ private class EventRelayTest {
         }
     }
 
-    private class MockPublisherService extends EventRelay.PublisherService {
+    class MockPublisherService extends EventRelay.PublisherService {
         EventRelay.Publisher publisher;
 
         MockPublisherService(EventRelay.Publisher publisher) {
@@ -1071,7 +1158,7 @@ private class EventRelayTest {
         }
     }
 
-    private class MockHandlerService extends EventRelay.HandlerService {
+    class MockHandlerService extends EventRelay.HandlerService {
         EventRelay.Handler handler;
 
         MockHandlerService(EventRelay.Handler handler) {
@@ -1083,7 +1170,7 @@ private class EventRelayTest {
         }
     }
 
-    private class MockRouteService extends EventRelay.RouteService {
+    class MockRouteService extends EventRelay.RouteService {
         List<EventRelay.Route> routes;
 
         MockRouteService(List<EventRelay.Route> routes) {
@@ -1107,7 +1194,7 @@ private class EventRelayTest {
         }
     }
 
-    private class MockMetadataService extends EventRelay.MetadataService {
+    class MockMetadataService extends EventRelay.MetadataService {
         List<Event_Config__mdt> configs;
 
         MockMetadataService(List<Event_Config__mdt> configs) {
@@ -1119,7 +1206,7 @@ private class EventRelayTest {
         }
     }
 
-    private class MockWakeService extends EventRelay.WakeService {
+    class MockWakeService extends EventRelay.WakeService {
         Integer signalCalls = 0;
 
         public override void signal() {
@@ -1127,7 +1214,7 @@ private class EventRelayTest {
         }
     }
 
-    private class MockPublisher extends EventRelay.Publisher {
+    class MockPublisher extends EventRelay.Publisher {
         List<EventRelay.PublishPayload> publishPayloads = new List<EventRelay.PublishPayload>();
         List<EventRelay.PublishResult> results;
 
@@ -1145,7 +1232,7 @@ private class EventRelayTest {
         }
     }
 
-    private class MockHandler extends EventRelay.Handler {
+    class MockHandler extends EventRelay.Handler {
         List<Generic> records = new List<Generic>();
 
         public override void execute(List<Generic> records) {
@@ -1153,7 +1240,7 @@ private class EventRelayTest {
         }
     }
 
-    private class PartialResultHandler extends EventRelay.Handler {
+    class PartialResultHandler extends EventRelay.Handler {
         List<Generic> records = new List<Generic>();
 
         public override void execute(List<Generic> records) {
@@ -1163,7 +1250,7 @@ private class EventRelayTest {
         }
     }
 
-    private class MockGenericPublisher extends EventRelay.Publisher {
+    class MockGenericPublisher extends EventRelay.Publisher {
         List<Generic> executedPayloads = new List<Generic>();
 
         public override void execute(List<Generic> records) {
@@ -1171,20 +1258,20 @@ private class EventRelayTest {
         }
     }
 
-    private class FailingGenericPublisher extends EventRelay.Publisher {
+    class FailingGenericPublisher extends EventRelay.Publisher {
         public override void execute(List<Generic> records) {
             fail(records[1], 'rejected');
         }
     }
 
-    private class PartialResultGenericPublisher extends EventRelay.Publisher {
+    class PartialResultGenericPublisher extends EventRelay.Publisher {
         public override void execute(List<Generic> records) {
             complete(records[0]);
             fail(records[1], 'rejected');
         }
     }
 
-    private class MockSObjectPublisher extends EventRelay.Publisher {
+    class MockSObjectPublisher extends EventRelay.Publisher {
         List<SObject> executedRecords = new List<SObject>();
 
         public override void execute(List<SObject> records) {
@@ -1192,13 +1279,13 @@ private class EventRelayTest {
         }
     }
 
-    private class FailingSObjectPublisher extends EventRelay.Publisher {
+    class FailingSObjectPublisher extends EventRelay.Publisher {
         public override void execute(List<SObject> records) {
             fail(records[1], 'rejected');
         }
     }
 
-    private class MockJobService extends EventRelay.JobService {
+    class MockJobService extends EventRelay.JobService {
         public override void attachFinalizer(Finalizer finalizer) {
         }
     }

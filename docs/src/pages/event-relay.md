@@ -10,6 +10,8 @@ sections:
     href: "#overview"
   - label: Quickstart
     href: "#quickstart"
+  - label: Glossary
+    href: "#glossary"
   - label: Examples
     href: "#examples"
   - label: Configuration
@@ -67,6 +69,24 @@ trigger behavior is enough and you do not need durable handler status.
 
 > TTL and sequence-based stale policy are still future work. This page documents
 > the Apex, metadata, and console controls that exist now.
+
+## Glossary
+
+`EventRelay` uses a few small words for advanced runtime ideas:
+
+| Term | Meaning |
+| --- | --- |
+| Work item | One `Event__c` row that stores a payload and its status. |
+| Publish | Durable outbound event work. A publisher turns stored payloads into Platform Events or another external publication. |
+| Ingest | The public API for durable inbound processing. `EventRelay.ingest(...)` stores process work. |
+| Process | The stored job type for ingested work. A handler processes the payload later. |
+| Route | The resolved destination or handler choice. Metadata-backed routes use `Event_Config__mdt.DeveloperName`. |
+| Lane | The FIFO boundary for ordered work. One lane drains in order; separate lanes can run independently. |
+| Thread | The `Thread__c` worker record that owns and drains a lane. |
+| Thread key | The stable lane key stored on `Thread__c.Thread_Key__c` and `Event__c.Thread_Key__c`. |
+| Publisher | A class that extends `EventRelay.Publisher` and publishes outbound payloads. |
+| Handler | A class that extends `EventRelay.Handler` and processes ingested payloads. |
+| Stale | Duplicate idempotent work that is saved for audit but not run. |
 
 ## Quickstart
 
@@ -525,14 +545,14 @@ results.
 
 ```apex
 @istest
-private class OrderWebhookPublisherTest {
+class OrderWebhookPublisherTest {
     @istest static void publish_missingOrderNumberFailsOnePayload() {
         OrderWebhookPublisher publisher = new OrderWebhookPublisher();
 
         List<EventRelay.PublishResult> results = publisher.publish(new List<EventRelay.PublishPayload>{
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
                 new Generic(new Map<String, Object>{ 'orderNumber' => '1001' })),
-            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.GENERIC_PAYLOAD,
+            new EventRelay.PublishPayload(null, 'Webhook:OrderService', EventRelay.consts.GENERIC_PAYLOAD,
                 new Generic(new Map<String, Object>{ 'status' => 'Ready' }))
         });
 
@@ -552,7 +572,7 @@ publisher, job, and wake behavior.
 
 ```apex
 @istest
-private class AccountEventRelayTest {
+class AccountEventRelayTest {
     @istest static void publish_accountChangedCreatesWork() {
         EventRelay.reset();
         DMLMock dmlMock = new DMLMock();
@@ -568,13 +588,13 @@ private class AccountEventRelayTest {
         Assert.areEqual(1, dmlMock.inserts[0].size(), 'Expected one Event__c work item for one payload.');
 
         Event__c workItem = (Event__c) dmlMock.inserts[0][0];
-        Assert.areEqual(EventRelay.PENDING, workItem.Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, workItem.Status__c,
             'Expected new EventRelay work to start pending.');
         Assert.areEqual('Account_Changed__e', workItem.Payload_Type__c,
             'Expected the work item to preserve the Platform Event API name.');
     }
 
-    private class MockWakeService extends EventRelay.WakeService {
+    class MockWakeService extends EventRelay.WakeService {
         public override void signal() {
         }
     }
@@ -586,7 +606,7 @@ Test handler logic directly by constructing the handler and calling
 
 ```apex
 @istest
-private class OrderSubmittedHandlerTest {
+class OrderSubmittedHandlerTest {
     @istest static void execute_updatesSubmittedOrders() {
         OrderSubmittedHandler handler = new OrderSubmittedHandler();
 
@@ -677,7 +697,7 @@ continue the lane with an incremented failure count.
 
 | Type | Members | Description |
 | --- | --- | --- |
-| `EventRelay.Route` | `route`, `publisherClass`, `payloadType`, `threadKey` | Resolved route used to create work. |
+| `EventRelay.Route` | `route`, `apexClass`, `publisherClass`, `payloadType`, `threadKey` | Resolved route used to create work. `apexClass` is the clearer name; `publisherClass` remains as a compatibility alias. |
 | `EventRelay.PublishPayload` | `workItemId`, `route`, `payloadType`, `payload` | Payload passed to publishers after work items are read from storage. |
 | `EventRelay.PublishResult` | `success`, `message` | Item-level publisher outcome. `success` is stored as `true` only when the constructor receives `true`. |
 | `EventRelay.ProcessResult` | `status`, `message` | Item-level handler outcome used internally by `Handler.process(...)`. |

@@ -35,6 +35,8 @@ public with sharing class EventConsoleController {
 
     static List<Event__c> errorWorkItems(List<Id> workItemIds) {
         Set<Id> selectedIds = new Set<Id>();
+        String publishJobType = EventRelay.consts.PUBLISH;
+        String errorStatus = EventRelay.consts.ERROR;
 
         if (workItemIds != null) {
             selectedIds.addAll(workItemIds);
@@ -48,8 +50,8 @@ public with sharing class EventConsoleController {
             SELECT Id
             FROM Event__c
             WHERE Id IN :selectedIds
-                AND Job_Type__c = :EventRelay.PUBLISH
-                AND Status__c = :EventRelay.ERROR
+                AND Job_Type__c = :publishJobType
+                AND Status__c = :errorStatus
         ];
     }
 
@@ -67,33 +69,37 @@ public with sharing class EventConsoleController {
 
     static ConsoleMetrics getMetrics() {
         ConsoleMetrics metrics = new ConsoleMetrics();
+        String publishJobType = EventRelay.consts.PUBLISH;
+        String runningStatus = EventRelay.consts.RUNNING;
+        String errorStatus = EventRelay.consts.ERROR;
+        String doneStatus = EventRelay.consts.DONE;
 
         metrics.backlog = [
             SELECT COUNT()
             FROM Event__c
-            WHERE Job_Type__c = :EventRelay.PUBLISH
+            WHERE Job_Type__c = :publishJobType
                 AND Status__c IN :backlogStatuses()
         ];
 
         metrics.running = [
             SELECT COUNT()
             FROM Event__c
-            WHERE Job_Type__c = :EventRelay.PUBLISH
-                AND Status__c = :EventRelay.RUNNING
+            WHERE Job_Type__c = :publishJobType
+                AND Status__c = :runningStatus
         ];
 
         metrics.errors = [
             SELECT COUNT()
             FROM Event__c
-            WHERE Job_Type__c = :EventRelay.PUBLISH
-                AND Status__c = :EventRelay.ERROR
+            WHERE Job_Type__c = :publishJobType
+                AND Status__c = :errorStatus
         ];
 
         metrics.publishedToday = [
             SELECT COUNT()
             FROM Event__c
-            WHERE Job_Type__c = :EventRelay.PUBLISH
-                AND Status__c = :EventRelay.DONE
+            WHERE Job_Type__c = :publishJobType
+                AND Status__c = :doneStatus
                 AND LastModifiedDate = TODAY
         ];
 
@@ -102,13 +108,14 @@ public with sharing class EventConsoleController {
 
     static List<EventRow> backlogRows() {
         Set<String> statuses = backlogStatuses();
+        String publishJobType = EventRelay.consts.PUBLISH;
 
         return rowsFrom([
             SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
                 Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
                 Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
             FROM Event__c
-            WHERE Job_Type__c = :EventRelay.PUBLISH
+            WHERE Job_Type__c = :publishJobType
                 AND Status__c IN :statuses
             ORDER BY CreatedDate ASC, Order__c ASC, Name ASC
             LIMIT :MAX_ROWS
@@ -116,39 +123,44 @@ public with sharing class EventConsoleController {
     }
 
     static List<EventRow> runningRows() {
+        String publishJobType = EventRelay.consts.PUBLISH;
+        String runningStatus = EventRelay.consts.RUNNING;
         return rowsFrom([
             SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
                 Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
                 Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
             FROM Event__c
-            WHERE Job_Type__c = :EventRelay.PUBLISH
-                AND Status__c = :EventRelay.RUNNING
+            WHERE Job_Type__c = :publishJobType
+                AND Status__c = :runningStatus
             ORDER BY LastModifiedDate DESC, CreatedDate ASC
             LIMIT :MAX_ROWS
         ]);
     }
 
     static List<EventRow> errorRows() {
+        String publishJobType = EventRelay.consts.PUBLISH;
+        String errorStatus = EventRelay.consts.ERROR;
         return rowsFrom([
             SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
                 Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
                 Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
             FROM Event__c
-            WHERE Job_Type__c = :EventRelay.PUBLISH
-                AND Status__c = :EventRelay.ERROR
+            WHERE Job_Type__c = :publishJobType
+                AND Status__c = :errorStatus
             ORDER BY LastModifiedDate DESC, CreatedDate DESC
             LIMIT :MAX_ROWS
         ]);
     }
 
     static List<EventRow> archiveRows() {
-        Set<String> terminalStatuses = new Set<String> { EventRelay.DONE, EventRelay.STALE };
+        String publishJobType = EventRelay.consts.PUBLISH;
+        Set<String> terminalStatuses = new Set<String> { EventRelay.consts.DONE, EventRelay.consts.STALE };
         return rowsFrom([
             SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
                 Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
                 Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
             FROM Event__c
-            WHERE Job_Type__c = :EventRelay.PUBLISH
+            WHERE Job_Type__c = :publishJobType
                 AND Status__c IN :terminalStatuses
             ORDER BY LastModifiedDate DESC, CreatedDate DESC
             LIMIT :MAX_ROWS
@@ -157,10 +169,11 @@ public with sharing class EventConsoleController {
 
     static List<ConfigRow> configRows() {
         List<ConfigRow> rows = new List<ConfigRow>();
+        String publishJobType = EventRelay.consts.PUBLISH;
         for (AggregateResult result : [
             SELECT Payload_Type__c payloadType, Route__c route, COUNT(Id) workItems
             FROM Event__c
-            WHERE Job_Type__c = :EventRelay.PUBLISH
+            WHERE Job_Type__c = :publishJobType
             GROUP BY Payload_Type__c, Route__c
             ORDER BY Payload_Type__c ASC, Route__c ASC
             LIMIT :MAX_ROWS
@@ -171,7 +184,7 @@ public with sharing class EventConsoleController {
     }
 
     static Set<String> backlogStatuses() {
-        return new Set<String>{ EventRelay.PENDING };
+        return new Set<String>{ EventRelay.consts.PENDING };
     }
 
     static List<EventRow> rowsFrom(List<Event__c> workItems) {
@@ -213,7 +226,7 @@ public with sharing class EventConsoleController {
         ConsoleSettings() {
             this.publishBatchSize = EventRelay.settings.batchSize();
             this.limitThresholdPct = EventRelay.settings.limitThresholdPct();
-            this.publishPool = EventRelay.PUBLISH_POOL;
+            this.publishPool = EventRelay.consts.PUBLISH_POOL;
         }
     }
 

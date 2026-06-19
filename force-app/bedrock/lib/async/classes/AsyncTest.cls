@@ -484,7 +484,7 @@ public with sharing class AsyncTest {
         SpyJobService jobs = new SpyJobService();
         Async.jobs = jobs;
         Thread__c threadRecord = new Thread__c(
-            Status__c = Thread.RUNNING,
+            Status__c = Thread.consts.RUNNING,
             Run_Key__c = 'active-run-key'
         );
         insert threadRecord;
@@ -552,8 +552,8 @@ public with sharing class AsyncTest {
         Contact contact = new Contact(LastName = 'Limit Pause');
         insert contact;
         Thread__c threadRecord = new Thread__c(
-            Status__c = Thread.RUNNING,
-            Pool__c = Thread.ASYNC_POOL,
+            Status__c = Thread.consts.RUNNING,
+            Pool__c = Thread.consts.ASYNC_POOL,
             Thread_Key__c = 'request:limit-pause',
             Run_Key__c = 'run-key',
             Heartbeat__c = System.now()
@@ -576,7 +576,7 @@ public with sharing class AsyncTest {
         ];
         Assert.areEqual('Pending', storedWork.Status__c,
             'Unsafe async limits should leave async work pending.');
-        Assert.areEqual(Thread.PAUSED, storedThread.Status__c,
+        Assert.areEqual(Thread.consts.PAUSED, storedThread.Status__c,
             'Unsafe async limits should pause the owning thread.');
         Assert.areEqual('Daily async Apex execution limit is not safe.', storedThread.Pause_Reason__c,
             'Expected the paused thread to explain the limiter pause.');

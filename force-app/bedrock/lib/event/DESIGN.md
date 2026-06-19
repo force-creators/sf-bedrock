@@ -1,24 +1,25 @@
-# Event — Design Sketch
+# EventRelay — Design Notes
 
-This is a working sketch for the future `Event` framework. It is not an
-implemented contract and should stay easy to revise. The goal is to put the
-objects, classes, and data structures on the table before writing Apex or
-metadata.
+`EventRelay` is now implemented in this folder. The Apex source and metadata in
+`force-app/bedrock/lib/event` are the current contract; this file is retained as
+design memory for how the event framework was shaped.
 
-`Event` is a sibling framework to `Async`. It reuses the shared thread lifecycle
-and finalizer model, but owns event payload storage, routing, ordering,
-publication, consumption, batching, retry, and stale-event policy.
+Older sections may still use planned names such as `Event`, `Event_Job__c`,
+`EventPublish`, or `EventConsume`. The implemented names are `EventRelay`,
+`Event__c`, `EventRelayPublish`, and `EventRelayProcess`.
 
 ## Current Status
 
-The concept fits Bedrock, and the shared thread/lane foundation now exists.
-`ThreadRunner`, pool dispatchers, `Pool__c`, `Thread_Key__c`, and generated
-lane uniqueness are implemented in the Thread service. Event itself is still
-not implemented, so the next work should be a narrow build slice rather than a
-full-framework pass.
+`EventRelay` reuses the shared thread lifecycle and finalizer model, but owns
+event payload storage, routing, ordering, publication, processing, batching,
+retry, and stale duplicate handling. It stores durable work in `Event__c`, uses
+`Event_Config__mdt` for routing, signals `EventRelay_Wake__e`, and drains work
+through `ThreadRunner` dispatchers for the `EventRelayPublish` and
+`EventRelayProcess` pools.
 
 - Async threads are transaction-born ordered chains.
-- Event lanes are global ordered queues that many transactions may append to.
+- EventRelay lanes are global ordered queues that many transactions may append
+  to.
 - A runner temporarily owns a lane while it drains work.
 - The same lock must protect both appending work and deciding that a lane is
   drained.

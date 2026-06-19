@@ -4,9 +4,9 @@ public with sharing class ThreadMonitorControllerTest {
         Datetime now = System.now();
         Thread.settings.setSettings(new Thread_Settings__c(Recovery_Threshold_Minutes__c = 10));
         DML.insertRecords(new List<SObject> {
-            thread(Thread.RUNNING, 'Async', 'request:active', now.addMinutes(-1), null, '0123456789abcdef'),
-            thread(Thread.PENDING, 'Async', 'request:stale', now.addMinutes(-20), null, null),
-            thread(Thread.DONE, 'Async', 'request:done', now.addMinutes(-30), now, null)
+            thread(Thread.consts.RUNNING, 'Async', 'request:active', now.addMinutes(-1), null, '0123456789abcdef'),
+            thread(Thread.consts.PENDING, 'Async', 'request:stale', now.addMinutes(-20), null, null),
+            thread(Thread.consts.DONE, 'Async', 'request:done', now.addMinutes(-30), now, null)
         });
 
         Test.startTest();
@@ -25,9 +25,9 @@ public with sharing class ThreadMonitorControllerTest {
     @istest static void testGetCompleted_appliesSearchAndSort() {
         Datetime now = System.now();
         DML.insertRecords(new List<SObject> {
-            thread(Thread.DONE, 'Async', 'request:zebra', now.addMinutes(-30), now.addMinutes(-1), null),
-            thread(Thread.DONE, 'Event', 'request:alpha', now.addMinutes(-20), now, null),
-            thread(Thread.RUNNING, 'Async', 'request:ignored', now, null, null)
+            thread(Thread.consts.DONE, 'Async', 'request:zebra', now.addMinutes(-30), now.addMinutes(-1), null),
+            thread(Thread.consts.DONE, 'Event', 'request:alpha', now.addMinutes(-20), now, null),
+            thread(Thread.consts.RUNNING, 'Async', 'request:ignored', now, null, null)
         });
 
         Test.startTest();
@@ -54,7 +54,7 @@ public with sharing class ThreadMonitorControllerTest {
             Pool__c = pool,
             Thread_Key__c = threadKey,
             Heartbeat__c = heartbeatAt,
-            Started__c = status == Thread.RUNNING ? heartbeatAt : null,
+            Started__c = status == Thread.consts.RUNNING ? heartbeatAt : null,
             Completed__c = completedAt,
             Run_Key__c = runKey
         );

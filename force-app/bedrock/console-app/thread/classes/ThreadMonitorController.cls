@@ -26,7 +26,8 @@ public with sharing class ThreadMonitorController {
         String orderByField = sortField(sortBy);
         String orderByDirection = sortOrder(sortDirection);
         Datetime staleBefore = System.now().addMinutes(-Thread.settings.recoveryThresholdMinutes());
-        String whereClause = view == 'completed' ? 'Status__c = \'Done\'' : 'Status__c != \'Done\'';
+        String doneStatus = Thread.consts.DONE;
+        String whereClause = view == 'completed' ? 'Status__c = :doneStatus' : 'Status__c != :doneStatus';
         String orderClause = view == 'completed'
             ? 'Completed__c DESC NULLS LAST, CreatedDate DESC'
             : 'Status__c DESC, Heartbeat__c ASC NULLS LAST';
@@ -98,9 +99,9 @@ public with sharing class ThreadMonitorController {
     }
 
     static String health(Thread__c threadRecord, Boolean isStale) {
-        if (threadRecord.Status__c == Thread.DONE) return 'Completed';
+        if (threadRecord.Status__c == Thread.consts.DONE) return 'Completed';
         if (isStale) return 'Stale heartbeat';
-        if (threadRecord.Status__c == Thread.PENDING) return 'Waiting';
+        if (threadRecord.Status__c == Thread.consts.PENDING) return 'Waiting';
         return 'Running';
     }
 
@@ -122,10 +123,10 @@ public with sharing class ThreadMonitorController {
         ThreadRow(Thread__c threadRecord, Datetime staleBefore) {
             this.id = threadRecord.Id;
             this.threadNumber = threadRecord.Name;
-            this.pool = String.isBlank(threadRecord.Pool__c) ? Thread.ASYNC_POOL : threadRecord.Pool__c;
+            this.pool = String.isBlank(threadRecord.Pool__c) ? Thread.consts.ASYNC_POOL : threadRecord.Pool__c;
             this.threadKey = threadRecord.Thread_Key__c;
             this.status = threadRecord.Status__c;
-            this.isStale = threadRecord.Status__c != Thread.DONE &&
+            this.isStale = threadRecord.Status__c != Thread.consts.DONE &&
                 threadRecord.Heartbeat__c != null &&
                 threadRecord.Heartbeat__c < staleBefore;
             this.health = ThreadMonitorController.health(threadRecord, this.isStale);

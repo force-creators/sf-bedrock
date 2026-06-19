@@ -1,10 +1,5 @@
 public virtual with sharing class Thread {
-    public static final String ASYNC_POOL = 'Async';
-    public static final String DONE = 'Done';
-    public static final String PAUSED = 'Paused';
-    public static final String PENDING = 'Pending';
-    public static final String RUNNING = 'Running';
-
+    public static Constants consts = new Constants();
     public static Service service = new Service();
     public static QueryService queries = new QueryService();
     public static SettingsService settings = new SettingsService();
@@ -19,6 +14,14 @@ public virtual with sharing class Thread {
         service = new Service();
         queries = new QueryService();
         settings = new SettingsService();
+    }
+
+    public virtual with sharing class Constants {
+        public String ASYNC_POOL = 'Async';
+        public String DONE = 'Done';
+        public String PAUSED = 'Paused';
+        public String PENDING = 'Pending';
+        public String RUNNING = 'Running';
     }
 
     public static Id currentId() {
@@ -98,7 +101,7 @@ public virtual with sharing class Thread {
         }
 
         public virtual Id currentOrCreate() {
-            return currentOrCreate(ASYNC_POOL, requestThreadKey());
+            return currentOrCreate(consts.ASYNC_POOL, requestThreadKey());
         }
 
         public virtual Id currentOrCreate(String pool, String threadKey) {
@@ -118,7 +121,7 @@ public virtual with sharing class Thread {
         }
 
         public virtual Id create() {
-            return create(ASYNC_POOL, requestThreadKey());
+            return create(consts.ASYNC_POOL, requestThreadKey());
         }
 
         public virtual Id create(String pool, String threadKey) {
@@ -129,7 +132,7 @@ public virtual with sharing class Thread {
 
         Id create(String pool, String threadKey, String uniqueKey) {
             Thread__c thread = new Thread__c(
-                Status__c = PENDING,
+                Status__c = consts.PENDING,
                 Pool__c = pool,
                 Thread_Key__c = threadKey,
                 Unique_Key__c = uniqueKey,
@@ -236,7 +239,7 @@ public virtual with sharing class Thread {
         }
 
         public virtual Id claimNext() {
-            return claimNext(ASYNC_POOL);
+            return claimNext(consts.ASYNC_POOL);
         }
 
         public virtual Id claimNext(String pool) {
@@ -263,7 +266,7 @@ public virtual with sharing class Thread {
 
             Thread__c threadRecord = new Thread__c(
                 Id = threadId,
-                Status__c = DONE,
+                Status__c = consts.DONE,
                 Completed__c = System.now(),
                 Heartbeat__c = System.now()
             );
@@ -277,7 +280,7 @@ public virtual with sharing class Thread {
             String runKey = generateRunKey();
             Thread__c threadRecord = new Thread__c(
                 Id = threadId,
-                Status__c = RUNNING,
+                Status__c = consts.RUNNING,
                 Started__c = System.now(),
                 Completed__c = null,
                 Heartbeat__c = System.now(),
@@ -297,7 +300,7 @@ public virtual with sharing class Thread {
 
             updateThread(new Thread__c(
                 Id = threadId,
-                Status__c = PAUSED,
+                Status__c = consts.PAUSED,
                 Pause_Reason__c = truncate(reason),
                 Heartbeat__c = System.now(),
                 Run_Key__c = null
@@ -309,11 +312,11 @@ public virtual with sharing class Thread {
 
             List<SObject> updates = new List<SObject>();
             for (Thread__c threadRecord : queries.getThreadsForUpdate(threadIds)) {
-                if (threadRecord.Status__c != PAUSED) continue;
+                if (threadRecord.Status__c != consts.PAUSED) continue;
 
                 Thread__c updateRecord = new Thread__c(
                     Id = threadRecord.Id,
-                    Status__c = PENDING,
+                    Status__c = consts.PENDING,
                     Completed__c = null,
                     Heartbeat__c = System.now(),
                     Run_Key__c = null
@@ -351,7 +354,7 @@ public virtual with sharing class Thread {
         }
 
         public virtual Boolean hasAvailableSlot() {
-            return hasAvailableSlot(ASYNC_POOL);
+            return hasAvailableSlot(consts.ASYNC_POOL);
         }
 
         public virtual Boolean hasAvailableSlot(String pool) {
@@ -360,7 +363,7 @@ public virtual with sharing class Thread {
         }
 
         public virtual Integer availableSpawnCount() {
-            return availableSpawnCount(ASYNC_POOL);
+            return availableSpawnCount(consts.ASYNC_POOL);
         }
 
         public virtual Integer availableSpawnCount(String pool) {
@@ -371,7 +374,7 @@ public virtual with sharing class Thread {
         }
 
         public virtual Integer runningThreadCount() {
-            return runningThreadCount(ASYNC_POOL);
+            return runningThreadCount(consts.ASYNC_POOL);
         }
 
         public virtual Integer runningThreadCount(String pool) {
@@ -385,7 +388,7 @@ public virtual with sharing class Thread {
         }
 
         public virtual Integer maxThreads() {
-            return maxThreads(ASYNC_POOL);
+            return maxThreads(consts.ASYNC_POOL);
         }
 
         public virtual Integer maxThreads(String pool) {
@@ -411,14 +414,14 @@ public virtual with sharing class Thread {
         }
 
         public virtual void recover(Thread__c staleThread) {
-            if (staleThread == null || staleThread.Id == null || staleThread.Status__c == DONE) return;
+            if (staleThread == null || staleThread.Id == null || staleThread.Status__c == consts.DONE) return;
             if (!Thread.settings.recoveryEnabled()) return;
             if (!isRecoveryLimitSafe()) return;
             if (!hasRecoverySlot(staleThread)) return;
 
             ThreadRunner.Dispatcher dispatcher = ThreadRunner.service.dispatcherForPool(staleThread.Pool__c);
             String runKey = startRun(staleThread.Id);
-            if (staleThread.Status__c != PAUSED) {
+            if (staleThread.Status__c != consts.PAUSED) {
                 dispatcher.prepareRecovery(staleThread.Id);
             }
 
@@ -435,11 +438,11 @@ public virtual with sharing class Thread {
 
             List<SObject> updates = new List<SObject>();
             for (Thread__c threadRecord : queries.getThreadsForUpdate(threadIds)) {
-                if (threadRecord.Status__c != DONE) continue;
+                if (threadRecord.Status__c != consts.DONE) continue;
 
                 updates.add(new Thread__c(
                     Id = threadRecord.Id,
-                    Status__c = PENDING,
+                    Status__c = consts.PENDING,
                     Completed__c = null,
                     Heartbeat__c = System.now(),
                     Run_Key__c = null
@@ -466,7 +469,7 @@ public virtual with sharing class Thread {
         }
 
         Boolean hasRecoverySlot(Thread__c threadRecord) {
-            String pool = threadRecord == null ? ASYNC_POOL : threadRecord.Pool__c;
+            String pool = threadRecord == null ? consts.ASYNC_POOL : threadRecord.Pool__c;
             Id threadId = threadRecord == null ? null : threadRecord.Id;
             return runningThreadCountExcluding(pool, threadId) < maxThreads(pool)
                 && queries.countRunningThreadsExcluding(threadId) < Thread.settings.maxThreads()
@@ -480,7 +483,7 @@ public virtual with sharing class Thread {
         }
 
         Boolean isUserScoped(String pool) {
-            return !EventRelay.isEventPool(normalizePool(pool));
+            return ThreadRunner.service.isUserScoped(normalizePool(pool));
         }
 
         public virtual void deleteDrained(Set<Id> threadIds) {
@@ -535,7 +538,7 @@ public virtual with sharing class Thread {
         }
 
         String normalizePool(String pool) {
-            return String.isBlank(pool) ? ASYNC_POOL : pool.trim();
+            return String.isBlank(pool) ? consts.ASYNC_POOL : pool.trim();
         }
 
         String truncate(String value) {
@@ -550,7 +553,7 @@ public virtual with sharing class Thread {
         String currentPool() {
             Thread__c threadRecord = queries.getThread(currentId());
             return threadRecord == null || String.isBlank(threadRecord.Pool__c)
-                ? ASYNC_POOL
+                ? consts.ASYNC_POOL
                 : threadRecord.Pool__c;
         }
 
@@ -601,28 +604,29 @@ public virtual with sharing class Thread {
         }
 
         public virtual Thread__c getNextPendingThread() {
-            return getNextPendingThread(ASYNC_POOL);
+            return getNextPendingThread(consts.ASYNC_POOL);
         }
 
         public virtual Thread__c getNextPendingThread(String pool) {
-            String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
+            String normalizedPool = String.isBlank(pool) ? consts.ASYNC_POOL : pool.trim();
+            String pendingStatus = consts.PENDING;
             Id userId = UserInfo.getUserId();
             List<Thread__c> candidates;
-            if (normalizedPool == ASYNC_POOL) {
+            if (normalizedPool == consts.ASYNC_POOL) {
                 candidates = (List<Thread__c>) Query.records([
                     SELECT Id
                     FROM Thread__c
-                    WHERE Status__c = 'Pending'
+                    WHERE Status__c = :pendingStatus
                         AND CreatedById = :userId
                         AND (Pool__c = :normalizedPool OR Pool__c = null)
                     ORDER BY CreatedDate ASC
                     LIMIT 1
                 ]);
-            } else if (EventRelay.isEventPool(normalizedPool)) {
+            } else if (!ThreadRunner.service.isUserScoped(normalizedPool)) {
                 candidates = (List<Thread__c>) Query.records([
                     SELECT Id
                     FROM Thread__c
-                    WHERE Status__c = 'Pending'
+                    WHERE Status__c = :pendingStatus
                         AND Pool__c = :normalizedPool
                     ORDER BY CreatedDate ASC
                     LIMIT 1
@@ -631,7 +635,7 @@ public virtual with sharing class Thread {
                 candidates = (List<Thread__c>) Query.records([
                     SELECT Id
                     FROM Thread__c
-                    WHERE Status__c = 'Pending'
+                    WHERE Status__c = :pendingStatus
                         AND CreatedById = :userId
                         AND Pool__c = :normalizedPool
                     ORDER BY CreatedDate ASC
@@ -644,19 +648,20 @@ public virtual with sharing class Thread {
                 SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c, Pause_Reason__c
                 FROM Thread__c
                 WHERE Id = :candidates[0].Id
-                    AND Status__c = 'Pending'
+                    AND Status__c = :pendingStatus
                 FOR UPDATE
             ]);
             return threads.isEmpty() ? null : threads[0];
         }
 
         public virtual Integer countRunningThreads(String pool) {
-            String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
-            if (normalizedPool == ASYNC_POOL) {
+            String normalizedPool = String.isBlank(pool) ? consts.ASYNC_POOL : pool.trim();
+            String runningStatus = consts.RUNNING;
+            if (normalizedPool == consts.ASYNC_POOL) {
                 return [
                     SELECT COUNT()
                     FROM Thread__c
-                    WHERE Status__c = 'Running'
+                    WHERE Status__c = :runningStatus
                         AND (Pool__c = :normalizedPool OR Pool__c = null)
                 ];
             }
@@ -664,60 +669,67 @@ public virtual with sharing class Thread {
             return [
                 SELECT COUNT()
                 FROM Thread__c
-                WHERE Status__c = 'Running'
+                WHERE Status__c = :runningStatus
                     AND Pool__c = :normalizedPool
             ];
         }
 
         public virtual Integer countRunningThreads(Id userId) {
-            return countRunningThreads(userId, ASYNC_POOL);
+            return countRunningThreads(userId, consts.ASYNC_POOL);
         }
 
         public virtual Integer countRunningThreads(Id userId, String pool) {
-            String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
-            if (normalizedPool == ASYNC_POOL) {
+            String normalizedPool = String.isBlank(pool) ? consts.ASYNC_POOL : pool.trim();
+            String runningStatus = consts.RUNNING;
+            if (normalizedPool == consts.ASYNC_POOL) {
                 return [
                     SELECT COUNT()
                     FROM Thread__c
-                    WHERE Status__c = 'Running'
+                    WHERE Status__c = :runningStatus
                         AND CreatedById = :userId
                         AND (Pool__c = :normalizedPool OR Pool__c = null)
                 ];
+            }
+            if (!ThreadRunner.service.isUserScoped(normalizedPool)) {
+                return countRunningThreads(normalizedPool);
             }
 
             return [
                 SELECT COUNT()
                 FROM Thread__c
-                WHERE Status__c = 'Running'
+                WHERE Status__c = :runningStatus
                     AND CreatedById = :userId
                     AND Pool__c = :normalizedPool
             ];
         }
 
         public virtual Integer countRunningThreads() {
+            String runningStatus = consts.RUNNING;
             return [
                 SELECT COUNT()
                 FROM Thread__c
-                WHERE Status__c = 'Running'
+                WHERE Status__c = :runningStatus
             ];
         }
 
         public virtual Integer countRunningThreadsExcluding(Id excludedThreadId) {
+            String runningStatus = consts.RUNNING;
             return [
                 SELECT COUNT()
                 FROM Thread__c
-                WHERE Status__c = 'Running'
+                WHERE Status__c = :runningStatus
                     AND Id != :excludedThreadId
             ];
         }
 
         public virtual Integer countRunningThreadsExcluding(String pool, Id excludedThreadId) {
-            String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
-            if (normalizedPool == ASYNC_POOL) {
+            String normalizedPool = String.isBlank(pool) ? consts.ASYNC_POOL : pool.trim();
+            String runningStatus = consts.RUNNING;
+            if (normalizedPool == consts.ASYNC_POOL) {
                 return [
                     SELECT COUNT()
                     FROM Thread__c
-                    WHERE Status__c = 'Running'
+                    WHERE Status__c = :runningStatus
                         AND Id != :excludedThreadId
                         AND (Pool__c = :normalizedPool OR Pool__c = null)
                 ];
@@ -726,29 +738,33 @@ public virtual with sharing class Thread {
             return [
                 SELECT COUNT()
                 FROM Thread__c
-                WHERE Status__c = 'Running'
+                WHERE Status__c = :runningStatus
                     AND Id != :excludedThreadId
                     AND Pool__c = :normalizedPool
             ];
         }
 
         public virtual Integer countRunningThreadsExcluding(Id userId, String pool, Id excludedThreadId) {
-            String normalizedPool = String.isBlank(pool) ? ASYNC_POOL : pool.trim();
-            if (normalizedPool == ASYNC_POOL) {
+            String normalizedPool = String.isBlank(pool) ? consts.ASYNC_POOL : pool.trim();
+            String runningStatus = consts.RUNNING;
+            if (normalizedPool == consts.ASYNC_POOL) {
                 return [
                     SELECT COUNT()
                     FROM Thread__c
-                    WHERE Status__c = 'Running'
+                    WHERE Status__c = :runningStatus
                         AND Id != :excludedThreadId
                         AND CreatedById = :userId
                         AND (Pool__c = :normalizedPool OR Pool__c = null)
                 ];
             }
+            if (!ThreadRunner.service.isUserScoped(normalizedPool)) {
+                return countRunningThreadsExcluding(normalizedPool, excludedThreadId);
+            }
 
             return [
                 SELECT COUNT()
                 FROM Thread__c
-                WHERE Status__c = 'Running'
+                WHERE Status__c = :runningStatus
                     AND Id != :excludedThreadId
                     AND CreatedById = :userId
                     AND Pool__c = :normalizedPool
@@ -757,10 +773,11 @@ public virtual with sharing class Thread {
 
         public virtual List<Thread__c> getRecoverableThreads(DateTime staleBefore, Integer batchSize) {
             Integer safeBatchSize = batchSize == null || batchSize < 1 ? 10 : batchSize;
+            String doneStatus = consts.DONE;
             List<Thread__c> candidates = (List<Thread__c>) Query.records([
                 SELECT Id
                 FROM Thread__c
-                WHERE Status__c != 'Done'
+                WHERE Status__c != :doneStatus
                     AND Heartbeat__c < :staleBefore
                 ORDER BY Heartbeat__c ASC
                 LIMIT :safeBatchSize
@@ -776,7 +793,7 @@ public virtual with sharing class Thread {
                 SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c, Pause_Reason__c
                 FROM Thread__c
                 WHERE Id IN :candidateIds
-                    AND Status__c != 'Done'
+                    AND Status__c != :doneStatus
                     AND Heartbeat__c < :staleBefore
                 FOR UPDATE
             ]));
@@ -791,10 +808,11 @@ public virtual with sharing class Thread {
 
         public virtual List<Thread__c> getPausedThreads(Integer batchSize) {
             Integer safeBatchSize = batchSize == null || batchSize < 1 ? 10 : batchSize;
+            String pausedStatus = consts.PAUSED;
             List<Thread__c> candidates = (List<Thread__c>) Query.records([
                 SELECT Id
                 FROM Thread__c
-                WHERE Status__c = 'Paused'
+                WHERE Status__c = :pausedStatus
                 ORDER BY Heartbeat__c ASC
                 LIMIT :safeBatchSize
             ]);
@@ -809,7 +827,7 @@ public virtual with sharing class Thread {
                 SELECT Id, Pool__c, Status__c, Run_Key__c, Heartbeat__c, Pause_Reason__c
                 FROM Thread__c
                 WHERE Id IN :candidateIds
-                    AND Status__c = 'Paused'
+                    AND Status__c = :pausedStatus
                 FOR UPDATE
             ]));
             List<Thread__c> lockedThreads = new List<Thread__c>();

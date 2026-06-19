@@ -1,24 +1,26 @@
 # ThreadService & Multithreading — Roadmap
 
-Shared concurrency infrastructure beneath thread-based work (`Async` today,
-future `Event`). The current implementation is described in `./AGENTS.md`; this
-file tracks remaining proposed work. Cross-cutting roadmap principles and
+Shared concurrency infrastructure beneath thread-based work (`Async` and
+`EventRelay` today). The current implementation is described in `./AGENTS.md`;
+this file tracks remaining proposed work. Cross-cutting roadmap principles and
 feature sequencing live in the repo root `ROADMAP.md`.
 
 `Thread` and `Thread__c` are deliberately *shared* infrastructure
 (like `Limiter` in `../limiter/ROADMAP.md`). `Async`
-(`../async/ROADMAP.md`) and the future `Event` framework
-(`../event/ROADMAP.md`) are both consumers; their work items can share a thread
-so chained work stays linear and understandable.
+(`../async/ROADMAP.md`) and `EventRelay` (`../event/ROADMAP.md`) are both
+consumers; their work items can share a thread so chained work stays linear and
+understandable.
 
 These are intended designs, not finalized public APIs. Ask before locking
 names, schemas, metadata objects, or behavior that does not exist yet.
 
 ## Multithreading — Thread-owned cap + backlog handoff
 
-Status: core cap, handoff, generalized `ThreadRunner` dispatch, and unified
-recovery are implemented for `Async` through `Thread__c`. Event integration and
-Limiter integration remain future work.
+Status: core cap, handoff, generalized `ThreadRunner` dispatch, unified
+recovery, EventRelay dispatch, and Limiter safety checks are implemented through
+`Thread__c`. Remaining work should refine pool policy, operator visibility, and
+future framework extension points without making Thread own framework-specific
+business behavior.
 
 Today the framework runs effectively one logical thread per originating
 transaction: work is tagged with a `threadId` (`Thread__c`) and a single

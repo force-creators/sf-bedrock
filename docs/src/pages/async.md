@@ -475,6 +475,6 @@ business code.
   `Async_Job__mdt.Max_Retries__c`, or use the Console/operator recovery path
   where retry actions are available and permissions allow them. Manual recovery
   is an operational workflow, not a direct object-editing recipe.
-- **There is no stuck-running recovery yet.** If a platform incident, aborted
-  job, or finalizer failure leaves work stuck as running, recovery is a future
-  hardening item.
+- **Stuck-running work is recoverable.** Thread recovery can reset stranded
+  `Running` `Async__c` rows back to `Pending` and restart the owning thread
+  when limits and capacity are safe.

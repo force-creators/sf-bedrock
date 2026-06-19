@@ -4,9 +4,9 @@ public with sharing class ThreadDashboardControllerTest {
         Datetime now = System.now();
         Thread.settings.setSettings(new Thread_Settings__c(Recovery_Threshold_Minutes__c = 10));
         DML.insertRecords(new List<SObject> {
-            thread(Thread.RUNNING, now.addMinutes(-1), null),
-            thread(Thread.PENDING, now.addMinutes(-20), null),
-            thread(Thread.DONE, now.addMinutes(-30), now)
+            thread(Thread.consts.RUNNING, now.addMinutes(-1), null),
+            thread(Thread.consts.PENDING, now.addMinutes(-20), null),
+            thread(Thread.consts.DONE, now.addMinutes(-30), now)
         });
 
         Test.startTest();
@@ -22,7 +22,7 @@ public with sharing class ThreadDashboardControllerTest {
     static Thread__c thread(String status, Datetime heartbeatAt, Datetime completedAt) {
         return new Thread__c(
             Status__c = status,
-            Pool__c = Thread.ASYNC_POOL,
+            Pool__c = Thread.consts.ASYNC_POOL,
             Thread_Key__c = 'request:' + status,
             Heartbeat__c = heartbeatAt,
             Completed__c = completedAt

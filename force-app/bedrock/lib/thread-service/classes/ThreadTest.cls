@@ -13,7 +13,7 @@ public with sharing class ThreadTest {
 
         Assert.areEqual(threadId, Thread.currentId(), 'Expected Thread.currentOrCreate to cache the created thread id.');
         Assert.isNotNull(threadId, 'Expected Thread.currentOrCreate to return a usable thread id.');
-        Assert.areEqual(Thread.ASYNC_POOL, threadRecord.Pool__c, 'Expected Thread.currentOrCreate to tag new threads with the Async pool by default.');
+        Assert.areEqual(Thread.consts.ASYNC_POOL, threadRecord.Pool__c, 'Expected Thread.currentOrCreate to tag new threads with the Async pool by default.');
         Assert.isTrue(threadRecord.Thread_Key__c.startsWith('request:'), 'Expected Thread.currentOrCreate to store a request-scoped thread key by default.');
         Assert.areEqual(64, threadRecord.Unique_Key__c.length(),
             'Expected Thread.currentOrCreate to store a generated hash key for uniqueness.');
@@ -23,8 +23,8 @@ public with sharing class ThreadTest {
         Thread.setMock(new ThreadMock());
 
         Id asyncThreadId = Thread.currentOrCreate();
-        Id eventThreadId = Thread.currentOrCreate(EventRelay.PROCESS_POOL, 'AccountChanged');
-        Id sameEventThreadId = Thread.currentOrCreate(EventRelay.PROCESS_POOL, 'AccountChanged');
+        Id eventThreadId = Thread.currentOrCreate(EventRelay.consts.PROCESS_POOL, 'AccountChanged');
+        Id sameEventThreadId = Thread.currentOrCreate(EventRelay.consts.PROCESS_POOL, 'AccountChanged');
         List<Thread__c> threads = [
             SELECT Pool__c, Thread_Key__c, Unique_Key__c
             FROM Thread__c
@@ -41,21 +41,21 @@ public with sharing class ThreadTest {
     }
 
     @istest static void testQueryService_getNextPendingThreadFiltersByPool() {
-        Thread__c asyncThread = thread(Thread.ASYNC_POOL, 'request:oldest');
-        Thread__c eventThread = thread(EventRelay.PROCESS_POOL, 'AccountChanged');
+        Thread__c asyncThread = thread(Thread.consts.ASYNC_POOL, 'request:oldest');
+        Thread__c eventThread = thread(EventRelay.consts.PROCESS_POOL, 'AccountChanged');
         insert new List<Thread__c> { asyncThread, eventThread };
 
-        Thread__c nextEventThread = new Thread.QueryService().getNextPendingThread(EventRelay.PROCESS_POOL);
+        Thread__c nextEventThread = new Thread.QueryService().getNextPendingThread(EventRelay.consts.PROCESS_POOL);
 
         Assert.areEqual(eventThread.Id, nextEventThread.Id,
             'Expected pending-thread claims to select work from the requested pool.');
     }
 
     @istest static void testQueryService_getNextPendingThreadIgnoresPausedThreads() {
-        Thread__c pausedThread = thread(Thread.ASYNC_POOL, 'request:paused');
-        pausedThread.Status__c = Thread.PAUSED;
+        Thread__c pausedThread = thread(Thread.consts.ASYNC_POOL, 'request:paused');
+        pausedThread.Status__c = Thread.consts.PAUSED;
         pausedThread.Pause_Reason__c = 'Daily async Apex execution limit is not safe.';
-        Thread__c pendingThread = thread(Thread.ASYNC_POOL, 'request:pending');
+        Thread__c pendingThread = thread(Thread.consts.ASYNC_POOL, 'request:pending');
         insert new List<Thread__c> { pausedThread, pendingThread };
 
         Thread__c nextThread = new Thread.QueryService().getNextPendingThread();
@@ -99,7 +99,7 @@ public with sharing class ThreadTest {
         Thread.setMock(mock);
         Id threadId = Thread.currentOrCreate();
         String runKey = Thread.service.startRun(threadId);
-        Thread__c nextThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c nextThread = new Thread__c(Status__c = Thread.consts.PENDING);
         insert nextThread;
         mock.queries.pendingThreads.add(nextThread);
         Async.queries = new EmptyWorkQueryService();
@@ -117,13 +117,13 @@ public with sharing class ThreadTest {
         ThreadRunner.reset();
         EventRelay.queries = new EmptyEventWorkQueryService();
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
-        Thread__c eventThread = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
-        eventThread.Status__c = Thread.RUNNING;
-        Thread__c asyncThread = thread(Thread.ASYNC_POOL, 'event-created-async');
+        Thread__c eventThread = thread(EventRelay.consts.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        eventThread.Status__c = Thread.consts.RUNNING;
+        Thread__c asyncThread = thread(Thread.consts.ASYNC_POOL, 'event-created-async');
         insert new List<Thread__c> { eventThread, asyncThread };
         Thread.setCurrent(eventThread.Id);
         String runKey = Thread.service.startRun(eventThread.Id);
-        mock.queries.pendingThreadsByPool.put(Thread.ASYNC_POOL, new List<Thread__c> { asyncThread });
+        mock.queries.pendingThreadsByPool.put(Thread.consts.ASYNC_POOL, new List<Thread__c> { asyncThread });
 
         Thread.continueCurrent(runKey);
 
@@ -142,8 +142,8 @@ public with sharing class ThreadTest {
         EventRelay.queries = new EmptyEventWorkQueryService();
         Async.queries = new PendingWorkQueryService();
         Async.jobs = new SpyJobService();
-        Thread__c eventThread = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
-        eventThread.Status__c = Thread.RUNNING;
+        Thread__c eventThread = thread(EventRelay.consts.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        eventThread.Status__c = Thread.consts.RUNNING;
         insert eventThread;
         Thread.setCurrent(eventThread.Id);
         String runKey = Thread.service.startRun(eventThread.Id);
@@ -165,7 +165,7 @@ public with sharing class ThreadTest {
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
         mock.threads.runningThreads(1);
         Id threadId = Thread.currentOrCreate();
-        mock.threads.queries.pendingThreads.add(new Thread__c(Id = threadId, Status__c = Thread.PENDING));
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = threadId, Status__c = Thread.consts.PENDING));
 
         Thread.enqueue();
 
@@ -179,7 +179,7 @@ public with sharing class ThreadTest {
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
         mock.threads.runningThreads(1);
-        Thread__c olderPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c olderPendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
         insert olderPendingThread;
         Id currentThreadId = Thread.currentOrCreate();
         mock.threads.queries.pendingThreads.add(olderPendingThread);
@@ -201,13 +201,13 @@ public with sharing class ThreadTest {
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 3));
         mock.threads.runningThreads(0);
-        Thread__c oldestPendingThread = new Thread__c(Status__c = Thread.PENDING);
-        Thread__c nextPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c oldestPendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
+        Thread__c nextPendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
         insert new List<Thread__c> { oldestPendingThread, nextPendingThread };
         Id currentThreadId = Thread.currentOrCreate();
         mock.threads.queries.pendingThreads.add(oldestPendingThread);
         mock.threads.queries.pendingThreads.add(nextPendingThread);
-        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.PENDING));
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.consts.PENDING));
 
         Thread.enqueue();
 
@@ -225,13 +225,13 @@ public with sharing class ThreadTest {
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
         mock.threads.runningThreads(1);
-        Thread__c firstPendingThread = new Thread__c(Status__c = Thread.PENDING);
-        Thread__c secondPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c firstPendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
+        Thread__c secondPendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
         insert new List<Thread__c> { firstPendingThread, secondPendingThread };
         Id currentThreadId = Thread.currentOrCreate();
         mock.threads.queries.pendingThreads.add(firstPendingThread);
         mock.threads.queries.pendingThreads.add(secondPendingThread);
-        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.PENDING));
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.consts.PENDING));
 
         Thread.enqueue();
 
@@ -247,13 +247,13 @@ public with sharing class ThreadTest {
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 3));
         mock.threads.runningThreads(0);
-        Thread__c firstPendingThread = new Thread__c(Status__c = Thread.PENDING);
-        Thread__c secondPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c firstPendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
+        Thread__c secondPendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
         insert new List<Thread__c> { firstPendingThread, secondPendingThread };
         Id currentThreadId = Thread.currentOrCreate();
         mock.threads.queries.pendingThreads.add(firstPendingThread);
         mock.threads.queries.pendingThreads.add(secondPendingThread);
-        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.PENDING));
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.consts.PENDING));
         for (Integer i = 0; i < 49; i++) {
             System.enqueueJob(new NoOpQueueable());
         }
@@ -272,13 +272,13 @@ public with sharing class ThreadTest {
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 3));
         mock.threads.runningThreads(0);
-        Thread__c olderPendingThread = new Thread__c(Status__c = Thread.PENDING);
-        Thread__c newerPendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c olderPendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
+        Thread__c newerPendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
         insert new List<Thread__c> { olderPendingThread, newerPendingThread };
         Id currentThreadId = Thread.currentOrCreate();
         mock.threads.queries.pendingThreads.add(olderPendingThread);
         mock.threads.queries.pendingThreads.add(newerPendingThread);
-        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.PENDING));
+        mock.threads.queries.pendingThreads.add(new Thread__c(Id = currentThreadId, Status__c = Thread.consts.PENDING));
 
         insert workItem(String.valueOf(NoOpAsync.class), UserInfo.getUserId(), 'Pending', currentThreadId);
 
@@ -295,7 +295,7 @@ public with sharing class ThreadTest {
             .canEnqueue();
         Async.setMock(mock);
         mock.threads.service.isFinalizer = true;
-        mock.threads.queries.pendingThreads.add(new Thread__c(Status__c = Thread.PENDING));
+        mock.threads.queries.pendingThreads.add(new Thread__c(Status__c = Thread.consts.PENDING));
 
         Thread.enqueue();
 
@@ -308,11 +308,11 @@ public with sharing class ThreadTest {
             .canEnqueue();
         Thread.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 2));
-        Thread__c eventThread = thread(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        Thread__c eventThread = thread(EventRelay.consts.PUBLISH_POOL, 'Bedrock_Test_Event__e');
         insert eventThread;
         mock.queries.pendingThreads.add(eventThread);
 
-        Thread.wake(EventRelay.PUBLISH_POOL);
+        Thread.wake(EventRelay.consts.PUBLISH_POOL);
 
         Assert.areEqual(1, mock.service.startCalls,
             'Expected Thread.wake to start pending work in the requested pool.');
@@ -327,7 +327,7 @@ public with sharing class ThreadTest {
         Async.setMock(mock);
         Thread.settings.setSettings(new Thread_Settings__c(Max_Threads__c = 1));
         mock.threads.runningThreadCounts(new List<Integer> { 0, 1 });
-        Thread__c pendingThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c pendingThread = new Thread__c(Status__c = Thread.consts.PENDING);
         insert pendingThread;
         mock.threads.queries.pendingThreads.add(pendingThread);
 
@@ -340,7 +340,7 @@ public with sharing class ThreadTest {
         ];
         Assert.areEqual(null, claimedThreadId,
             'Expected Thread.claimNext to stop when thread capacity is no longer available after selecting a pending thread.');
-        Assert.areEqual(Thread.PENDING, storedThread.Status__c,
+        Assert.areEqual(Thread.consts.PENDING, storedThread.Status__c,
             'Expected Thread.claimNext to leave the selected thread pending when no slot remains.');
     }
 
@@ -364,7 +364,7 @@ public with sharing class ThreadTest {
         Thread.setMock(mock);
         Id threadId = Thread.currentOrCreate();
         String runKey = Thread.service.startRun(threadId);
-        Thread__c nextThread = new Thread__c(Status__c = Thread.PENDING);
+        Thread__c nextThread = new Thread__c(Status__c = Thread.consts.PENDING);
         insert nextThread;
         mock.queries.pendingThreads.add(nextThread);
         Async.queries = new EmptyWorkQueryService();
@@ -377,8 +377,8 @@ public with sharing class ThreadTest {
     }
 
     @istest static void testDeleteDrained_deletesOnlyThreadsWithoutAsyncWork() {
-        Thread__c drainedThread = new Thread__c(Status__c = Thread.DONE);
-        Thread__c activeThread = new Thread__c(Status__c = Thread.DONE);
+        Thread__c drainedThread = new Thread__c(Status__c = Thread.consts.DONE);
+        Thread__c activeThread = new Thread__c(Status__c = Thread.consts.DONE);
         insert new List<Thread__c> { drainedThread, activeThread };
 
         DML.insertRecords(new List<SObject> {
@@ -410,7 +410,7 @@ public with sharing class ThreadTest {
     @istest static void testQueryService_getRecoverableThreadsLocksOrderedCandidates() {
         DateTime now = System.now();
         Thread__c doneThread = staleThread('done');
-        doneThread.Status__c = Thread.DONE;
+        doneThread.Status__c = Thread.consts.DONE;
         doneThread.Heartbeat__c = now.addMinutes(-40);
         Thread__c oldestThread = staleThread('oldest');
         oldestThread.Heartbeat__c = now.addMinutes(-30);
@@ -441,7 +441,7 @@ public with sharing class ThreadTest {
     }
 
     @istest static void testStartRun_stampsLifecycleAndRunKey() {
-        Thread__c threadRecord = thread(Thread.ASYNC_POOL, 'request:start');
+        Thread__c threadRecord = thread(Thread.consts.ASYNC_POOL, 'request:start');
         insert threadRecord;
 
         String runKey = Thread.service.startRun(threadRecord.Id);
@@ -451,7 +451,7 @@ public with sharing class ThreadTest {
             FROM Thread__c
             WHERE Id = :threadRecord.Id
         ];
-        Assert.areEqual(Thread.RUNNING, storedThread.Status__c, 'Expected starting a thread run to mark it Running.');
+        Assert.areEqual(Thread.consts.RUNNING, storedThread.Status__c, 'Expected starting a thread run to mark it Running.');
         Assert.isNotNull(storedThread.Started__c, 'Expected starting a thread run to stamp Started.');
         Assert.isNotNull(storedThread.Heartbeat__c, 'Expected starting a thread run to refresh Heartbeat.');
         Assert.areEqual(null, storedThread.Completed__c, 'Expected starting a thread run to clear Completed.');
@@ -459,7 +459,7 @@ public with sharing class ThreadTest {
     }
 
     @istest static void testPause_marksThreadPausedWithReasonAndFencesRunKey() {
-        Thread__c threadRecord = thread(Thread.ASYNC_POOL, 'request:pause');
+        Thread__c threadRecord = thread(Thread.consts.ASYNC_POOL, 'request:pause');
         insert threadRecord;
         String runKey = Thread.service.startRun(threadRecord.Id);
 
@@ -470,7 +470,7 @@ public with sharing class ThreadTest {
             FROM Thread__c
             WHERE Id = :threadRecord.Id
         ];
-        Assert.areEqual(Thread.PAUSED, pausedThread.Status__c,
+        Assert.areEqual(Thread.consts.PAUSED, pausedThread.Status__c,
             'Expected Thread.pause to park the thread.');
         Assert.areEqual('Daily async Apex execution limit is not safe.', pausedThread.Pause_Reason__c,
             'Expected Thread.pause to store an operator-visible reason.');
@@ -479,8 +479,8 @@ public with sharing class ThreadTest {
     }
 
     @istest static void testResume_marksPausedThreadPendingAndClearsReason() {
-        Thread__c threadRecord = thread(Thread.ASYNC_POOL, 'request:resume');
-        threadRecord.Status__c = Thread.PAUSED;
+        Thread__c threadRecord = thread(Thread.consts.ASYNC_POOL, 'request:resume');
+        threadRecord.Status__c = Thread.consts.PAUSED;
         threadRecord.Pause_Reason__c = 'Daily async Apex execution limit is not safe.';
         threadRecord.Completed__c = System.now();
         threadRecord.Run_Key__c = 'old-run-key';
@@ -493,7 +493,7 @@ public with sharing class ThreadTest {
             FROM Thread__c
             WHERE Id = :threadRecord.Id
         ];
-        Assert.areEqual(Thread.PENDING, resumedThread.Status__c,
+        Assert.areEqual(Thread.consts.PENDING, resumedThread.Status__c,
             'Expected Thread.resume to make paused work claimable again.');
         Assert.isNull(resumedThread.Pause_Reason__c,
             'Expected Thread.resume to clear the old pause reason.');
@@ -506,7 +506,7 @@ public with sharing class ThreadTest {
     @istest static void testContinueCurrent_staleRunKeyDoesNotAdvanceThread() {
         ThreadMock mock = new ThreadMock();
         Thread.setMock(mock);
-        Thread__c threadRecord = thread(Thread.ASYNC_POOL, 'request:stale');
+        Thread__c threadRecord = thread(Thread.consts.ASYNC_POOL, 'request:stale');
         insert threadRecord;
         Thread.setCurrent(threadRecord.Id);
         Thread.service.startRun(threadRecord.Id);
@@ -538,7 +538,7 @@ public with sharing class ThreadTest {
             FROM Thread__c
             WHERE Id = :staleThread.Id
         ];
-        Assert.areEqual(Thread.RUNNING, recoveredThread.Status__c, 'Expected recovery to leave recoverable work Running for the replacement chain.');
+        Assert.areEqual(Thread.consts.RUNNING, recoveredThread.Status__c, 'Expected recovery to leave recoverable work Running for the replacement chain.');
         Assert.areNotEqual('old-run-key', recoveredThread.Run_Key__c, 'Expected recovery to advance the run key before restart.');
         Assert.isNotNull(recoveredThread.Heartbeat__c, 'Expected recovery to refresh the stale heartbeat.');
         Assert.areEqual(1, dispatcher.prepareRecoveryCalls, 'Expected recovery to let the dispatcher prepare stranded work.');
@@ -551,8 +551,8 @@ public with sharing class ThreadTest {
         ThreadMock mock = new ThreadMock()
             .seedSettings(new Thread_Settings__c(Max_Threads__c = 2));
         Thread.setMock(mock);
-        Thread__c pausedThread = thread(Thread.ASYNC_POOL, 'paused-recovery');
-        pausedThread.Status__c = Thread.PAUSED;
+        Thread__c pausedThread = thread(Thread.consts.ASYNC_POOL, 'paused-recovery');
+        pausedThread.Status__c = Thread.consts.PAUSED;
         pausedThread.Pause_Reason__c = 'Daily async Apex execution limit is not safe.';
         pausedThread.Run_Key__c = null;
         insert pausedThread;
@@ -569,7 +569,7 @@ public with sharing class ThreadTest {
             FROM Thread__c
             WHERE Id = :pausedThread.Id
         ];
-        Assert.areEqual(Thread.RUNNING, recoveredThread.Status__c,
+        Assert.areEqual(Thread.consts.RUNNING, recoveredThread.Status__c,
             'Expected recovery to restart paused threads when limits are safe.');
         Assert.isNull(recoveredThread.Pause_Reason__c,
             'Expected paused-thread recovery to clear the old pause reason.');
@@ -599,7 +599,7 @@ public with sharing class ThreadTest {
             FROM Thread__c
             WHERE Id = :staleThread.Id
         ];
-        Assert.areEqual(Thread.DONE, completedThread.Status__c, 'Expected recovery to complete stale threads with no recoverable work.');
+        Assert.areEqual(Thread.consts.DONE, completedThread.Status__c, 'Expected recovery to complete stale threads with no recoverable work.');
         Assert.isNotNull(completedThread.Completed__c, 'Expected recovery completion to stamp Completed.');
         Assert.areEqual(0, runner.startCalls, 'Expected recovery not to start a replacement chain when no work remains.');
     }
@@ -624,7 +624,7 @@ public with sharing class ThreadTest {
             FROM Thread__c
             WHERE Id = :staleThread.Id
         ];
-        Assert.areEqual(Thread.RUNNING, untouchedThread.Status__c, 'Expected disabled recovery to leave stale threads untouched.');
+        Assert.areEqual(Thread.consts.RUNNING, untouchedThread.Status__c, 'Expected disabled recovery to leave stale threads untouched.');
         Assert.areEqual('old-run-key', untouchedThread.Run_Key__c, 'Expected disabled recovery not to fence the existing run key.');
         Assert.areEqual(0, runner.startCalls, 'Expected disabled recovery not to start a replacement chain.');
     }
@@ -669,7 +669,7 @@ public with sharing class ThreadTest {
             FROM Thread__c
             WHERE Id = :threadId
         ];
-        Assert.areEqual(Thread.PAUSED, pausedThread.Status__c,
+        Assert.areEqual(Thread.consts.PAUSED, pausedThread.Status__c,
             'Expected Thread continuation to pause instead of enqueueing when async limits are unsafe.');
         Assert.areEqual('Daily async Apex execution limit is not safe.', pausedThread.Pause_Reason__c,
             'Expected Thread continuation to explain the limiter pause.');
@@ -679,7 +679,7 @@ public with sharing class ThreadTest {
 
     @istest static void testReopen_marksDoneThreadPending() {
         Thread__c drainedThread = thread('EventRelayPublish', 'Bedrock_Test_Event__e');
-        drainedThread.Status__c = Thread.DONE;
+        drainedThread.Status__c = Thread.consts.DONE;
         drainedThread.Completed__c = System.now();
         drainedThread.Run_Key__c = 'old-run-key';
         insert drainedThread;
@@ -691,7 +691,7 @@ public with sharing class ThreadTest {
             FROM Thread__c
             WHERE Id = :drainedThread.Id
         ];
-        Assert.areEqual(Thread.PENDING, reopenedThread.Status__c,
+        Assert.areEqual(Thread.consts.PENDING, reopenedThread.Status__c,
             'Expected appending new lane work to reopen a drained thread for dispatch.');
         Assert.isNull(reopenedThread.Completed__c,
             'Expected reopened threads to clear their completed timestamp.');
@@ -780,7 +780,7 @@ public with sharing class ThreadTest {
 
     static Thread__c thread(String pool, String threadKey) {
         return new Thread__c(
-            Status__c = Thread.PENDING,
+            Status__c = Thread.consts.PENDING,
             Pool__c = pool,
             Thread_Key__c = threadKey,
             Unique_Key__c = EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(pool + ':' + threadKey)))
@@ -788,8 +788,8 @@ public with sharing class ThreadTest {
     }
 
     static Thread__c staleThread(String threadKey) {
-        Thread__c threadRecord = thread(Thread.ASYNC_POOL, threadKey);
-        threadRecord.Status__c = Thread.RUNNING;
+        Thread__c threadRecord = thread(Thread.consts.ASYNC_POOL, threadKey);
+        threadRecord.Status__c = Thread.consts.RUNNING;
         threadRecord.Heartbeat__c = System.now().addMinutes(-30);
         threadRecord.Run_Key__c = 'old-run-key';
         return threadRecord;

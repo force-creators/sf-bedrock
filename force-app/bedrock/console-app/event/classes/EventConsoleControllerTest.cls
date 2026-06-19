@@ -1,17 +1,17 @@
 @istest(testFor='ApexClass:EventConsoleController')
 public with sharing class EventConsoleControllerTest {
     @istest static void testGetState_countsPublishWorkAndReturnsRows() {
-        Thread__c publishThread = threadRecord(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        Thread__c publishThread = threadRecord(EventRelay.consts.PUBLISH_POOL, 'Bedrock_Test_Event__e');
         Thread__c processThread = threadRecord('EventRelayProcess', 'Account');
         DML.insertRecords(new List<SObject>{ publishThread, processThread });
 
         DML.insertRecords(new List<SObject>{
-            workItem(EventRelay.PENDING, EventRelay.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', null),
-            workItem(EventRelay.RUNNING, EventRelay.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', null),
-            workItem(EventRelay.ERROR, EventRelay.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', 'Publish failed.'),
-            workItem(EventRelay.DONE, EventRelay.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', null),
-            workItem(EventRelay.STALE, EventRelay.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', 'Duplicate idempotency key.'),
-            workItem(EventRelay.ERROR, 'Process', processThread.Id, 'Account', 'Processing failed.')
+            workItem(EventRelay.consts.PENDING, EventRelay.consts.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', null),
+            workItem(EventRelay.consts.RUNNING, EventRelay.consts.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', null),
+            workItem(EventRelay.consts.ERROR, EventRelay.consts.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', 'Publish failed.'),
+            workItem(EventRelay.consts.DONE, EventRelay.consts.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', null),
+            workItem(EventRelay.consts.STALE, EventRelay.consts.PUBLISH, publishThread.Id, 'Bedrock_Test_Event__e', 'Duplicate idempotency key.'),
+            workItem(EventRelay.consts.ERROR, 'Process', processThread.Id, 'Account', 'Processing failed.')
         });
 
         Test.startTest();
@@ -30,7 +30,7 @@ public with sharing class EventConsoleControllerTest {
         Assert.areEqual(5, state.configRows[0].workItems, 'Expected config rows to count only publish work items.');
         Assert.areEqual(50, state.settings.publishBatchSize, 'Expected settings to expose the effective publish batch size.');
         Assert.areEqual(90, state.settings.limitThresholdPct, 'Expected settings to expose the event limit safety threshold.');
-        Assert.areEqual(EventRelay.PUBLISH_POOL, state.settings.publishPool, 'Expected settings to expose the publish thread pool.');
+        Assert.areEqual(EventRelay.consts.PUBLISH_POOL, state.settings.publishPool, 'Expected settings to expose the publish thread pool.');
         Assert.areEqual(publishThread.Id, state.backlogRows[0].threadId, 'Expected rows to expose the owning thread.');
         Assert.isNotNull(state.backlogRows[0].threadName, 'Expected rows to expose a thread display name.');
     }
@@ -39,22 +39,22 @@ public with sharing class EventConsoleControllerTest {
         EventRelay.reset();
         EventRelay.wakeSignal = new WakeServiceMock();
 
-        Thread__c publishThread = threadRecord(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
-        publishThread.Status__c = Thread.DONE;
+        Thread__c publishThread = threadRecord(EventRelay.consts.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        publishThread.Status__c = Thread.consts.DONE;
         publishThread.Completed__c = System.now();
         publishThread.Run_Key__c = 'old-run-key';
         insert publishThread;
 
         Event__c errored = workItem(
-            EventRelay.ERROR,
-            EventRelay.PUBLISH,
+            EventRelay.consts.ERROR,
+            EventRelay.consts.PUBLISH,
             publishThread.Id,
             'Bedrock_Test_Event__e',
             'Publish failed.'
         );
         Event__c done = workItem(
-            EventRelay.DONE,
-            EventRelay.PUBLISH,
+            EventRelay.consts.DONE,
+            EventRelay.consts.PUBLISH,
             publishThread.Id,
             'Bedrock_Test_Event__e',
             null
@@ -73,35 +73,35 @@ public with sharing class EventConsoleControllerTest {
             FROM Event__c
             WHERE Id IN :workItemIds
         ]);
-        Assert.areEqual(EventRelay.PENDING, workById.get(errored.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.PENDING, workById.get(errored.Id).Status__c,
             'Expected console retry to requeue failed work.');
         Assert.areEqual(null, workById.get(errored.Id).Error_Message__c,
             'Expected console retry to clear the failed work error message.');
-        Assert.areEqual(EventRelay.DONE, workById.get(done.Id).Status__c,
+        Assert.areEqual(EventRelay.consts.DONE, workById.get(done.Id).Status__c,
             'Expected console retry to ignore completed work.');
     }
 
     @istest static void testDeleteWorkItems_deletesOnlyFailedPublishWork() {
-        Thread__c publishThread = threadRecord(EventRelay.PUBLISH_POOL, 'Bedrock_Test_Event__e');
+        Thread__c publishThread = threadRecord(EventRelay.consts.PUBLISH_POOL, 'Bedrock_Test_Event__e');
         Thread__c processThread = threadRecord('EventRelayProcess', 'Account');
         DML.insertRecords(new List<SObject>{ publishThread, processThread });
 
         Event__c errored = workItem(
-            EventRelay.ERROR,
-            EventRelay.PUBLISH,
+            EventRelay.consts.ERROR,
+            EventRelay.consts.PUBLISH,
             publishThread.Id,
             'Bedrock_Test_Event__e',
             'Publish failed.'
         );
         Event__c done = workItem(
-            EventRelay.DONE,
-            EventRelay.PUBLISH,
+            EventRelay.consts.DONE,
+            EventRelay.consts.PUBLISH,
             publishThread.Id,
             'Bedrock_Test_Event__e',
             null
         );
         Event__c processError = workItem(
-            EventRelay.ERROR,
+            EventRelay.consts.ERROR,
             'Process',
             processThread.Id,
             'Account',
@@ -132,7 +132,7 @@ public with sharing class EventConsoleControllerTest {
 
     static Thread__c threadRecord(String pool, String threadKey) {
         return new Thread__c(
-            Status__c = Thread.PENDING,
+            Status__c = Thread.consts.PENDING,
             Pool__c = pool,
             Thread_Key__c = threadKey,
             Heartbeat__c = System.now()

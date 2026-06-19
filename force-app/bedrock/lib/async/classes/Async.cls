@@ -1,4 +1,5 @@
 public virtual with sharing class Async implements Queueable, Database.AllowsCallouts {
+    public static Constants consts = new Constants();
     public static JobService jobs = new JobService();
     public static WorkService work = new WorkService();
     public static QueryService queries = new QueryService();
@@ -151,8 +152,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
         public virtual void enqueueNextJob(Id threadId, Integer failures, String runKey) {
             Async__c nextWorkItem = queries.getNextWorkItem(threadId);
-            System.debug(nextWorkItem);
-            if(nextWorkItem == null) return; //todo: this should never happen, throw an exception and alert.
+            if (nextWorkItem == null) return;
             Async_Job__mdt config = queries.getJobConfig(nextWorkItem.Apex__c);
             List<Async__c> workItems = Async.queries.getMatchingWorkItems(
                 threadId, nextWorkItem.Apex__c, Integer.valueOf(config.Batch_Size__c));
@@ -292,7 +292,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             for (Id recordId : recordIds) {
                 Async__c workItem = new Async__c(
                     Record_Id__c = String.valueOf(recordId),
-                    Status__c = 'Pending',
+                    Status__c = consts.PENDING,
                     Apex__c = apexClass,
                     Priority__c = priority
                 );
@@ -334,21 +334,19 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual void complete(Set<Id> workItemIds) {
-            updateStatus(workItemIds, new Async__c(Status__c = 'Done'));
+            updateStatus(workItemIds, new Async__c(Status__c = consts.DONE));
         }
 
         public virtual void fail(Set<Id> workItemIds, String message, String stackTrace) {
             updateStatus(workItemIds, new Async__c(
-                Status__c = 'Error',
+                Status__c = consts.ERROR,
                 Error_Message__c = truncate(message),
                 Error_Stack_Trace__c = truncate(stackTrace)
             ));
         }
 
         public virtual void retry(Set<Id> workItemIds) {
-            System.debug('Current Thread: ' + Thread.currentId());
-            System.debug('TX: Id:' + Request.getCurrent().getRequestId());
-            Async__c values = new Async__c(Status__c = 'Pending');
+            Async__c values = new Async__c(Status__c = consts.PENDING);
             values.put('Thread__c', Thread.currentOrCreate());
             updateStatus(workItemIds, values);
         }
@@ -361,7 +359,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 Decimal retryCount = workItem.Retry_Count__c == null ? 0 : workItem.Retry_Count__c;
                 Async__c updateRecord = new Async__c(
                     Id = workItem.Id,
-                    Status__c = 'Pending',
+                    Status__c = consts.PENDING,
                     Retry_Count__c = retryCount + 1
                 );
                 updateRecord.put('Thread__c', Thread.currentOrCreate());
@@ -372,11 +370,11 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual void running(Set<Id> workItemIds) {
-            updateStatus(workItemIds, new Async__c(Status__c = 'Running'));
+            updateStatus(workItemIds, new Async__c(Status__c = consts.RUNNING));
         }
 
         public virtual void prepareRecovery(Id threadId) {
-            updateStatus(Async.queries.getRunningWorkItemIds(threadId), new Async__c(Status__c = 'Pending'));
+            updateStatus(Async.queries.getRunningWorkItemIds(threadId), new Async__c(Status__c = consts.PENDING));
         }
 
         List<Id> idsFrom(List<Async__c> workItems) {
@@ -400,10 +398,10 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
             for (Id workItemId : workItemIds) {
                 Async__c updateRecord = new Async__c(Id = workItemId);
-                if(values.Status__c != null) updateRecord.Status__c = values.Status__c;
-                if(values.Error_Message__c != null) updateRecord.Error_Message__c = values.Error_Message__c;
-                if(values.Error_Stack_Trace__c != null) updateRecord.Error_Stack_Trace__c = values.Error_Stack_Trace__c;
-                if(values.get('Thread__c') != null) updateRecord.put('Thread__c', values.get('Thread__c'));
+                if (values.Status__c != null) updateRecord.Status__c = values.Status__c;
+                if (values.Error_Message__c != null) updateRecord.Error_Message__c = values.Error_Message__c;
+                if (values.Error_Stack_Trace__c != null) updateRecord.Error_Stack_Trace__c = values.Error_Stack_Trace__c;
+                if (values.get('Thread__c') != null) updateRecord.put('Thread__c', values.get('Thread__c'));
                 updates.add(updateRecord);
             }
                     
@@ -421,12 +419,12 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
     public virtual with sharing class QueryService {
         public virtual Async__c getNextWorkItem(Id threadId) {
-            System.debug(threadId);
+            String pendingStatus = consts.PENDING;
             List<Async__c> workItems = (List<Async__c>) Query.records(Database.query(
                 'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
                 'FROM Async__c ' +
                 'WHERE Thread__c = :threadId ' +
-                    'AND Status__c = \'Pending\' ' +
+                    'AND Status__c = :pendingStatus ' +
                 'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
                 'LIMIT 1'
             ));
@@ -434,12 +432,13 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         public virtual List<Async__c> getMatchingWorkItems(Id threadId, String apexClass, Integer batchSize) {
+            String pendingStatus = consts.PENDING;
             return (List<Async__c>) Query.records(Database.query(
                 'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
                 'FROM Async__c ' +
                 'WHERE Thread__c = :threadId ' +
                     'AND Apex__c = :apexClass ' +
-                    'AND Status__c = \'Pending\' ' +
+                    'AND Status__c = :pendingStatus ' +
                 'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
                 'LIMIT :batchSize'
             ));
@@ -455,11 +454,12 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
         public virtual Set<Id> getRunningWorkItemIds(Id threadId) {
             Set<Id> workItemIds = new Set<Id>();
+            String runningStatus = consts.RUNNING;
             for (Async__c workItem : (List<Async__c>) Query.records([
                 SELECT Id
                 FROM Async__c
                 WHERE Thread__c = :threadId
-                    AND Status__c = 'Running'
+                    AND Status__c = :runningStatus
             ])) {
                 workItemIds.add(workItem.Id);
             }
@@ -478,6 +478,13 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         public virtual Async_Job__mdt getJobConfig(String apexClass) {
             return Async.metadata.getConfig(apexClass);
         }
+    }
+
+    public virtual with sharing class Constants {
+        public String PENDING = 'Pending';
+        public String RUNNING = 'Running';
+        public String DONE = 'Done';
+        public String ERROR = 'Error';
     }
 
     public virtual with sharing class MetadataService {
