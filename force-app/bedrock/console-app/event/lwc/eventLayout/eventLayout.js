@@ -16,8 +16,8 @@ const AUTO_REFRESH_OPTIONS = [
 
 const METRIC_DEFINITIONS = [
     { id: 'backlog', label: 'Backlog', className: 'metric metric-pending' },
-    { id: 'running', label: 'Running', className: 'metric metric-running' },
     { id: 'errors', label: 'Errors', className: 'metric metric-error' },
+    { id: 'running', label: 'Publisher Lanes', className: 'metric metric-running' },
     { id: 'publishedToday', label: 'Published Today', className: 'metric metric-success' }
 ];
 
@@ -43,22 +43,14 @@ const ERROR_COLUMNS = [
     { label: 'Updated Date', fieldName: 'lastModifiedDate', type: 'date', sortable: true, initialWidth: 180 }
 ];
 
-const CONFIG_COLUMNS = [
-    { label: 'Payload Type', fieldName: 'payloadType', sortable: true },
-    { label: 'Route', fieldName: 'route', sortable: true },
-    { label: 'Work Items', fieldName: 'workItems', type: 'number', sortable: true, initialWidth: 140 }
-];
-
 export default class EventLayout extends LightningElement {
     autoRefreshOptions = AUTO_REFRESH_OPTIONS;
     autoRefreshInterval = '15';
     workColumns = WORK_COLUMNS;
     errorColumns = ERROR_COLUMNS;
-    configColumns = CONFIG_COLUMNS;
     metrics = {};
     backlogRows = [];
     errorRows = [];
-    completedRows = [];
     archiveRows = [];
     configRows = [];
     settings = {};
@@ -72,8 +64,6 @@ export default class EventLayout extends LightningElement {
     backlogSortDirection = 'asc';
     errorSortBy = 'lastModifiedDate';
     errorSortDirection = 'desc';
-    completedSortBy = 'lastModifiedDate';
-    completedSortDirection = 'desc';
     archiveSortBy = 'lastModifiedDate';
     archiveSortDirection = 'desc';
     configSortBy = 'payloadType';
@@ -107,16 +97,27 @@ export default class EventLayout extends LightningElement {
         return this.errorRows.length > 0;
     }
 
-    get hasCompletedRows() {
-        return this.completedRows.length > 0;
-    }
-
     get hasArchiveRows() {
         return this.archiveRows.length > 0;
     }
 
     get hasConfigRows() {
         return this.configRows.length > 0;
+    }
+
+    get routeCards() {
+        return this.configRows.map((row) => {
+            const payloadType = row.payloadType || 'Unspecified Payload';
+            const route = row.route || 'Default Route';
+            const workItems = row.workItems || 0;
+            return {
+                id: row.id,
+                payloadType,
+                route,
+                workItems: this.formatNumber(workItems),
+                workItemsLabel: `${this.formatNumber(workItems)} ${workItems === 1 ? 'work item' : 'work items'}`
+            };
+        });
     }
 
     get backlogCountLabel() {
@@ -127,16 +128,17 @@ export default class EventLayout extends LightningElement {
         return this.recordCountLabel(this.errorRows.length);
     }
 
-    get completedCountLabel() {
-        return this.recordCountLabel(this.completedRows.length);
-    }
-
     get archiveCountLabel() {
         return this.recordCountLabel(this.archiveRows.length);
     }
 
     get configCountLabel() {
         return this.recordCountLabel(this.configRows.length);
+    }
+
+    get eventRouteCountLabel() {
+        const count = this.configRows.length;
+        return `${count} ${count === 1 ? 'event route' : 'event routes'}`;
     }
 
     get publishBatchSize() {
@@ -196,22 +198,10 @@ export default class EventLayout extends LightningElement {
         this.errorRows = this.sortRows(this.errorRows, this.errorSortBy, this.errorSortDirection);
     }
 
-    handleCompletedSort(event) {
-        this.completedSortBy = event.detail.fieldName;
-        this.completedSortDirection = event.detail.sortDirection;
-        this.completedRows = this.sortRows(this.completedRows, this.completedSortBy, this.completedSortDirection);
-    }
-
     handleArchiveSort(event) {
         this.archiveSortBy = event.detail.fieldName;
         this.archiveSortDirection = event.detail.sortDirection;
         this.archiveRows = this.sortRows(this.archiveRows, this.archiveSortBy, this.archiveSortDirection);
-    }
-
-    handleConfigSort(event) {
-        this.configSortBy = event.detail.fieldName;
-        this.configSortDirection = event.detail.sortDirection;
-        this.configRows = this.sortRows(this.configRows, this.configSortBy, this.configSortDirection);
     }
 
     handleErrorSelection(event) {
@@ -271,11 +261,6 @@ export default class EventLayout extends LightningElement {
             this.metrics = state.metrics || {};
             this.backlogRows = this.sortRows(state.backlogRows || [], this.backlogSortBy, this.backlogSortDirection);
             this.errorRows = this.sortRows(state.errorRows || [], this.errorSortBy, this.errorSortDirection);
-            this.completedRows = this.sortRows(
-                state.completedRows || [],
-                this.completedSortBy,
-                this.completedSortDirection
-            );
             this.archiveRows = this.sortRows(state.archiveRows || [], this.archiveSortBy, this.archiveSortDirection);
             this.configRows = this.sortRows(state.configRows || [], this.configSortBy, this.configSortDirection);
             this.settings = state.settings || {};
@@ -284,7 +269,6 @@ export default class EventLayout extends LightningElement {
             this.metrics = {};
             this.backlogRows = [];
             this.errorRows = [];
-            this.completedRows = [];
             this.archiveRows = [];
             this.configRows = [];
             this.settings = {};

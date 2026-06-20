@@ -43,14 +43,76 @@
             </template>
         </div>
 
-        <section class="timeline-card">
+        <section class="panel">
             <lightning-tabset>
+                <lightning-tab label="Events" value="events">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Events</h2>
+                                <p>{eventRouteCountLabel}. {lastRefreshedLabel}</p>
+                            </div>
+                            <template lwc:if={isRefreshing}>
+                                <lightning-spinner alternative-text="Loading event routes" size="small"></lightning-spinner>
+                            </template>
+                        </div>
+
+                        <template lwc:if={hasConfigRows}>
+                            <div class="route-grid">
+                                <template for:each={routeCards} for:item="route">
+                                    <article key={route.id} class="event-route-card">
+                                        <div class="route-main">
+                                            <div class="route-heading">
+                                                <lightning-icon
+                                                    icon-name="utility:event"
+                                                    size="x-small"
+                                                    alternative-text=""
+                                                ></lightning-icon>
+                                                <div>
+                                                    <p class="route-label">{route.payloadType}</p>
+                                                    <h3>{route.route}</h3>
+                                                </div>
+                                            </div>
+                                            <div class="badge-row">
+                                                <span class="work-badge">{route.workItemsLabel}</span>
+                                            </div>
+                                        </div>
+
+                                        <dl class="route-details">
+                                            <div>
+                                                <dt>Payload Type</dt>
+                                                <dd>{route.payloadType}</dd>
+                                            </div>
+                                            <div>
+                                                <dt>Route</dt>
+                                                <dd>{route.route}</dd>
+                                            </div>
+                                            <div>
+                                                <dt>Work Items</dt>
+                                                <dd>{route.workItems}</dd>
+                                            </div>
+                                        </dl>
+                                    </article>
+                                </template>
+                            </div>
+                        </template>
+
+                        <template lwc:else>
+                            <div class="empty-state">
+                                <lightning-icon icon-name="utility:event" size="medium"></lightning-icon>
+                                <h3>No event routes found</h3>
+                                <p>Publish work creates route summaries as EventRelay records are queued.</p>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-tab>
+
                 <lightning-tab label="Backlog" value="backlog">
                     <div class="tab-panel">
                         <div class="section-heading">
                             <div>
                                 <h2>Backlog</h2>
-                                <p>{lastRefreshedLabel}</p>
+                                <p>Pending publish work waiting for a lane. {lastRefreshedLabel}</p>
                             </div>
                             <lightning-badge label={backlogCountLabel}></lightning-badge>
                         </div>
@@ -69,13 +131,10 @@
                         </template>
 
                         <template lwc:else>
-                            <div class="empty-state slds-text-align_center" role="status">
-                                <lightning-icon
-                                    icon-name="utility:event"
-                                    size="medium"
-                                    alternative-text=""
-                                ></lightning-icon>
-                                <p class="slds-m-top_small">No pending publish work found.</p>
+                            <div class="empty-state">
+                                <lightning-icon icon-name="utility:success" size="medium"></lightning-icon>
+                                <h3>No pending publish work found</h3>
+                                <p>EventRelay publish backlog appears here while work waits for a lane.</p>
                             </div>
                         </template>
                     </div>
@@ -125,49 +184,10 @@
                         </template>
 
                         <template lwc:else>
-                            <div class="empty-state slds-text-align_center" role="status">
-                                <lightning-icon
-                                    icon-name="utility:success"
-                                    size="medium"
-                                    alternative-text=""
-                                ></lightning-icon>
-                                <p class="slds-m-top_small">No failed publish work found.</p>
-                            </div>
-                        </template>
-                    </div>
-                </lightning-tab>
-
-                <lightning-tab label="Completed" value="completed">
-                    <div class="tab-panel">
-                        <div class="section-heading">
-                            <div>
-                                <h2>Completed</h2>
-                                <p>{lastRefreshedLabel}</p>
-                            </div>
-                            <lightning-badge label={completedCountLabel}></lightning-badge>
-                        </div>
-
-                        <template lwc:if={hasCompletedRows}>
-                            <lightning-datatable
-                                key-field="id"
-                                columns={workColumns}
-                                data={completedRows}
-                                hide-checkbox-column
-                                sorted-by={completedSortBy}
-                                sorted-direction={completedSortDirection}
-                                is-loading={isRefreshing}
-                                onsort={handleCompletedSort}
-                            ></lightning-datatable>
-                        </template>
-
-                        <template lwc:else>
-                            <div class="empty-state slds-text-align_center" role="status">
-                                <lightning-icon
-                                    icon-name="utility:success"
-                                    size="medium"
-                                    alternative-text=""
-                                ></lightning-icon>
-                                <p class="slds-m-top_small">No completed publish work found.</p>
+                            <div class="empty-state">
+                                <lightning-icon icon-name="utility:success" size="medium"></lightning-icon>
+                                <h3>No failed publish work found</h3>
+                                <p>EventRelay publish errors appear here when retryable work fails.</p>
                             </div>
                         </template>
                     </div>
@@ -197,49 +217,10 @@
                         </template>
 
                         <template lwc:else>
-                            <div class="empty-state slds-text-align_center" role="status">
-                                <lightning-icon
-                                    icon-name="utility:event"
-                                    size="medium"
-                                    alternative-text=""
-                                ></lightning-icon>
-                                <p class="slds-m-top_small">No archived publish work found.</p>
-                            </div>
-                        </template>
-                    </div>
-                </lightning-tab>
-
-                <lightning-tab label="Events" value="events">
-                    <div class="tab-panel">
-                        <div class="section-heading">
-                            <div>
-                                <h2>Events</h2>
-                                <p>{lastRefreshedLabel}</p>
-                            </div>
-                            <lightning-badge label={configCountLabel}></lightning-badge>
-                        </div>
-
-                        <template lwc:if={hasConfigRows}>
-                            <lightning-datatable
-                                key-field="id"
-                                columns={configColumns}
-                                data={configRows}
-                                hide-checkbox-column
-                                sorted-by={configSortBy}
-                                sorted-direction={configSortDirection}
-                                is-loading={isRefreshing}
-                                onsort={handleConfigSort}
-                            ></lightning-datatable>
-                        </template>
-
-                        <template lwc:else>
-                            <div class="empty-state slds-text-align_center" role="status">
-                                <lightning-icon
-                                    icon-name="utility:setup"
-                                    size="medium"
-                                    alternative-text=""
-                                ></lightning-icon>
-                                <p class="slds-m-top_small">No event routes found.</p>
+                            <div class="empty-state">
+                                <lightning-icon icon-name="utility:event" size="medium"></lightning-icon>
+                                <h3>No archived publish work found</h3>
+                                <p>Stale or duplicate EventRelay publish work is retained here for audit.</p>
                             </div>
                         </template>
                     </div>
@@ -254,18 +235,27 @@
                             </div>
                         </div>
 
-                        <div class="settings-grid">
-                            <article class="setting">
-                                <span>Publish Batch Size</span>
-                                <strong>{publishBatchSize}</strong>
-                            </article>
-                            <article class="setting">
-                                <span>Limit Safety Threshold</span>
-                                <strong>{limitThresholdPct}</strong>
-                            </article>
-                            <article class="setting">
-                                <span>Publish Pool</span>
-                                <strong>{publishPool}</strong>
+                        <div class="settings-rows">
+                            <article class="setting-row global-row">
+                                <div class="row-owner">
+                                    <p>Global</p>
+                                    <h3>EventRelay Defaults</h3>
+                                    <span>Effective publish settings</span>
+                                </div>
+                                <div class="setting-values">
+                                    <div class="setting-cell">
+                                        <span>Publish Batch Size</span>
+                                        <strong>{publishBatchSize}</strong>
+                                    </div>
+                                    <div class="setting-cell">
+                                        <span>Limit Safety Threshold</span>
+                                        <strong>{limitThresholdPct}</strong>
+                                    </div>
+                                    <div class="setting-cell">
+                                        <span>Publish Pool</span>
+                                        <strong>{publishPool}</strong>
+                                    </div>
+                                </div>
                             </article>
                         </div>
                     </div>
