@@ -1,0 +1,460 @@
+<template>
+    <section class="console-shell">
+        <div class="hero">
+            <div>
+                <p class="eyebrow">Bedrock REST</p>
+                <h1>API Console</h1>
+                <p class="hero-copy">
+                    Visualize configured REST routes, review versioned URLs, and tune framework response settings.
+                </p>
+            </div>
+
+            <div class="hero-actions">
+                <lightning-badge label="Refreshes every 15 seconds"></lightning-badge>
+                <lightning-button
+                    label="Refresh Now"
+                    icon-name="utility:refresh"
+                    onclick={handleRefresh}
+                    disabled={isLoading}
+                ></lightning-button>
+            </div>
+        </div>
+
+        <template lwc:if={hasError}>
+            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+                <span class="slds-assistive-text">Error</span>
+                {errorMessage}
+            </div>
+        </template>
+
+        <div class="metrics">
+            <template for:each={metrics} for:item="metric">
+                <article key={metric.id} class={metric.className}>
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                </article>
+            </template>
+        </div>
+
+        <section class="panel">
+            <lightning-tabset>
+                <lightning-tab label="Routes" value="routes">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Routes</h2>
+                                <p>{routeCountLabel}. {lastRefreshedLabel}</p>
+                            </div>
+                            <div class="section-actions">
+                                <template lwc:if={isLoading}>
+                                    <lightning-spinner alternative-text="Loading REST routes" size="small"></lightning-spinner>
+                                </template>
+                                <lightning-button
+                                    label="New Endpoint"
+                                    icon-name="utility:add"
+                                    variant="brand"
+                                    onclick={handleOpenEndpointModal}
+                                    disabled={isLoading}
+                                ></lightning-button>
+                            </div>
+                        </div>
+
+                        <template lwc:if={hasRoutes}>
+                            <div class="route-grid">
+                                <template for:each={routes} for:item="route">
+                                    <article key={route.key} class={route.cardClass}>
+                                        <div class="route-main">
+                                            <div class="route-heading">
+                                                <lightning-button-icon
+                                                    icon-name={route.endpointToggleIconName}
+                                                    alternative-text={route.endpointToggleAlternativeText}
+                                                    title={route.endpointToggleTitle}
+                                                    variant="bare"
+                                                    data-route-key={route.key}
+                                                    onclick={handleToggleEndpoint}
+                                                ></lightning-button-icon>
+                                                <div>
+                                                    <p class="route-label">{route.label}</p>
+                                                    <h3>/{route.route}</h3>
+                                                </div>
+                                            </div>
+                                            <div class="badge-row">
+                                                <span class={route.mainVersion.statusClass}>{route.mainVersion.activeLabel}</span>
+                                                <span class="version-badge">{route.mainVersion.versionLabel}</span>
+                                                <template lwc:if={route.mainVersion.isDefaultVersion}>
+                                                    <span class="default-badge">Default</span>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <template lwc:if={route.showRouteDetails}>
+                                            <dl class="route-details">
+                                                <div>
+                                                    <dt>Apex Class</dt>
+                                                    <dd>{route.mainVersion.apexClass}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Endpoint</dt>
+                                                    <dd>{route.mainVersion.endpointUrl}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Unversioned</dt>
+                                                    <dd>{route.mainVersion.unversionedUrl}</dd>
+                                                </div>
+                                            </dl>
+
+                                            <template lwc:if={route.hasOtherVersions}>
+                                                <div class="version-toggle-row">
+                                                    <lightning-button-icon
+                                                        icon-name={route.versionToggleIconName}
+                                                        alternative-text={route.versionToggleAlternativeText}
+                                                        title={route.versionToggleTitle}
+                                                        variant="bare"
+                                                        data-route-key={route.key}
+                                                        onclick={handleToggleVersions}
+                                                    ></lightning-button-icon>
+                                                    <span>{route.otherVersionCountLabel}</span>
+                                                </div>
+                                            </template>
+
+                                            <template lwc:if={route.showOtherVersions}>
+                                                <div class="version-list">
+                                                    <template for:each={route.otherVersions} for:item="version">
+                                                        <section key={version.key} class="version-row">
+                                                            <div class="version-row-main">
+                                                                <div>
+                                                                    <p class="route-label">{version.label}</p>
+                                                                    <strong>{version.versionLabel}</strong>
+                                                                </div>
+                                                                <div class="badge-row">
+                                                                    <span class={version.statusClass}>{version.activeLabel}</span>
+                                                                    <template lwc:if={version.isDefaultVersion}>
+                                                                        <span class="default-badge">Default</span>
+                                                                    </template>
+                                                                </div>
+                                                            </div>
+                                                            <dl class="route-details route-details-compact">
+                                                                <div>
+                                                                    <dt>Apex Class</dt>
+                                                                    <dd>{version.apexClass}</dd>
+                                                                </div>
+                                                                <div>
+                                                                    <dt>Endpoint</dt>
+                                                                    <dd>{version.endpointUrl}</dd>
+                                                                </div>
+                                                            </dl>
+                                                            <div class="version-row-actions">
+                                                                <lightning-button
+                                                                    label="Edit Config"
+                                                                    icon-name="utility:edit"
+                                                                    variant="base"
+                                                                    data-endpoint-key={version.key}
+                                                                    onclick={handleEditEndpoint}
+                                                                ></lightning-button>
+                                                            </div>
+                                                        </section>
+                                                    </template>
+                                                </div>
+                                            </template>
+
+                                            <div class="route-actions">
+                                                <lightning-button
+                                                    label="New Version"
+                                                    icon-name="utility:add"
+                                                    variant="base"
+                                                    data-route-key={route.key}
+                                                    onclick={handleNewVersion}
+                                                ></lightning-button>
+                                                <lightning-button
+                                                    label="Edit Config"
+                                                    icon-name="utility:edit"
+                                                    variant="base"
+                                                    data-endpoint-key={route.mainVersion.key}
+                                                    onclick={handleEditEndpoint}
+                                                ></lightning-button>
+                                            </div>
+                                        </template>
+                                    </article>
+                                </template>
+                            </div>
+                        </template>
+
+                        <template lwc:else>
+                            <div class="empty-state">
+                                <lightning-icon icon-name="utility:route" size="medium"></lightning-icon>
+                                <h3>No REST routes configured</h3>
+                                <p>Create Rest Config custom metadata records to map API roots to Rest subclasses.</p>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Settings" value="settings">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Settings</h2>
+                                <p>{settingsRecordLabel}</p>
+                            </div>
+                            <template lwc:if={isSavingSettings}>
+                                <lightning-spinner alternative-text="Saving REST settings" size="small"></lightning-spinner>
+                            </template>
+                        </div>
+
+                        <div class="settings-rows">
+                            <article class="setting-row global-row">
+                                <div class="row-owner">
+                                    <p>Global</p>
+                                    <h3>REST Defaults</h3>
+                                    <span>{settingsRecordLabel}</span>
+                                </div>
+                                <div class="setting-values">
+                                    <div class="setting-cell">
+                                        <span>Unknown Route</span>
+                                        <template lwc:if={isEditingSettings}>
+                                            <lightning-input
+                                                type="number"
+                                                label="Unknown route status"
+                                                variant="label-hidden"
+                                                min="100"
+                                                max="599"
+                                                step="1"
+                                                value={settingsDraft.unknownRouteStatusCode}
+                                                data-field="unknownRouteStatusCode"
+                                                onchange={handleSettingChange}
+                                            ></lightning-input>
+                                        </template>
+                                        <template lwc:else>
+                                            <strong>{unknownRouteStatusDisplay}</strong>
+                                        </template>
+                                    </div>
+                                    <div class="setting-cell">
+                                        <span>Inactive Route</span>
+                                        <template lwc:if={isEditingSettings}>
+                                            <lightning-input
+                                                type="number"
+                                                label="Inactive route status"
+                                                variant="label-hidden"
+                                                min="100"
+                                                max="599"
+                                                step="1"
+                                                value={settingsDraft.inactiveRouteStatusCode}
+                                                data-field="inactiveRouteStatusCode"
+                                                onchange={handleSettingChange}
+                                            ></lightning-input>
+                                        </template>
+                                        <template lwc:else>
+                                            <strong>{inactiveRouteStatusDisplay}</strong>
+                                        </template>
+                                    </div>
+                                    <div class="setting-cell">
+                                        <span>Unsupported Method</span>
+                                        <template lwc:if={isEditingSettings}>
+                                            <lightning-input
+                                                type="number"
+                                                label="Unsupported method status"
+                                                variant="label-hidden"
+                                                min="100"
+                                                max="599"
+                                                step="1"
+                                                value={settingsDraft.unsupportedMethodStatusCode}
+                                                data-field="unsupportedMethodStatusCode"
+                                                onchange={handleSettingChange}
+                                            ></lightning-input>
+                                        </template>
+                                        <template lwc:else>
+                                            <strong>{unsupportedMethodStatusDisplay}</strong>
+                                        </template>
+                                    </div>
+                                    <div class="setting-cell">
+                                        <span>Access Denied</span>
+                                        <template lwc:if={isEditingSettings}>
+                                            <lightning-input
+                                                type="number"
+                                                label="Access denied status"
+                                                variant="label-hidden"
+                                                min="100"
+                                                max="599"
+                                                step="1"
+                                                value={settingsDraft.accessDeniedStatusCode}
+                                                data-field="accessDeniedStatusCode"
+                                                onchange={handleSettingChange}
+                                            ></lightning-input>
+                                        </template>
+                                        <template lwc:else>
+                                            <strong>{accessDeniedStatusDisplay}</strong>
+                                        </template>
+                                    </div>
+                                    <div class="setting-cell">
+                                        <span>Error Details</span>
+                                        <template lwc:if={isEditingSettings}>
+                                            <lightning-input
+                                                type="toggle"
+                                                label="Expose error details"
+                                                variant="label-hidden"
+                                                checked={settingsDraft.exposeErrorDetails}
+                                                data-field="exposeErrorDetails"
+                                                onchange={handleSettingChange}
+                                            ></lightning-input>
+                                        </template>
+                                        <strong>{errorDetailsLabel}</strong>
+                                    </div>
+                                </div>
+                                <div class="row-actions">
+                                    <template lwc:if={isEditingSettings}>
+                                        <div class="stacked-actions">
+                                            <lightning-button-icon
+                                                icon-name="utility:save"
+                                                alternative-text="Save REST settings"
+                                                title="Save REST settings"
+                                                variant="brand"
+                                                onclick={handleSaveSettings}
+                                                disabled={settingsSaveDisabled}
+                                            ></lightning-button-icon>
+                                            <lightning-button-icon
+                                                icon-name="utility:close"
+                                                alternative-text="Cancel REST settings edit"
+                                                title="Cancel REST settings edit"
+                                                onclick={handleCancelSettingsEdit}
+                                                disabled={isSavingSettings}
+                                            ></lightning-button-icon>
+                                        </div>
+                                    </template>
+                                    <template lwc:else>
+                                        <lightning-button-icon
+                                            icon-name="utility:edit"
+                                            alternative-text="Edit REST settings"
+                                            title="Edit REST settings"
+                                            onclick={handleEditSettings}
+                                            disabled={isLoading}
+                                        ></lightning-button-icon>
+                                    </template>
+                                </div>
+                            </article>
+                        </div>
+                    </div>
+                </lightning-tab>
+            </lightning-tabset>
+        </section>
+
+        <template lwc:if={isEndpointModalOpen}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                aria-modal="true"
+                aria-labelledby="endpoint-modal-heading"
+                class="slds-modal slds-fade-in-open endpoint-modal"
+            >
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <lightning-button-icon
+                            icon-name="utility:close"
+                            alternative-text="Close"
+                            title="Close"
+                            variant="bare-inverse"
+                            class="slds-modal__close"
+                            onclick={handleCloseEndpointModal}
+                            disabled={isCreatingEndpoint}
+                        ></lightning-button-icon>
+                        <h2 id="endpoint-modal-heading" class="slds-modal__title slds-hyphenate">{endpointModalTitle}</h2>
+                        <p class="modal-subtitle">{endpointModalSubtitle}</p>
+                    </header>
+
+                    <div class="slds-modal__content">
+                        <div class="create-grid">
+                            <lightning-input
+                                label="Developer Name"
+                                value={endpointDraft.developerName}
+                                data-field="developerName"
+                                onchange={handleEndpointChange}
+                                disabled={isEditingEndpoint}
+                            ></lightning-input>
+                            <lightning-input
+                                label="Label"
+                                value={endpointDraft.label}
+                                data-field="label"
+                                onchange={handleEndpointChange}
+                            ></lightning-input>
+                            <lightning-input
+                                label="Route"
+                                placeholder="accounts"
+                                value={endpointDraft.route}
+                                data-field="route"
+                                onchange={handleEndpointChange}
+                                required
+                            ></lightning-input>
+                            <lightning-input
+                                type="number"
+                                label="Version"
+                                min="1"
+                                step="1"
+                                value={endpointDraft.version}
+                                data-field="version"
+                                onchange={handleEndpointChange}
+                                required
+                            ></lightning-input>
+                            <template lwc:if={hasRestClassOptions}>
+                                <lightning-combobox
+                                    label="Apex Class"
+                                    placeholder="Select a Rest subclass"
+                                    value={endpointDraft.apexClass}
+                                    options={restClassOptions}
+                                    data-field="apexClass"
+                                    onchange={handleEndpointChange}
+                                    required
+                                ></lightning-combobox>
+                            </template>
+                            <template lwc:else>
+                                <lightning-input
+                                    label="Apex Class"
+                                    placeholder="AccountRest"
+                                    value={endpointDraft.apexClass}
+                                    data-field="apexClass"
+                                    onchange={handleEndpointChange}
+                                    required
+                                ></lightning-input>
+                            </template>
+                            <div class="toggle-cell">
+                                <lightning-input
+                                    type="toggle"
+                                    label="Active"
+                                    checked={endpointDraft.active}
+                                    data-field="active"
+                                    onchange={handleEndpointChange}
+                                ></lightning-input>
+                                <span>Route can resolve immediately if the Apex class is deployed.</span>
+                            </div>
+                            <div class="toggle-cell">
+                                <lightning-input
+                                    type="toggle"
+                                    label="Default Version"
+                                    checked={endpointDraft.defaultVersion}
+                                    data-field="defaultVersion"
+                                    onchange={handleEndpointChange}
+                                ></lightning-input>
+                                <span>Unversioned requests resolve to this route version.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <footer class="slds-modal__footer">
+                        <lightning-button
+                            label="Cancel"
+                            onclick={handleCloseEndpointModal}
+                            disabled={isCreatingEndpoint}
+                        ></lightning-button>
+                        <lightning-button
+                            label={endpointSubmitLabel}
+                            icon-name={endpointSubmitIconName}
+                            variant="brand"
+                            onclick={handleCreateEndpoint}
+                            disabled={endpointCreateDisabled}
+                            class="slds-m-left_x-small"
+                        ></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+    </section>
+</template>
