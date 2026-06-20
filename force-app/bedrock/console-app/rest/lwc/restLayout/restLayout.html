@@ -1,42 +1,20 @@
 <template>
-    <section class="console-shell">
-        <div class="hero">
-            <div>
-                <p class="eyebrow">Bedrock REST</p>
-                <h1>API Console</h1>
-                <p class="hero-copy">
-                    Visualize configured REST routes, review versioned URLs, and tune framework response settings.
-                </p>
-            </div>
+    <c-bedrock-console-layout
+        eyebrow="Bedrock REST"
+        heading="API Console"
+        description="Visualize configured REST routes, review versioned URLs, and tune framework response settings."
+        error-message={errorMessage}
+        metrics={metrics}
+    >
+        <lightning-button
+            slot="actions"
+            label="Refresh Now"
+            icon-name="utility:refresh"
+            onclick={handleRefresh}
+            disabled={isLoading}
+        ></lightning-button>
 
-            <div class="hero-actions">
-                <lightning-badge label="Refreshes every 15 seconds"></lightning-badge>
-                <lightning-button
-                    label="Refresh Now"
-                    icon-name="utility:refresh"
-                    onclick={handleRefresh}
-                    disabled={isLoading}
-                ></lightning-button>
-            </div>
-        </div>
-
-        <template lwc:if={hasError}>
-            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
-                <span class="slds-assistive-text">Error</span>
-                {errorMessage}
-            </div>
-        </template>
-
-        <div class="metrics">
-            <template for:each={metrics} for:item="metric">
-                <article key={metric.id} class={metric.className}>
-                    <span>{metric.label}</span>
-                    <strong>{metric.value}</strong>
-                </article>
-            </template>
-        </div>
-
-        <section class="panel">
+        <c-bedrock-console-panel>
             <lightning-tabset>
                 <lightning-tab label="Routes" value="routes">
                     <div class="tab-panel">
@@ -62,32 +40,18 @@
                         <template lwc:if={hasRoutes}>
                             <div class="route-grid">
                                 <template for:each={routes} for:item="route">
-                                    <article key={route.key} class={route.cardClass}>
-                                        <div class="route-main">
-                                            <div class="route-heading">
-                                                <lightning-button-icon
-                                                    icon-name={route.endpointToggleIconName}
-                                                    alternative-text={route.endpointToggleAlternativeText}
-                                                    title={route.endpointToggleTitle}
-                                                    variant="bare"
-                                                    data-route-key={route.key}
-                                                    onclick={handleToggleEndpoint}
-                                                ></lightning-button-icon>
-                                                <div>
-                                                    <p class="route-label">{route.label}</p>
-                                                    <h3>/{route.route}</h3>
-                                                </div>
-                                            </div>
-                                            <div class="badge-row">
-                                                <span class={route.mainVersion.statusClass}>{route.mainVersion.activeLabel}</span>
-                                                <span class="version-badge">{route.mainVersion.versionLabel}</span>
-                                                <template lwc:if={route.mainVersion.isDefaultVersion}>
-                                                    <span class="default-badge">Default</span>
-                                                </template>
-                                            </div>
-                                        </div>
-
-                                        <template lwc:if={route.showRouteDetails}>
+                                    <c-bedrock-route-card
+                                        key={route.key}
+                                        route-key={route.key}
+                                        label={route.label}
+                                        card-title={route.title}
+                                        accent={route.accent}
+                                        badges={route.badges}
+                                        expandable
+                                        expanded={route.showRouteDetails}
+                                        ontoggle={handleRouteCardToggle}
+                                    >
+                                        <div slot="details">
                                             <dl class="route-details">
                                                 <div>
                                                     <dt>Apex Class</dt>
@@ -116,8 +80,10 @@
                                                     <span>{route.otherVersionCountLabel}</span>
                                                 </div>
                                             </template>
+                                        </div>
 
-                                            <template lwc:if={route.showOtherVersions}>
+                                        <template lwc:if={route.showOtherVersions}>
+                                            <div slot="versions">
                                                 <div class="version-list">
                                                     <template for:each={route.otherVersions} for:item="version">
                                                         <section key={version.key} class="version-row">
@@ -155,8 +121,10 @@
                                                         </section>
                                                     </template>
                                                 </div>
-                                            </template>
+                                            </div>
+                                        </template>
 
+                                        <div slot="actions">
                                             <div class="route-actions">
                                                 <lightning-button
                                                     label="New Version"
@@ -173,8 +141,8 @@
                                                     onclick={handleEditEndpoint}
                                                 ></lightning-button>
                                             </div>
-                                        </template>
-                                    </article>
+                                        </div>
+                                    </c-bedrock-route-card>
                                 </template>
                             </div>
                         </template>
@@ -335,7 +303,7 @@
                     </div>
                 </lightning-tab>
             </lightning-tabset>
-        </section>
+        </c-bedrock-console-panel>
 
         <template lwc:if={isEndpointModalOpen}>
             <section
@@ -456,5 +424,5 @@
             </section>
             <div class="slds-backdrop slds-backdrop_open"></div>
         </template>
-    </section>
+    </c-bedrock-console-layout>
 </template>

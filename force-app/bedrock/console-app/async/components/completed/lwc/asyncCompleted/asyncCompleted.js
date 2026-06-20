@@ -58,7 +58,15 @@ export default class AsyncCompleted extends LightningElement {
 
     handleSearchChange(event) {
         this.searchTerm = event.target.value;
+        this.queueSearchRefresh();
+    }
 
+    handleTableSearchChange(event) {
+        this.searchTerm = event.detail.value;
+        this.queueSearchRefresh();
+    }
+
+    queueSearchRefresh() {
         if (this.searchRefreshTimer) {
             clearTimeout(this.searchRefreshTimer);
         }

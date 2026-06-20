@@ -1,0 +1,52 @@
+<template>
+    <div class="table-panel">
+        <div class="card-actions">
+            <template lwc:if={showSearch}>
+                <lightning-input
+                    type="search"
+                    label={searchLabel}
+                    variant="label-hidden"
+                    value={searchTerm}
+                    placeholder={searchPlaceholder}
+                    onchange={handleSearchChange}
+                ></lightning-input>
+            </template>
+            <lightning-button
+                class={refreshButtonClass}
+                icon-name="utility:refresh"
+                label={refreshButtonLabel}
+                onclick={handleRefresh}
+                disabled={isLoading}
+            ></lightning-button>
+            <slot name="actions"></slot>
+        </div>
+
+        <div class="table-summary">
+            <lightning-badge label={countLabel}></lightning-badge>
+        </div>
+
+        <template lwc:if={hasRows}>
+            <lightning-datatable
+                key-field={keyField}
+                columns={columns}
+                data={rows}
+                hide-checkbox-column={hideCheckboxColumn}
+                selected-rows={selectedRows}
+                sorted-by={sortedBy}
+                sorted-direction={sortedDirection}
+                is-loading={isLoading}
+                onsort={handleSort}
+                onrowselection={handleRowSelection}
+                onrowaction={handleRowAction}
+            ></lightning-datatable>
+        </template>
+
+        <template lwc:else>
+            <c-bedrock-empty-state
+                icon-name={emptyIconName}
+                heading={emptyHeading}
+                message={emptyMessage}
+            ></c-bedrock-empty-state>
+        </template>
+    </div>
+</template>

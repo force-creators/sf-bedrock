@@ -71,6 +71,15 @@ export default class ThreadCompleted extends NavigationMixin(LightningElement) {
 
     handleSearchChange(event) {
         this.searchTerm = event.target.value;
+        this.queueSearchRefresh();
+    }
+
+    handleTableSearchChange(event) {
+        this.searchTerm = event.detail.value;
+        this.queueSearchRefresh();
+    }
+
+    queueSearchRefresh() {
         this.clearSearchRefreshTimer();
         this.searchRefreshTimer = setTimeout(() => {
             this.loadRows();

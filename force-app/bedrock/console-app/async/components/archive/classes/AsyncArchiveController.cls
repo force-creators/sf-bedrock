@@ -11,9 +11,9 @@ public with sharing class AsyncArchiveController {
 
     @AuraEnabled
     public static List<ArchiveRow> getArchives(String searchTerm, String sortBy, String sortDirection) {
-        String normalizedSearchTerm = String.isBlank(searchTerm) ? null : searchTerm.trim().toLowerCase();
+        String normalizedSearchTerm = BedrockConsoleSupport.normalizeSearchTerm(searchTerm);
         String orderByField = sortField(sortBy);
-        String orderByDirection = sortOrder(sortDirection);
+        String orderByDirection = BedrockConsoleSupport.sortOrder(sortDirection);
 
         List<ArchiveRow> rows = new List<ArchiveRow>();
         List<Async_Archive__c> archives = Database.query(
@@ -65,23 +65,15 @@ public with sharing class AsyncArchiveController {
         return fieldByName.get(sortBy);
     }
 
-    static String sortOrder(String sortDirection) {
-        return String.isBlank(sortDirection) ? 'DESC' : (sortDirection.toLowerCase() == 'asc' ? 'ASC' : 'DESC');
-    }
-
     static Boolean matchesFilter(ArchiveRow row, String searchTerm) {
         if (searchTerm == null) {
             return true;
         }
 
-        return containsIgnoreCase(row.archiveNumber, searchTerm) ||
-            containsIgnoreCase(row.apexClass, searchTerm) ||
-            containsIgnoreCase(row.recordId, searchTerm) ||
-            containsIgnoreCase(row.thread, searchTerm);
-    }
-
-    static Boolean containsIgnoreCase(String value, String searchTerm) {
-        return value != null && value.toLowerCase().contains(searchTerm);
+        return BedrockConsoleSupport.containsIgnoreCase(row.archiveNumber, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.apexClass, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.recordId, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.thread, searchTerm);
     }
 
     public class ArchiveRow {
@@ -114,7 +106,7 @@ public with sharing class AsyncArchiveController {
         public Integer compare(ArchiveRow left, ArchiveRow right) {
             Object leftValue = valueOf(left, sortBy);
             Object rightValue = valueOf(right, sortBy);
-            Integer result = compareValues(leftValue, rightValue);
+            Integer result = BedrockConsoleSupport.compareValues(leftValue, rightValue);
             return sortDirection == 'ASC' ? result : -result;
         }
 
@@ -126,17 +118,5 @@ public with sharing class AsyncArchiveController {
             return row.createdDate;
         }
 
-        Integer compareValues(Object leftValue, Object rightValue) {
-            if (leftValue == rightValue) return 0;
-            if (leftValue == null) return -1;
-            if (rightValue == null) return 1;
-            if (leftValue instanceof Datetime) {
-                Long leftTime = ((Datetime) leftValue).getTime();
-                Long rightTime = ((Datetime) rightValue).getTime();
-                if (leftTime == rightTime) return 0;
-                return leftTime < rightTime ? -1 : 1;
-            }
-            return String.valueOf(leftValue).toLowerCase().compareTo(String.valueOf(rightValue).toLowerCase());
-        }
     }
 }

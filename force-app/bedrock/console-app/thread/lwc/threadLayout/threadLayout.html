@@ -1,49 +1,20 @@
 <template>
-    <section class="console-shell">
-        <div class="hero">
-            <div>
-                <p class="eyebrow">Bedrock Thread</p>
-                <h1>Thread Monitor</h1>
-                <p class="hero-copy">
-                    Operator view of shared Bedrock infrastructure threads, active work lanes, stale heartbeat candidates, and completed lifecycle history.
-                </p>
-            </div>
+    <c-bedrock-console-layout
+        eyebrow="Bedrock Thread"
+        heading="Thread Monitor"
+        description="Operator view of shared Bedrock infrastructure threads, active work lanes, stale heartbeat candidates, and completed lifecycle history."
+        error-message={metricsErrorMessage}
+        metrics={metricCards}
+    >
+        <lightning-button
+            slot="actions"
+            label={refreshButtonLabel}
+            icon-name="utility:refresh"
+            onclick={handleRefresh}
+            disabled={isRefreshing}
+        ></lightning-button>
 
-            <div class="hero-actions">
-                <lightning-combobox
-                    class="refresh-interval"
-                    label="Auto-refresh interval"
-                    variant="label-hidden"
-                    value={autoRefreshInterval}
-                    options={autoRefreshOptions}
-                    onchange={handleAutoRefreshChange}
-                ></lightning-combobox>
-                <lightning-button
-                    label={refreshButtonLabel}
-                    icon-name="utility:refresh"
-                    onclick={handleRefresh}
-                    disabled={isRefreshing}
-                ></lightning-button>
-            </div>
-        </div>
-
-        <template lwc:if={hasMetricsError}>
-            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
-                <span class="slds-assistive-text">Error</span>
-                {metricsErrorMessage}
-            </div>
-        </template>
-
-        <div class="metrics">
-            <template for:each={metricCards} for:item="metric">
-                <article key={metric.id} class={metric.className}>
-                    <span>{metric.label}</span>
-                    <strong>{metric.value}</strong>
-                </article>
-            </template>
-        </div>
-
-        <section class="timeline-card">
+        <c-bedrock-console-panel>
             <lightning-tabset>
                 <lightning-tab label="Running" value="running" onactive={handleTabActive}>
                     <div class="tab-panel">
@@ -84,6 +55,6 @@
                     </div>
                 </lightning-tab>
             </lightning-tabset>
-        </section>
-    </section>
+        </c-bedrock-console-panel>
+    </c-bedrock-console-layout>
 </template>

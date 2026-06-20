@@ -1,0 +1,13 @@
+.panel {
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: 1rem;
+    box-shadow: 0 1rem 2.5rem rgba(24, 54, 86, 0.08);
+    padding: var(--lwc-spacingLarge, 1.5rem);
+}
+
+@media (max-width: 48rem) {
+    .panel {
+        padding: var(--lwc-spacingMedium, 1rem);
+    }
+}

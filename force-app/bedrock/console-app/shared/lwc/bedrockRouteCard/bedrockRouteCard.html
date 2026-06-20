@@ -1,0 +1,35 @@
+<template>
+    <article class={cardClass}>
+        <div class="route-main">
+            <div class="route-heading">
+                <template lwc:if={isExpandable}>
+                    <lightning-button-icon
+                        icon-name={toggleIconName}
+                        alternative-text={toggleAlternativeText}
+                        title={toggleTitle}
+                        variant="bare"
+                        onclick={handleToggle}
+                    ></lightning-button-icon>
+                </template>
+                <template lwc:else>
+                    <lightning-icon icon-name={iconName} size="x-small" alternative-text=""></lightning-icon>
+                </template>
+                <div>
+                    <p class="route-label">{label}</p>
+                    <h3>{cardTitle}</h3>
+                </div>
+            </div>
+            <div class="badge-row">
+                <template for:each={badges} for:item="badge">
+                    <span key={badge.label} class={badge.className}>{badge.label}</span>
+                </template>
+            </div>
+        </div>
+
+        <template lwc:if={showBody}>
+            <slot name="details"></slot>
+            <slot name="versions"></slot>
+            <slot name="actions"></slot>
+        </template>
+    </article>
+</template>

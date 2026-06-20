@@ -1,0 +1,14 @@
+<template>
+    <div class="section-heading">
+        <div>
+            <h2>{heading}</h2>
+            <p>{description}</p>
+        </div>
+        <div class="section-actions">
+            <template lwc:if={isLoading}>
+                <lightning-spinner alternative-text={loadingAlternativeText} size="small"></lightning-spinner>
+            </template>
+            <slot name="actions"></slot>
+        </div>
+    </div>
+</template>

@@ -1,0 +1,40 @@
+.table-panel {
+    display: grid;
+    gap: var(--lwc-spacingMedium, 1rem);
+}
+
+.card-actions {
+    align-items: center;
+    display: grid;
+    gap: var(--lwc-spacingSmall, 0.75rem);
+    grid-template-columns: minmax(12rem, 1fr) auto;
+}
+
+.table-summary {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.refresh-button.is-refreshing {
+    animation: refresh-spin 1s linear infinite;
+}
+
+@keyframes refresh-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+lightning-datatable {
+    --slds-c-table-header-color-background: #f8fbff;
+}
+
+@media (max-width: 35rem) {
+    .card-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

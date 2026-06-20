@@ -4,8 +4,6 @@ import getState from '@salesforce/apex/RestConsoleController.getState';
 import saveSettings from '@salesforce/apex/RestConsoleController.saveSettings';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
-const REFRESH_INTERVAL_MS = 15000;
-
 const METRIC_DEFINITIONS = [
     { id: 'routeCount', label: 'Routes', className: 'metric metric-routes' },
     { id: 'activeRouteCount', label: 'Active', className: 'metric metric-active' },
@@ -26,7 +24,6 @@ export default class RestLayout extends LightningElement {
     isEndpointModalOpen = false;
     errorMessage;
     lastRefreshedAt;
-    refreshTimer;
     expandedEndpointKeys = new Set();
     expandedRouteKeys = new Set();
     editingEndpointKey;
@@ -52,11 +49,6 @@ export default class RestLayout extends LightningElement {
 
     connectedCallback() {
         this.loadState();
-        this.startRefresh();
-    }
-
-    disconnectedCallback() {
-        this.stopRefresh();
     }
 
     get hasError() {
@@ -152,22 +144,6 @@ export default class RestLayout extends LightningElement {
         this.loadState();
     }
 
-    startRefresh() {
-        this.stopRefresh();
-        this.refreshTimer = setInterval(() => {
-            if (!this.isLoading && !this.isSavingSettings && !this.isCreatingEndpoint) {
-                this.loadState();
-            }
-        }, REFRESH_INTERVAL_MS);
-    }
-
-    stopRefresh() {
-        if (this.refreshTimer) {
-            clearInterval(this.refreshTimer);
-            this.refreshTimer = undefined;
-        }
-    }
-
     async loadState() {
         this.isLoading = true;
         this.errorMessage = undefined;
@@ -235,6 +211,14 @@ export default class RestLayout extends LightningElement {
 
     handleToggleEndpoint(event) {
         const routeKey = event.currentTarget.dataset.routeKey;
+        this.toggleEndpoint(routeKey);
+    }
+
+    handleRouteCardToggle(event) {
+        this.toggleEndpoint(event.detail.routeKey);
+    }
+
+    toggleEndpoint(routeKey) {
         if (!routeKey) return;
 
         const expandedEndpointKeys = new Set(this.expandedEndpointKeys);
@@ -413,6 +397,7 @@ export default class RestLayout extends LightningElement {
             key: row.id || row.developerName,
             activeLabel: row.isActive ? 'Active' : 'Inactive',
             statusClass: row.isActive ? 'status-pill status-active' : 'status-pill status-inactive',
+            badgeClass: row.isActive ? 'status-badge-active' : 'status-badge-inactive',
             cardClass: this.routeCardClass(row),
             numericVersion: row.version || 0
         };
@@ -432,6 +417,7 @@ export default class RestLayout extends LightningElement {
         return {
             key: routeKey,
             route: routeKey,
+            title: `/${routeKey}`,
             label: mainVersion.label,
             mainVersion,
             otherVersions,
@@ -448,7 +434,9 @@ export default class RestLayout extends LightningElement {
             versionToggleIconName: versionsExpanded ? 'utility:chevrondown' : 'utility:chevronright',
             versionToggleAlternativeText: versionsExpanded ? 'Collapse route versions' : 'Expand route versions',
             versionToggleTitle: versionsExpanded ? 'Collapse route versions' : 'Expand route versions',
-            cardClass: mainVersion.cardClass
+            cardClass: mainVersion.cardClass,
+            accent: this.routeAccent(mainVersion),
+            badges: this.routeBadges(mainVersion)
         };
     }
 
@@ -481,6 +469,24 @@ export default class RestLayout extends LightningElement {
             classes.push('route-card-default');
         }
         return classes.join(' ');
+    }
+
+    routeAccent(row) {
+        if (!row.isActive) return 'gray';
+        return row.isDefaultVersion ? 'green' : 'blue';
+    }
+
+    routeBadges(row) {
+        const badges = [
+            { label: row.activeLabel, className: row.badgeClass },
+            { label: row.versionLabel, className: 'version-badge' }
+        ];
+
+        if (row.isDefaultVersion) {
+            badges.push({ label: 'Default', className: 'default-badge' });
+        }
+
+        return badges;
     }
 
     buildMetrics(state = {}) {

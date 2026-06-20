@@ -22,9 +22,9 @@ public with sharing class ThreadMonitorController {
     }
 
     static List<ThreadRow> getRows(String view, String searchTerm, String sortBy, String sortDirection) {
-        String normalizedSearchTerm = String.isBlank(searchTerm) ? null : searchTerm.trim().toLowerCase();
+        String normalizedSearchTerm = BedrockConsoleSupport.normalizeSearchTerm(searchTerm);
         String orderByField = sortField(sortBy);
-        String orderByDirection = sortOrder(sortDirection);
+        String orderByDirection = BedrockConsoleSupport.sortOrder(sortDirection);
         Datetime staleBefore = System.now().addMinutes(-Thread.settings.recoveryThresholdMinutes());
         String doneStatus = Thread.consts.DONE;
         String whereClause = view == 'completed' ? 'Status__c = :doneStatus' : 'Status__c != :doneStatus';
@@ -71,25 +71,17 @@ public with sharing class ThreadMonitorController {
         return fieldByName.get(sortBy);
     }
 
-    static String sortOrder(String sortDirection) {
-        return String.isBlank(sortDirection) ? 'DESC' : (sortDirection.toLowerCase() == 'asc' ? 'ASC' : 'DESC');
-    }
-
     static Boolean matchesFilter(ThreadRow row, String searchTerm) {
         if (searchTerm == null) {
             return true;
         }
 
-        return containsIgnoreCase(row.threadNumber, searchTerm) ||
-            containsIgnoreCase(row.pool, searchTerm) ||
-            containsIgnoreCase(row.threadKey, searchTerm) ||
-            containsIgnoreCase(row.status, searchTerm) ||
-            containsIgnoreCase(row.createdBy, searchTerm) ||
-            containsIgnoreCase(row.runKey, searchTerm);
-    }
-
-    static Boolean containsIgnoreCase(String value, String searchTerm) {
-        return value != null && value.toLowerCase().contains(searchTerm);
+        return BedrockConsoleSupport.containsIgnoreCase(row.threadNumber, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.pool, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.threadKey, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.status, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.createdBy, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.runKey, searchTerm);
     }
 
     static String runKeyPreview(String runKey) {
@@ -151,42 +143,20 @@ public with sharing class ThreadMonitorController {
         public Integer compare(ThreadRow left, ThreadRow right) {
             Integer result;
 
-            if (this.sortBy == 'pool') {
-                result = compareStrings(left.pool, right.pool);
-            } else if (this.sortBy == 'threadKey') {
-                result = compareStrings(left.threadKey, right.threadKey);
-            } else if (this.sortBy == 'status') {
-                result = compareStrings(left.status, right.status);
-            } else if (this.sortBy == 'startedAt') {
-                result = compareDatetimes(left.startedAt, right.startedAt);
-            } else if (this.sortBy == 'heartbeatAt') {
-                result = compareDatetimes(left.heartbeatAt, right.heartbeatAt);
-            } else if (this.sortBy == 'completedAt') {
-                result = compareDatetimes(left.completedAt, right.completedAt);
-            } else if (this.sortBy == 'createdDate') {
-                result = compareDatetimes(left.createdDate, right.createdDate);
-            } else {
-                result = compareStrings(left.threadNumber, right.threadNumber);
-            }
+            result = BedrockConsoleSupport.compareValues(valueOf(left, this.sortBy), valueOf(right, this.sortBy));
 
             return this.sortDirection == 'ASC' ? result : -result;
         }
 
-        Integer compareStrings(String left, String right) {
-            if (left == right) return 0;
-            if (left == null) return -1;
-            if (right == null) return 1;
-            return left.toLowerCase().compareTo(right.toLowerCase());
-        }
-
-        Integer compareDatetimes(Datetime left, Datetime right) {
-            if (left == right) return 0;
-            if (left == null) return -1;
-            if (right == null) return 1;
-            Long leftTime = left.getTime();
-            Long rightTime = right.getTime();
-            if (leftTime == rightTime) return 0;
-            return leftTime > rightTime ? 1 : -1;
+        Object valueOf(ThreadRow row, String fieldName) {
+            if (fieldName == 'pool') return row.pool;
+            if (fieldName == 'threadKey') return row.threadKey;
+            if (fieldName == 'status') return row.status;
+            if (fieldName == 'startedAt') return row.startedAt;
+            if (fieldName == 'heartbeatAt') return row.heartbeatAt;
+            if (fieldName == 'completedAt') return row.completedAt;
+            if (fieldName == 'createdDate') return row.createdDate;
+            return row.threadNumber;
         }
     }
 }

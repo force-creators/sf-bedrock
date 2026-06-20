@@ -1,0 +1,10 @@
+<template>
+    <div class="metrics">
+        <template for:each={metrics} for:item="metric">
+            <article key={metric.id} class={metric.className}>
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+            </article>
+        </template>
+    </div>
+</template>

@@ -2,7 +2,6 @@ import { LightningElement } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import getSchedule from '@salesforce/apex/SchedulerConsoleController.getSchedule';
 
-const REFRESH_INTERVAL_MS = 15000;
 const EMPTY_LABEL = 'Never';
 
 const METRIC_DEFINITIONS = [
@@ -45,15 +44,9 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
     hasMetadataChanges = false;
     metadataRecalculationAt;
     errorJobCount = 0;
-    refreshTimer;
 
     connectedCallback() {
         this.loadSchedule();
-        this.startRefresh();
-    }
-
-    disconnectedCallback() {
-        this.stopRefresh();
     }
 
     get hasJobs() {
@@ -95,22 +88,6 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
 
     handleRefresh() {
         this.loadSchedule();
-    }
-
-    startRefresh() {
-        this.stopRefresh();
-        this.refreshTimer = setInterval(() => {
-            if (!this.isLoading) {
-                this.loadSchedule();
-            }
-        }, REFRESH_INTERVAL_MS);
-    }
-
-    stopRefresh() {
-        if (this.refreshTimer) {
-            clearInterval(this.refreshTimer);
-            this.refreshTimer = undefined;
-        }
     }
 
     async loadSchedule() {

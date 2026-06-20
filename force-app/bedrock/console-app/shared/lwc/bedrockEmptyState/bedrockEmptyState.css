@@ -1,0 +1,21 @@
+.empty-state {
+    align-items: center;
+    border: 1px dashed var(--lwc-colorBorder, #dddbda);
+    border-radius: 0.75rem;
+    color: var(--lwc-colorTextWeak, #444444);
+    display: grid;
+    justify-items: center;
+    padding: var(--lwc-spacingXLarge, 2rem);
+    text-align: center;
+}
+
+h3 {
+    color: #102a43;
+    font-size: 1rem;
+    font-weight: 800;
+    margin: var(--lwc-spacingSmall, 0.75rem) 0 0;
+}
+
+p {
+    margin: var(--lwc-spacingXSmall, 0.5rem) 0 0;
+}

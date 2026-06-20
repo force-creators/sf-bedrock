@@ -1,0 +1,74 @@
+.metrics {
+    display: grid;
+    gap: var(--lwc-spacingSmall, 0.75rem);
+    grid-template-columns: repeat(4, minmax(8rem, 1fr));
+    margin-bottom: var(--lwc-spacingMedium, 1rem);
+    overflow-x: auto;
+    padding-bottom: 0.125rem;
+}
+
+.metric,
+.metric-routes,
+.metric-active,
+.metric-inactive,
+.metric-versions,
+.metric-pending,
+.metric-running,
+.metric-error,
+.metric-success,
+.metric-enabled,
+.metric-due,
+.metric-muted {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: 0.75rem;
+    box-shadow: 0 0.5rem 1.5rem rgba(24, 54, 86, 0.06);
+    padding: var(--lwc-spacingMedium, 1rem);
+}
+
+span {
+    color: var(--lwc-colorTextWeak, #444444);
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+strong {
+    color: #102a43;
+    display: block;
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 1.1;
+    margin-top: 0.35rem;
+}
+
+.metric-routes,
+.metric-pending,
+.metric-due {
+    border-top: 0.25rem solid #0176d3;
+}
+
+.metric-active,
+.metric-success,
+.metric-enabled {
+    border-top: 0.25rem solid #2e844a;
+}
+
+.metric-inactive,
+.metric-muted {
+    border-top: 0.25rem solid #747474;
+}
+
+.metric-versions {
+    border-top: 0.25rem solid #8a3ffc;
+}
+
+.metric-running {
+    border-top: 0.25rem solid #5867e8;
+}
+
+.metric-error {
+    border-top: 0.25rem solid #ba0517;
+}

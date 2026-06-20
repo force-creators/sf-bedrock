@@ -1,0 +1,77 @@
+:host {
+    display: block;
+}
+
+.console-shell {
+    background:
+        radial-gradient(circle at top left, rgba(1, 118, 211, 0.14), transparent 22rem),
+        linear-gradient(180deg, #f8fbff 0%, #ffffff 22rem);
+    min-height: 100%;
+    padding: var(--lwc-spacingLarge, 1.5rem);
+}
+
+.hero {
+    align-items: flex-start;
+    display: grid;
+    gap: var(--lwc-spacingLarge, 1.5rem);
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin-bottom: var(--lwc-spacingMedium, 1rem);
+    position: relative;
+}
+
+.eyebrow {
+    color: #2e5b88;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    margin: 0 0 0.25rem;
+    text-transform: uppercase;
+}
+
+h1,
+p {
+    margin: 0;
+}
+
+h1 {
+    color: #102a43;
+    font-size: 2rem;
+    font-weight: 800;
+}
+
+.hero-copy {
+    color: var(--lwc-colorTextWeak, #444444);
+    margin-top: 0.35rem;
+    max-width: 43rem;
+}
+
+.hero-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lwc-spacingSmall, 0.75rem);
+    justify-content: flex-end;
+}
+
+@media (max-width: 48rem) {
+    .console-shell {
+        padding: var(--lwc-spacingMedium, 1rem);
+    }
+
+    .hero {
+        gap: var(--lwc-spacingSmall, 0.75rem);
+    }
+}
+
+@media (max-width: 30rem) {
+    .hero {
+        display: block;
+        padding-right: 9rem;
+    }
+
+    .hero-actions {
+        position: absolute;
+        right: 0;
+        top: 0;
+    }
+}

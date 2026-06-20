@@ -5,15 +5,6 @@ import deleteWorkItems from '@salesforce/apex/EventConsoleController.deleteWorkI
 import LightningConfirm from 'lightning/confirm';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
-const AUTO_REFRESH_OPTIONS = [
-    { label: 'Auto-Refresh Off', value: 'off' },
-    { label: '5 seconds', value: '5' },
-    { label: '10 seconds', value: '10' },
-    { label: '15 seconds', value: '15' },
-    { label: '30 seconds', value: '30' },
-    { label: '60 seconds', value: '60' }
-];
-
 const METRIC_DEFINITIONS = [
     { id: 'backlog', label: 'Backlog', className: 'metric metric-pending' },
     { id: 'errors', label: 'Errors', className: 'metric metric-error' },
@@ -44,8 +35,6 @@ const ERROR_COLUMNS = [
 ];
 
 export default class EventLayout extends LightningElement {
-    autoRefreshOptions = AUTO_REFRESH_OPTIONS;
-    autoRefreshInterval = '15';
     workColumns = WORK_COLUMNS;
     errorColumns = ERROR_COLUMNS;
     metrics = {};
@@ -58,7 +47,6 @@ export default class EventLayout extends LightningElement {
     isApplyingErrorAction = false;
     errorMessage;
     lastRefreshedAt;
-    refreshTimer;
     selectedErrorRowIds = [];
     backlogSortBy = 'createdDate';
     backlogSortDirection = 'asc';
@@ -71,11 +59,6 @@ export default class EventLayout extends LightningElement {
 
     connectedCallback() {
         this.refreshAll();
-        this.startAutoRefresh();
-    }
-
-    disconnectedCallback() {
-        this.stopAutoRefresh();
     }
 
     get metricCards() {
@@ -115,7 +98,13 @@ export default class EventLayout extends LightningElement {
                 payloadType,
                 route,
                 workItems: this.formatNumber(workItems),
-                workItemsLabel: `${this.formatNumber(workItems)} ${workItems === 1 ? 'work item' : 'work items'}`
+                workItemsLabel: `${this.formatNumber(workItems)} ${workItems === 1 ? 'work item' : 'work items'}`,
+                badges: [
+                    {
+                        label: `${this.formatNumber(workItems)} ${workItems === 1 ? 'work item' : 'work items'}`,
+                        className: 'work-badge'
+                    }
+                ]
             };
         });
     }
@@ -179,11 +168,6 @@ export default class EventLayout extends LightningElement {
 
     handleRefresh() {
         this.refreshAll();
-    }
-
-    handleAutoRefreshChange(event) {
-        this.autoRefreshInterval = event.detail.value;
-        this.startAutoRefresh();
     }
 
     handleBacklogSort(event) {
@@ -310,27 +294,6 @@ export default class EventLayout extends LightningElement {
             );
         } finally {
             this.isApplyingErrorAction = false;
-        }
-    }
-
-    startAutoRefresh() {
-        this.stopAutoRefresh();
-
-        if (this.autoRefreshInterval === 'off') {
-            return;
-        }
-
-        this.refreshTimer = setInterval(() => {
-            if (!this.isRefreshing) {
-                this.refreshAll();
-            }
-        }, Number(this.autoRefreshInterval) * 1000);
-    }
-
-    stopAutoRefresh() {
-        if (this.refreshTimer) {
-            clearInterval(this.refreshTimer);
-            this.refreshTimer = undefined;
         }
     }
 

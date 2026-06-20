@@ -1,0 +1,101 @@
+.route-card {
+    background: #fbfdff;
+    border: 1px solid #d8e6f3;
+    border-left: 0.25rem solid #0176d3;
+    border-radius: 0.75rem;
+    padding: var(--lwc-spacingMedium, 1rem);
+}
+
+.route-card-green {
+    border-left-color: #2e844a;
+}
+
+.route-card-gray {
+    border-left-color: #747474;
+}
+
+.route-card-purple {
+    border-left-color: #8a3ffc;
+}
+
+.route-main,
+.badge-row {
+    align-items: flex-start;
+    display: flex;
+    gap: var(--lwc-spacingSmall, 0.75rem);
+}
+
+.route-main {
+    justify-content: space-between;
+}
+
+.route-heading {
+    align-items: flex-start;
+    display: flex;
+    gap: var(--lwc-spacingXSmall, 0.5rem);
+    min-width: 0;
+}
+
+.route-label {
+    color: var(--lwc-colorTextWeak, #444444);
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+h3 {
+    color: #102a43;
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin: 0.15rem 0 0;
+    overflow-wrap: anywhere;
+}
+
+.badge-row {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.status-badge,
+.status-badge-active,
+.status-badge-inactive,
+.version-badge,
+.default-badge,
+.work-badge {
+    border-radius: 999rem;
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1;
+    padding: 0.4rem 0.6rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.status-badge,
+.status-badge-active,
+.default-badge {
+    background: #e8f7ee;
+    color: #0b5d1e;
+}
+
+.status-badge-inactive {
+    background: #f3f3f3;
+    color: #444444;
+}
+
+.version-badge,
+.work-badge {
+    background: #eef6ff;
+    color: #014486;
+}
+
+@media (max-width: 42rem) {
+    .route-main {
+        display: grid;
+    }
+
+    .badge-row {
+        justify-content: flex-start;
+    }
+}

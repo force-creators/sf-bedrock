@@ -1,49 +1,20 @@
 <template>
-    <section class="console-shell">
-        <div class="hero">
-            <div>
-                <p class="eyebrow">Bedrock EventRelay</p>
-                <h1>Event Console</h1>
-                <p class="hero-copy">
-                    Operator view of publish work queued by EventRelay, active lanes, parked threads, and publish failures.
-                </p>
-            </div>
+    <c-bedrock-console-layout
+        eyebrow="Bedrock EventRelay"
+        heading="Event Console"
+        description="Operator view of publish work queued by EventRelay, active lanes, parked threads, and publish failures."
+        error-message={errorMessage}
+        metrics={metricCards}
+    >
+        <lightning-button
+            slot="actions"
+            label={refreshButtonLabel}
+            icon-name="utility:refresh"
+            onclick={handleRefresh}
+            disabled={isRefreshing}
+        ></lightning-button>
 
-            <div class="hero-actions">
-                <lightning-combobox
-                    class="refresh-interval"
-                    label="Auto-refresh interval"
-                    variant="label-hidden"
-                    value={autoRefreshInterval}
-                    options={autoRefreshOptions}
-                    onchange={handleAutoRefreshChange}
-                ></lightning-combobox>
-                <lightning-button
-                    label={refreshButtonLabel}
-                    icon-name="utility:refresh"
-                    onclick={handleRefresh}
-                    disabled={isRefreshing}
-                ></lightning-button>
-            </div>
-        </div>
-
-        <template lwc:if={hasError}>
-            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
-                <span class="slds-assistive-text">Error</span>
-                {errorMessage}
-            </div>
-        </template>
-
-        <div class="metrics">
-            <template for:each={metricCards} for:item="metric">
-                <article key={metric.id} class={metric.className}>
-                    <span>{metric.label}</span>
-                    <strong>{metric.value}</strong>
-                </article>
-            </template>
-        </div>
-
-        <section class="panel">
+        <c-bedrock-console-panel>
             <lightning-tabset>
                 <lightning-tab label="Events" value="events">
                     <div class="tab-panel">
@@ -60,24 +31,14 @@
                         <template lwc:if={hasConfigRows}>
                             <div class="route-grid">
                                 <template for:each={routeCards} for:item="route">
-                                    <article key={route.id} class="event-route-card">
-                                        <div class="route-main">
-                                            <div class="route-heading">
-                                                <lightning-icon
-                                                    icon-name="utility:event"
-                                                    size="x-small"
-                                                    alternative-text=""
-                                                ></lightning-icon>
-                                                <div>
-                                                    <p class="route-label">{route.payloadType}</p>
-                                                    <h3>{route.route}</h3>
-                                                </div>
-                                            </div>
-                                            <div class="badge-row">
-                                                <span class="work-badge">{route.workItemsLabel}</span>
-                                            </div>
-                                        </div>
-
+                                    <c-bedrock-route-card
+                                        key={route.id}
+                                        label={route.payloadType}
+                                        card-title={route.route}
+                                        icon-name="utility:event"
+                                        badges={route.badges}
+                                    >
+                                        <div slot="details">
                                         <dl class="route-details">
                                             <div>
                                                 <dt>Payload Type</dt>
@@ -92,7 +53,8 @@
                                                 <dd>{route.workItems}</dd>
                                             </div>
                                         </dl>
-                                    </article>
+                                        </div>
+                                    </c-bedrock-route-card>
                                 </template>
                             </div>
                         </template>
@@ -261,6 +223,6 @@
                     </div>
                 </lightning-tab>
             </lightning-tabset>
-        </section>
-    </section>
+        </c-bedrock-console-panel>
+    </c-bedrock-console-layout>
 </template>

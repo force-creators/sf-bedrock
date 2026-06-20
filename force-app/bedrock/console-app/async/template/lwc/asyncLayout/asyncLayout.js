@@ -3,15 +3,6 @@ import getMetrics from '@salesforce/apex/AsyncDashboardController.getMetrics';
 
 const PAGE_SELECTORS = ['c-async-backlog', 'c-async-errors', 'c-async-completed'];
 
-const AUTO_REFRESH_OPTIONS = [
-    { label: 'Auto-Refresh Off', value: 'off' },
-    { label: '5 seconds', value: '5' },
-    { label: '10 seconds', value: '10' },
-    { label: '15 seconds', value: '15' },
-    { label: '30 seconds', value: '30' },
-    { label: '60 seconds', value: '60' }
-];
-
 const METRIC_DEFINITIONS = [
     { id: 'backlogCount', label: 'Backlog', className: 'metric metric-backlog' },
     { id: 'runningThreads', label: 'Running Threads', className: 'metric metric-thread' },
@@ -20,21 +11,13 @@ const METRIC_DEFINITIONS = [
 ];
 
 export default class AsyncLayout extends LightningElement {
-    autoRefreshOptions = AUTO_REFRESH_OPTIONS;
-    autoRefreshInterval = '15';
     metrics = {};
     isRefreshing = false;
     metricsErrorMessage;
     lastRefreshedAt;
-    refreshTimer;
 
     connectedCallback() {
         this.refreshAll();
-        this.startAutoRefresh();
-    }
-
-    disconnectedCallback() {
-        this.stopAutoRefresh();
     }
 
     get metricCards() {
@@ -67,11 +50,6 @@ export default class AsyncLayout extends LightningElement {
     handlePageCountChange() {
         // A page's record count changed (e.g. retry/delete) — resync the counts only.
         this.loadMetrics();
-    }
-
-    handleAutoRefreshChange(event) {
-        this.autoRefreshInterval = event.detail.value;
-        this.startAutoRefresh();
     }
 
     handleTabActive(event) {
@@ -116,27 +94,6 @@ export default class AsyncLayout extends LightningElement {
         } finally {
             this.lastRefreshedAt = new Date();
             this.isRefreshing = false;
-        }
-    }
-
-    startAutoRefresh() {
-        this.stopAutoRefresh();
-
-        if (this.autoRefreshInterval === 'off') {
-            return;
-        }
-
-        this.refreshTimer = setInterval(() => {
-            if (!this.isRefreshing) {
-                this.refreshAll();
-            }
-        }, Number(this.autoRefreshInterval) * 1000);
-    }
-
-    stopAutoRefresh() {
-        if (this.refreshTimer) {
-            clearInterval(this.refreshTimer);
-            this.refreshTimer = undefined;
         }
     }
 

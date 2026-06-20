@@ -10,9 +10,9 @@ public with sharing class AsyncCompletedController {
 
     @AuraEnabled
     public static List<CompletedRow> getCompleted(String searchTerm, String sortBy, String sortDirection) {
-        String normalizedSearchTerm = String.isBlank(searchTerm) ? null : searchTerm.trim().toLowerCase();
+        String normalizedSearchTerm = BedrockConsoleSupport.normalizeSearchTerm(searchTerm);
         String orderByField = sortField(sortBy);
-        String orderByDirection = sortOrder(sortDirection);
+        String orderByDirection = BedrockConsoleSupport.sortOrder(sortDirection);
 
         List<CompletedRow> rows = new List<CompletedRow>();
         List<Async__c> workItems = Database.query(
@@ -23,7 +23,7 @@ public with sharing class AsyncCompletedController {
             'ORDER BY CreatedDate DESC ' +
             'LIMIT 500'
         );
-        Map<Id, Thread__c> threadsById = threadsById(workItems);
+        Map<Id, Thread__c> threadsById = BedrockConsoleSupport.asyncThreadsById(workItems);
 
         for (Async__c workItem : workItems) {
             CompletedRow row = new CompletedRow(workItem, threadsById);
@@ -51,43 +51,19 @@ public with sharing class AsyncCompletedController {
         return fieldByName.get(sortBy);
     }
 
-    static String sortOrder(String sortDirection) {
-        return String.isBlank(sortDirection) ? 'DESC' : (sortDirection.toLowerCase() == 'asc' ? 'ASC' : 'DESC');
-    }
-
     static Boolean matchesFilter(CompletedRow row, String searchTerm) {
         if (searchTerm == null) {
             return true;
         }
 
-        return containsIgnoreCase(row.asyncJobNumber, searchTerm) ||
-            containsIgnoreCase(row.apexClass, searchTerm) ||
-            containsIgnoreCase(row.recordId, searchTerm) ||
-            containsIgnoreCase(row.thread, searchTerm);
-    }
-
-    static Boolean containsIgnoreCase(String value, String searchTerm) {
-        return value != null && value.toLowerCase().contains(searchTerm);
-    }
-
-    static Map<Id, Thread__c> threadsById(List<Async__c> workItems) {
-        Set<Id> threadIds = new Set<Id>();
-        for (Async__c workItem : workItems) {
-            if (workItem.get('Thread__c') != null) {
-                threadIds.add((Id) workItem.get('Thread__c'));
-            }
-        }
-        return threadIds.isEmpty() ? new Map<Id, Thread__c>() : new Map<Id, Thread__c>([
-            SELECT Id, Name
-            FROM Thread__c
-            WHERE Id IN :threadIds
-        ]);
+        return BedrockConsoleSupport.containsIgnoreCase(row.asyncJobNumber, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.apexClass, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.recordId, searchTerm) ||
+            BedrockConsoleSupport.containsIgnoreCase(row.thread, searchTerm);
     }
 
     static String threadLabel(Async__c workItem, Map<Id, Thread__c> threadsById) {
-        Id threadId = (Id) workItem.get('Thread__c');
-        if (threadId == null || !threadsById.containsKey(threadId)) return null;
-        return threadsById.get(threadId).Name;
+        return BedrockConsoleSupport.asyncThreadLabel(workItem, threadsById, null);
     }
 
     public class CompletedRow {
@@ -120,36 +96,17 @@ public with sharing class AsyncCompletedController {
         public Integer compare(CompletedRow left, CompletedRow right) {
             Integer result;
 
-            if (this.sortBy == 'asyncJobNumber') {
-                result = compareStrings(left.asyncJobNumber, right.asyncJobNumber);
-            } else if (this.sortBy == 'Apex__c') {
-                result = compareStrings(left.apexClass, right.apexClass);
-            } else if (this.sortBy == 'Record_Id__c') {
-                result = compareStrings(left.recordId, right.recordId);
-            } else if (this.sortBy == 'thread') {
-                result = compareStrings(left.thread, right.thread);
-            } else {
-                result = compareDatetimes(left.createdDate, right.createdDate);
-            }
+            result = BedrockConsoleSupport.compareValues(valueOf(left, this.sortBy), valueOf(right, this.sortBy));
 
             return this.sortDirection == 'ASC' ? result : -result;
         }
 
-        Integer compareStrings(String left, String right) {
-            if (left == right) return 0;
-            if (left == null) return -1;
-            if (right == null) return 1;
-            return left.toLowerCase().compareTo(right.toLowerCase());
-        }
-
-        Integer compareDatetimes(Datetime left, Datetime right) {
-            if (left == right) return 0;
-            if (left == null) return -1;
-            if (right == null) return 1;
-            Long leftTime = left.getTime();
-            Long rightTime = right.getTime();
-            if (leftTime == rightTime) return 0;
-            return leftTime > rightTime ? 1 : -1;
+        Object valueOf(CompletedRow row, String fieldName) {
+            if (fieldName == 'asyncJobNumber') return row.asyncJobNumber;
+            if (fieldName == 'Apex__c') return row.apexClass;
+            if (fieldName == 'Record_Id__c') return row.recordId;
+            if (fieldName == 'thread') return row.thread;
+            return row.createdDate;
         }
     }
 }

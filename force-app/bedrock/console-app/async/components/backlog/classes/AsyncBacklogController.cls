@@ -8,13 +8,13 @@ public with sharing class AsyncBacklogController {
             'ORDER BY Thread__c ASC, Priority__c DESC NULLS LAST, CreatedDate ASC ' +
             'LIMIT 500'
         );
-        Map<Id, Thread__c> threadsById = threadsById(workItems);
+        Map<Id, Thread__c> threadsById = BedrockConsoleSupport.asyncThreadsById(workItems);
 
         Map<String, ThreadGroup> groupsByThread = new Map<String, ThreadGroup>();
         List<ThreadGroup> groups = new List<ThreadGroup>();
 
         for (Async__c workItem : workItems) {
-            String thread = threadLabel(workItem, threadsById);
+            String thread = BedrockConsoleSupport.asyncThreadLabel(workItem, threadsById, 'Unassigned');
 
             if (!groupsByThread.containsKey(thread)) {
                 ThreadGroup groupRecord = new ThreadGroup(thread);
@@ -28,26 +28,6 @@ public with sharing class AsyncBacklogController {
         }
 
         return groups;
-    }
-
-    static Map<Id, Thread__c> threadsById(List<Async__c> workItems) {
-        Set<Id> threadIds = new Set<Id>();
-        for (Async__c workItem : workItems) {
-            if (workItem.get('Thread__c') != null) {
-                threadIds.add((Id) workItem.get('Thread__c'));
-            }
-        }
-        return threadIds.isEmpty() ? new Map<Id, Thread__c>() : new Map<Id, Thread__c>([
-            SELECT Id, Name
-            FROM Thread__c
-            WHERE Id IN :threadIds
-        ]);
-    }
-
-    static String threadLabel(Async__c workItem, Map<Id, Thread__c> threadsById) {
-        Id threadId = (Id) workItem.get('Thread__c');
-        if (threadId == null || !threadsById.containsKey(threadId)) return 'Unassigned';
-        return threadsById.get(threadId).Name;
     }
 
     public class ThreadGroup {

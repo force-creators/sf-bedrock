@@ -6,69 +6,38 @@
         </div>
     </template>
 
-    <lightning-card title="Archive" icon-name="utility:archive">
-        <div slot="actions" class="card-actions">
-            <span class="slds-text-body_small slds-text-color_weak">{lastRefreshedLabel}</span>
-
-            <lightning-input
-                class="filter-input"
-                type="search"
-                variant="label-hidden"
-                label="Filter archived jobs"
-                placeholder="Filter by archive, class, record, or thread"
-                value={searchTerm}
-                onchange={handleSearchChange}
-            ></lightning-input>
-
-            <lightning-button
-                icon-name="utility:play"
-                label="Run Now"
-                onclick={handleRunNow}
-                disabled={isRunDisabled}
-            ></lightning-button>
-
-            <lightning-button-icon
-                icon-name="utility:refresh"
-                alternative-text="Refresh archived jobs"
-                title="Refresh archived jobs"
-                onclick={handleRefresh}
-                disabled={isLoading}
-            ></lightning-button-icon>
-
-            <lightning-badge label={recordCountLabel}></lightning-badge>
+    <template lwc:if={hasError}>
+        <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+            <span class="slds-assistive-text">Error</span>
+            {errorMessage}
         </div>
+    </template>
 
-        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
-            <template lwc:if={hasError}>
-                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
-                    <span class="slds-assistive-text">Error</span>
-                    {errorMessage}
-                </div>
-            </template>
-
-            <template lwc:elseif={hasRows}>
-                <lightning-datatable
-                    key-field="id"
-                    columns={columns}
-                    data={rows}
-                    hide-checkbox-column
-                    sorted-by={sortBy}
-                    sorted-direction={sortDirection}
-                    is-loading={isLoading}
-                    onsort={handleSort}
-                ></lightning-datatable>
-            </template>
-
-            <template lwc:else>
-                <div class="empty-state slds-text-align_center" role="status">
-                    <lightning-icon
-                        icon-name="utility:archive"
-                        size="medium"
-                        alternative-text=""
-                    ></lightning-icon>
-                    <p class="slds-m-top_small">No archived async jobs found.</p>
-                </div>
-            </template>
-        </div>
-    </lightning-card>
+    <c-bedrock-console-table
+        columns={columns}
+        rows={rows}
+        count-label={recordCountLabel}
+        search-term={searchTerm}
+        search-placeholder="Filter by archive, class, record, or thread"
+        show-search
+        hide-checkbox-column
+        is-loading={isLoading}
+        sorted-by={sortBy}
+        sorted-direction={sortDirection}
+        empty-icon-name="utility:archive"
+        empty-heading="No archived async jobs found"
+        empty-message="Archived async work appears here after cleanup runs."
+        onsearchchange={handleTableSearchChange}
+        onrefresh={handleRefresh}
+        onsort={handleSort}
+    >
+        <span slot="actions" class="slds-text-body_small slds-text-color_weak">{lastRefreshedLabel}</span>
+        <lightning-button
+            slot="actions"
+            icon-name="utility:play"
+            label="Run Now"
+            onclick={handleRunNow}
+            disabled={isRunDisabled}
+        ></lightning-button>
+    </c-bedrock-console-table>
 </template>
