@@ -8,6 +8,7 @@ public with sharing class EventConsoleController {
         state.backlogRows = backlogRows();
         state.runningRows = runningRows();
         state.errorRows = errorRows();
+        state.completedRows = completedRows();
         state.archiveRows = archiveRows();
         state.configRows = configRows();
         state.settings = new ConsoleSettings();
@@ -154,14 +155,29 @@ public with sharing class EventConsoleController {
 
     static List<EventRow> archiveRows() {
         String publishJobType = EventRelay.consts.PUBLISH;
-        Set<String> terminalStatuses = new Set<String> { EventRelay.consts.DONE, EventRelay.consts.STALE };
+        String staleStatus = EventRelay.consts.STALE;
         return rowsFrom([
             SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
                 Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
                 Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
             FROM Event__c
             WHERE Job_Type__c = :publishJobType
-                AND Status__c IN :terminalStatuses
+                AND Status__c = :staleStatus
+            ORDER BY LastModifiedDate DESC, CreatedDate DESC
+            LIMIT :MAX_ROWS
+        ]);
+    }
+
+    static List<EventRow> completedRows() {
+        String publishJobType = EventRelay.consts.PUBLISH;
+        String doneStatus = EventRelay.consts.DONE;
+        return rowsFrom([
+            SELECT Id, Name, Status__c, Job_Type__c, Route__c, Payload_Type__c, Idempotency_Key__c,
+                Thread__c, Thread__r.Name, Thread_Key__c, Retry_Count__c,
+                Error_Message__c, CreatedBy.Name, CreatedDate, LastModifiedDate
+            FROM Event__c
+            WHERE Job_Type__c = :publishJobType
+                AND Status__c = :doneStatus
             ORDER BY LastModifiedDate DESC, CreatedDate DESC
             LIMIT :MAX_ROWS
         ]);
@@ -206,6 +222,7 @@ public with sharing class EventConsoleController {
         @AuraEnabled public List<EventRow> backlogRows;
         @AuraEnabled public List<EventRow> runningRows;
         @AuraEnabled public List<EventRow> errorRows;
+        @AuraEnabled public List<EventRow> completedRows;
         @AuraEnabled public List<EventRow> archiveRows;
         @AuraEnabled public List<ConfigRow> configRows;
         @AuraEnabled public ConsoleSettings settings;

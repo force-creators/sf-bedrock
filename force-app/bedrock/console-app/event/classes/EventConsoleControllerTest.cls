@@ -25,7 +25,8 @@ public with sharing class EventConsoleControllerTest {
         Assert.areEqual(1, state.backlogRows.size(), 'Expected backlog rows to include pending publish work.');
         Assert.areEqual(1, state.runningRows.size(), 'Expected running rows to include running publish work.');
         Assert.areEqual(1, state.errorRows.size(), 'Expected error rows to include failed publish work.');
-        Assert.areEqual(2, state.archiveRows.size(), 'Expected archive rows to include completed and stale publish work.');
+        Assert.areEqual(1, state.completedRows.size(), 'Expected completed rows to include completed publish work.');
+        Assert.areEqual(1, state.archiveRows.size(), 'Expected archive rows to include stale publish work.');
         Assert.areEqual(1, state.configRows.size(), 'Expected config rows to summarize publish routes from Event records.');
         Assert.areEqual(5, state.configRows[0].workItems, 'Expected config rows to count only publish work items.');
         Assert.areEqual(50, state.settings.publishBatchSize, 'Expected settings to expose the effective publish batch size.');

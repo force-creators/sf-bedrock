@@ -81,42 +81,6 @@
                     </div>
                 </lightning-tab>
 
-                <lightning-tab label="Running" value="running">
-                    <div class="tab-panel">
-                        <div class="section-heading">
-                            <div>
-                                <h2>Running</h2>
-                                <p>{lastRefreshedLabel}</p>
-                            </div>
-                            <lightning-badge label={runningCountLabel}></lightning-badge>
-                        </div>
-
-                        <template lwc:if={hasRunningRows}>
-                            <lightning-datatable
-                                key-field="id"
-                                columns={workColumns}
-                                data={runningRows}
-                                hide-checkbox-column
-                                sorted-by={runningSortBy}
-                                sorted-direction={runningSortDirection}
-                                is-loading={isRefreshing}
-                                onsort={handleRunningSort}
-                            ></lightning-datatable>
-                        </template>
-
-                        <template lwc:else>
-                            <div class="empty-state slds-text-align_center" role="status">
-                                <lightning-icon
-                                    icon-name="utility:success"
-                                    size="medium"
-                                    alternative-text=""
-                                ></lightning-icon>
-                                <p class="slds-m-top_small">No running publish work found.</p>
-                            </div>
-                        </template>
-                    </div>
-                </lightning-tab>
-
                 <lightning-tab label="Errors" value="errors">
                     <div class="tab-panel">
                         <div class="section-heading">
@@ -173,6 +137,42 @@
                     </div>
                 </lightning-tab>
 
+                <lightning-tab label="Completed" value="completed">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Completed</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                            <lightning-badge label={completedCountLabel}></lightning-badge>
+                        </div>
+
+                        <template lwc:if={hasCompletedRows}>
+                            <lightning-datatable
+                                key-field="id"
+                                columns={workColumns}
+                                data={completedRows}
+                                hide-checkbox-column
+                                sorted-by={completedSortBy}
+                                sorted-direction={completedSortDirection}
+                                is-loading={isRefreshing}
+                                onsort={handleCompletedSort}
+                            ></lightning-datatable>
+                        </template>
+
+                        <template lwc:else>
+                            <div class="empty-state slds-text-align_center" role="status">
+                                <lightning-icon
+                                    icon-name="utility:success"
+                                    size="medium"
+                                    alternative-text=""
+                                ></lightning-icon>
+                                <p class="slds-m-top_small">No completed publish work found.</p>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-tab>
+
                 <lightning-tab label="Archive" value="archive">
                     <div class="tab-panel">
                         <div class="section-heading">
@@ -203,43 +203,17 @@
                                     size="medium"
                                     alternative-text=""
                                 ></lightning-icon>
-                                <p class="slds-m-top_small">No published work found.</p>
+                                <p class="slds-m-top_small">No archived publish work found.</p>
                             </div>
                         </template>
                     </div>
                 </lightning-tab>
 
-                <lightning-tab label="Settings" value="settings">
+                <lightning-tab label="Events" value="events">
                     <div class="tab-panel">
                         <div class="section-heading">
                             <div>
-                                <h2>Settings</h2>
-                                <p>{lastRefreshedLabel}</p>
-                            </div>
-                        </div>
-
-                        <div class="settings-grid">
-                            <article class="setting">
-                                <span>Publish Batch Size</span>
-                                <strong>{publishBatchSize}</strong>
-                            </article>
-                            <article class="setting">
-                                <span>Limit Safety Threshold</span>
-                                <strong>{limitThresholdPct}</strong>
-                            </article>
-                            <article class="setting">
-                                <span>Publish Pool</span>
-                                <strong>{publishPool}</strong>
-                            </article>
-                        </div>
-                    </div>
-                </lightning-tab>
-
-                <lightning-tab label="Event Configs" value="event-configs">
-                    <div class="tab-panel">
-                        <div class="section-heading">
-                            <div>
-                                <h2>Event Configs</h2>
+                                <h2>Events</h2>
                                 <p>{lastRefreshedLabel}</p>
                             </div>
                             <lightning-badge label={configCountLabel}></lightning-badge>
@@ -268,6 +242,32 @@
                                 <p class="slds-m-top_small">No event routes found.</p>
                             </div>
                         </template>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Settings" value="settings">
+                    <div class="tab-panel">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Settings</h2>
+                                <p>{lastRefreshedLabel}</p>
+                            </div>
+                        </div>
+
+                        <div class="settings-grid">
+                            <article class="setting">
+                                <span>Publish Batch Size</span>
+                                <strong>{publishBatchSize}</strong>
+                            </article>
+                            <article class="setting">
+                                <span>Limit Safety Threshold</span>
+                                <strong>{limitThresholdPct}</strong>
+                            </article>
+                            <article class="setting">
+                                <span>Publish Pool</span>
+                                <strong>{publishPool}</strong>
+                            </article>
+                        </div>
                     </div>
                 </lightning-tab>
             </lightning-tabset>

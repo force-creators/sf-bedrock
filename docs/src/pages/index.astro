@@ -5,6 +5,7 @@ const sections = [
   { label: 'The Problem', href: '#the-problem' },
   { label: 'Built From Scale Pressure', href: '#proven-at-scale' },
   { label: 'The Headliners', href: '#the-headliners' },
+  { label: 'Durable Events', href: '#durable-events' },
   { label: 'The Full Toolkit', href: '#the-full-toolkit' },
   { label: 'Designed in Layers', href: '#designed-in-layers' },
   { label: 'Built to Grow', href: '#built-to-grow' },
@@ -22,12 +23,14 @@ const sections = [
     <h1>Apex that scales without the ceremony.</h1>
     <p class="lede">
       sf-bedrock is a foundation for enterprise Apex: multithreaded background
-      work, setup-object-safe async chaining, database-free unit tests, and
-      dependency injection that keeps production code direct. It protects
-      high-volume orgs without making everyday work heavy.
+      work, durable event publication and processing, setup-object-safe async
+      chaining, database-free unit tests, and dependency injection that keeps
+      production code direct. It protects high-volume orgs without making
+      everyday work heavy.
     </p>
     <div class="pill-row" style="margin-top: 1.25rem;">
       <span class="pill">Multithreaded Async Apex</span>
+      <span class="pill">Durable Events</span>
       <span class="pill">Setup-Object Safe</span>
       <span class="pill">Tame Untyped JSON</span>
       <span class="pill">Dependency Injection</span>
@@ -126,9 +129,10 @@ const sections = [
         <h3><a href="/async">Async</a></h3>
         <p>
           Hand the framework record Ids and it drains them in tracked,
-          governor-safe batches. Per-job metadata tunes batch size, retry, and
-          priority; user-level settings allow multithreaded throughput when the
-          org needs more than one straight-line chain.
+          governor-safe batches with visible success, retry, and error state.
+          Per-job metadata tunes batch size, bounded auto-retry, and priority,
+          while hierarchical thread settings unlock multithreaded throughput
+          when one straight-line chain is not enough.
         </p>
       </article>
       <article class="doc-card">
@@ -161,6 +165,39 @@ const sections = [
     </div>
   </section>
 
+  <section class="doc-section" id="durable-events">
+    <h2>Durable Events</h2>
+    <p>
+      Events are now first-class in Bedrock. <a href="/event-relay">EventRelay</a>
+      makes Platform Event publication and inbound processing durable: every
+      payload becomes a tracked <code>Event__c</code> work item that drains
+      through ordered lanes, with the same visible status, bounded auto-retry,
+      and background safety as Async — instead of fire-and-forget
+      <code>EventBus.publish</code> calls and silent trigger failures.
+    </p>
+    <div class="doc-grid">
+      <article class="doc-card">
+        <h3>Durable publication</h3>
+        <p>
+          Publish Platform Events or generic payloads through the relay. Each
+          payload is stored, placed on an ordered lane, and delivered in the
+          background — with custom publishers, <code>stage</code>/<code>flush</code>
+          coordination across services, and intake-level idempotency when you
+          need it.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3>Reliable ingestion</h3>
+        <p>
+          Turn an inbound Platform Event trigger into one line. EventRelay
+          persists the payload and runs your <code>EventRelay.Handler</code>
+          later, preserving FIFO lane order with item-level success or failure
+          and route-configured automatic retry.
+        </p>
+      </article>
+    </div>
+  </section>
+
   <section class="doc-section" id="the-full-toolkit">
     <h2>The Full Toolkit</h2>
     <p>
@@ -168,6 +205,10 @@ const sections = [
       single-purpose, and testable.
     </p>
     <ul class="token-list">
+      <li>
+        <strong><a href="/selector">Selector</a></strong>
+        <span>Reusable Id-based query classes with transaction caching and contract-versioned Platform Cache keys.</span>
+      </li>
       <li>
         <strong><a href="/platform-cache">PlatformCache</a></strong>
         <span>Org and session Platform Cache behind a mockable seam — the part of the platform that is notoriously hard to test, finally testable.</span>
@@ -208,8 +249,8 @@ const sections = [
         <span>Triggers and record lifecycle behavior, coordinated by small handlers.</span>
       </li>
       <li>
-        <strong>Selector</strong>
-        <span>Roadmap query encapsulation built on the same low-ceremony principles.</span>
+        <strong><a href="/selector">Selector</a></strong>
+        <span>Reusable query boundaries for Id-based reads, with transaction and Platform Cache reuse.</span>
       </li>
       <li>
         <strong>Service</strong>
@@ -226,13 +267,10 @@ const sections = [
     <h2>Built to Grow</h2>
     <p>
       The foundation ships today. The roadmap extends the same approach into
-      query encapsulation, events, REST patterns, data services, and shared async services - delivered one
-      deliberate, inspectable piece at a time.
+      REST patterns, data services, and shared async
+      services - delivered one deliberate, inspectable piece at a time.
     </p>
     <div class="pill-row">
-      <span class="pill">Selector</span>
-      <span class="pill">Selector.Cached</span>
-      <span class="pill">Event</span>
       <span class="pill">REST</span>
       <span class="pill">Data</span>
     </div>

@@ -57,8 +57,8 @@ export default class EventLayout extends LightningElement {
     configColumns = CONFIG_COLUMNS;
     metrics = {};
     backlogRows = [];
-    runningRows = [];
     errorRows = [];
+    completedRows = [];
     archiveRows = [];
     configRows = [];
     settings = {};
@@ -70,10 +70,10 @@ export default class EventLayout extends LightningElement {
     selectedErrorRowIds = [];
     backlogSortBy = 'createdDate';
     backlogSortDirection = 'asc';
-    runningSortBy = 'lastModifiedDate';
-    runningSortDirection = 'desc';
     errorSortBy = 'lastModifiedDate';
     errorSortDirection = 'desc';
+    completedSortBy = 'lastModifiedDate';
+    completedSortDirection = 'desc';
     archiveSortBy = 'lastModifiedDate';
     archiveSortDirection = 'desc';
     configSortBy = 'payloadType';
@@ -103,12 +103,12 @@ export default class EventLayout extends LightningElement {
         return this.backlogRows.length > 0;
     }
 
-    get hasRunningRows() {
-        return this.runningRows.length > 0;
-    }
-
     get hasErrorRows() {
         return this.errorRows.length > 0;
+    }
+
+    get hasCompletedRows() {
+        return this.completedRows.length > 0;
     }
 
     get hasArchiveRows() {
@@ -123,12 +123,12 @@ export default class EventLayout extends LightningElement {
         return this.recordCountLabel(this.backlogRows.length);
     }
 
-    get runningCountLabel() {
-        return this.recordCountLabel(this.runningRows.length);
-    }
-
     get errorCountLabel() {
         return this.recordCountLabel(this.errorRows.length);
+    }
+
+    get completedCountLabel() {
+        return this.recordCountLabel(this.completedRows.length);
     }
 
     get archiveCountLabel() {
@@ -190,16 +190,16 @@ export default class EventLayout extends LightningElement {
         this.backlogRows = this.sortRows(this.backlogRows, this.backlogSortBy, this.backlogSortDirection);
     }
 
-    handleRunningSort(event) {
-        this.runningSortBy = event.detail.fieldName;
-        this.runningSortDirection = event.detail.sortDirection;
-        this.runningRows = this.sortRows(this.runningRows, this.runningSortBy, this.runningSortDirection);
-    }
-
     handleErrorSort(event) {
         this.errorSortBy = event.detail.fieldName;
         this.errorSortDirection = event.detail.sortDirection;
         this.errorRows = this.sortRows(this.errorRows, this.errorSortBy, this.errorSortDirection);
+    }
+
+    handleCompletedSort(event) {
+        this.completedSortBy = event.detail.fieldName;
+        this.completedSortDirection = event.detail.sortDirection;
+        this.completedRows = this.sortRows(this.completedRows, this.completedSortBy, this.completedSortDirection);
     }
 
     handleArchiveSort(event) {
@@ -270,8 +270,12 @@ export default class EventLayout extends LightningElement {
             const state = await getState();
             this.metrics = state.metrics || {};
             this.backlogRows = this.sortRows(state.backlogRows || [], this.backlogSortBy, this.backlogSortDirection);
-            this.runningRows = this.sortRows(state.runningRows || [], this.runningSortBy, this.runningSortDirection);
             this.errorRows = this.sortRows(state.errorRows || [], this.errorSortBy, this.errorSortDirection);
+            this.completedRows = this.sortRows(
+                state.completedRows || [],
+                this.completedSortBy,
+                this.completedSortDirection
+            );
             this.archiveRows = this.sortRows(state.archiveRows || [], this.archiveSortBy, this.archiveSortDirection);
             this.configRows = this.sortRows(state.configRows || [], this.configSortBy, this.configSortDirection);
             this.settings = state.settings || {};
@@ -279,8 +283,8 @@ export default class EventLayout extends LightningElement {
         } catch (error) {
             this.metrics = {};
             this.backlogRows = [];
-            this.runningRows = [];
             this.errorRows = [];
+            this.completedRows = [];
             this.archiveRows = [];
             this.configRows = [];
             this.settings = {};

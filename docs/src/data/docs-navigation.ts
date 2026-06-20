@@ -45,7 +45,7 @@ export const navGroups: NavGroup[] = [
       { label: 'Async', href: '/async' },
       { label: 'EventRelay', href: '/event-relay' },
       { label: 'Scheduler', href: '/scheduler' },
-      { label: 'REST', href: '#', status: 'Roadmap' },
+      { label: 'REST', href: '/rest' },
       { label: 'Data', href: '#', status: 'Roadmap' }
     ]
   },
@@ -55,7 +55,7 @@ export const navGroups: NavGroup[] = [
       { label: 'TestData', href: '/test-data' },
       { label: 'DML', href: '/dml' },
       { label: 'Query', href: '/query' },
-      { label: 'Selector', href: '#', status: 'Roadmap' },
+      { label: 'Selector', href: '/selector' },
       { label: 'TriggerHandler', href: '/trigger-handler' },
       { label: 'RecordBuffer', href: '/record-buffer' },
       { label: 'Thread', href: '/thread' },
