@@ -2,6 +2,7 @@
   "name": "salesforce-app",
   "private": true,
   "version": "1.0.0",
+  "license": "MPL-2.0",
   "description": "Salesforce App",
   "scripts": {
     "deploy": "node scripts/deploy-library.mjs",

@@ -1,5 +1,13 @@
 # Salesforce DX Project: Next Steps
 
+## License
+
+sf-bedrock is licensed under the Mozilla Public License, v. 2.0. See
+[LICENSE](LICENSE).
+
+Copyright 2026 Matthew McKenzie. See [NOTICE](NOTICE.md) and
+[TRADEMARKS](TRADEMARKS.md) for attribution and project identity guidance.
+
 Now that you’ve created a Salesforce DX project, what’s next? Here are some documentation resources to get you started.
 
 ## How Do You Plan to Deploy Your Changes?
