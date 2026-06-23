@@ -7,7 +7,10 @@ CONTACT_LIMIT="${CONTACT_LIMIT:-200}"
 INITIAL_MAX_THREADS="${INITIAL_MAX_THREADS:-1}"
 GREEDY_MAX_THREADS="${GREEDY_MAX_THREADS:-50}"
 OBSERVE_SECONDS="${OBSERVE_SECONDS:-10}"
-JOB_CLASS="${JOB_CLASS:-HelloWorldAsync}"
+if [[ -z "${JOB_CLASS:-}" ]]; then
+    echo "JOB_CLASS is required, for example: JOB_CLASS=MyAsyncJob $0" >&2
+    exit 1
+fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/bedrock-async-fanout.XXXXXX")"

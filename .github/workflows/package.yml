@@ -1,0 +1,99 @@
+name: Package
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "force-app/**"
+      - "sfdx-project.json"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/package.yml"
+  workflow_dispatch:
+    inputs:
+      promote:
+        description: "Promote the created package version to released"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Create package version
+    runs-on: ubuntu-latest
+    environment: main
+
+    permissions:
+      contents: read
+
+    env:
+      SF_PACKAGE: ${{ vars.SF_PACKAGE_ID || 'sf-bedrock' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Salesforce CLI
+        run: npm install --global @salesforce/cli
+
+      - name: Authenticate Dev Hub
+        shell: bash
+        run: |
+          printf '%s' '${{ secrets.SF_DEVHUB_AUTH_URL }}' > sf-devhub-auth-url.txt
+          sf org login sfdx-url \
+            --sfdx-url-file sf-devhub-auth-url.txt \
+            --alias devhub \
+            --set-default-dev-hub
+
+      - name: Create package version
+        id: package
+        shell: bash
+        run: |
+          sf package version create \
+            --package "$SF_PACKAGE" \
+            --installation-key-bypass \
+            --code-coverage \
+            --wait 10 \
+            --target-dev-hub devhub \
+            --json > package-version.json
+
+          cat package-version.json
+          subscriber_package_version_id="$(jq -r '.result.SubscriberPackageVersionId' package-version.json)"
+          package_version_id="$(jq -r '.result.PackageVersionId' package-version.json)"
+          install_url="https://login.salesforce.com/packaging/installPackage.apexp?p0=$subscriber_package_version_id"
+
+          echo "subscriber-package-version-id=$subscriber_package_version_id" >> "$GITHUB_OUTPUT"
+          echo "package-version-id=$package_version_id" >> "$GITHUB_OUTPUT"
+          echo "install-url=$install_url" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Package version"
+            echo
+            echo "[Install sf-bedrock package]($install_url)"
+            echo
+            echo "- Subscriber Package Version Id: \`$subscriber_package_version_id\`"
+            echo "- Package Version Id: \`$package_version_id\`"
+            echo "- Install URL: $install_url"
+            echo
+            echo "\`\`\`bash"
+            echo "sf package install --package $subscriber_package_version_id --target-org sf-bedrock --security-type AdminsOnly --apex-compile package --publish-wait 10 --wait 10 --no-prompt"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Promote package version
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.promote }}
+        run: |
+          sf package version promote \
+            --package "${{ steps.package.outputs.subscriber-package-version-id }}" \
+            --target-dev-hub devhub \
+            --no-prompt

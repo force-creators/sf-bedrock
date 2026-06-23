@@ -1,1 +1,16 @@
+#!/usr/bin/env sh
+
+if ! command -v npm >/dev/null 2>&1; then
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  for npm_bin in "$HOME"/.nvm/versions/node/*/bin/npm; do
+    [ -x "$npm_bin" ] || continue
+    export PATH="$(dirname "$npm_bin"):$PATH"
+    break
+  done
+fi
+
 npm run precommit

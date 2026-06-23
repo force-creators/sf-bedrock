@@ -1,12 +1,23 @@
 {
   "packageDirectories": [
     {
-      "path": "force-app",
-      "default": true
+      "versionName": "ver 0.1",
+      "versionNumber": "0.1.0.NEXT",
+      "path": "force-app/bedrock/lib",
+      "default": true,
+      "package": "sf-bedrock",
+      "versionDescription": ""
+    },
+    {
+      "path": "force-app/main/default",
+      "default": false
     }
   ],
   "name": "sf-bedrock",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
-  "sourceApiVersion": "65.0"
+  "sourceApiVersion": "66.0",
+  "packageAliases": {
+    "sf-bedrock": "0Hofj00000021KzCAI"
+  }
 }
