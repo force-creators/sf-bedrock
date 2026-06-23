@@ -1,7 +1,7 @@
 {
     "name": "salesforce-app",
     "private": true,
-    "version": "0.1.0+3",
+    "version": "0.1.0+4",
     "license": "MPL-2.0",
     "description": "Salesforce App",
     "scripts": {
@@ -45,8 +45,8 @@
         ]
     },
     "sfPackage": {
-        "version": "0.1.0.3",
-        "subscriberPackageVersionId": "04tfj000000L19BAAS",
-        "installUrl": "https://login.salesforce.com/packaging/installPackage.apexp?p0=04tfj000000L19BAAS"
+        "version": "0.1.0.4",
+        "subscriberPackageVersionId": "04tfj000000L1E1AAK",
+        "installUrl": "https://login.salesforce.com/packaging/installPackage.apexp?p0=04tfj000000L1E1AAK"
     }
 }
