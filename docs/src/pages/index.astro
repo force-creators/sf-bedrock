@@ -6,7 +6,6 @@ const sections = [
   { label: 'The Headliners', href: '#the-headliners' },
   { label: 'The Full Toolkit', href: '#the-full-toolkit' },
   { label: 'How It Fits', href: '#how-it-fits' },
-  { label: 'Built to Grow', href: '#built-to-grow' },
   { label: 'Start Building', href: '#start-building' }
 ];
 ---
@@ -18,7 +17,7 @@ const sections = [
   sections={sections}
 >
   <Fragment slot="header">
-    <h1>Enterprise Apex frameworks, without framework fog.</h1>
+    <h1>Enterprise Apex without the ceremony.</h1>
     <p class="lede">
       sf-bedrock gives Salesforce teams a small set of readable frameworks for
       background work, durable events, recurring jobs, and routed REST APIs.
@@ -81,10 +80,6 @@ const sections = [
 
   <section class="doc-section" id="the-headliners">
     <h2>The Headliners</h2>
-    <p>
-      These are Bedrock's framework-level entry points. Start here when you are
-      solving a whole platform shape, not just cleaning up a single line of Apex.
-    </p>
     <div class="doc-grid">
       <article class="doc-card">
         <h3><a href="/async">Async</a></h3>
@@ -216,28 +211,6 @@ const sections = [
     </div>
   </section>
 
-  <section class="doc-section" id="built-to-grow">
-    <h2>Built to Grow</h2>
-    <p>
-      Bedrock grows by turning proven repeatable patterns into small,
-      inspectable libraries. The current framework set covers background work,
-      events, scheduled jobs, and REST APIs. The roadmap extends the same
-      approach into data services only when the source and metadata are ready.
-    </p>
-    <div class="callout">
-      <strong>Adopt by pressure, not by checklist</strong>
-      <p>
-        Pick the framework or tool that matches the problem in front of you.
-        Bedrock is a toolkit, not a mandate to replace every pattern at once.
-      </p>
-    </div>
-    <div class="pill-row">
-      <span class="pill">Implemented Frameworks</span>
-      <span class="pill">Composable Tools</span>
-      <span class="pill">Data Roadmap</span>
-    </div>
-  </section>
-
   <section class="doc-section" id="start-building">
     <h2>Start Building</h2>
     <p>
@@ -246,18 +219,38 @@ const sections = [
       those seams feel natural, reach for the framework that matches your next
       platform problem.
     </p>
-    <div class="utility-panel">
-      <div>
-        <h3>Ready in minutes</h3>
+    <div class="doc-grid">
+      <article class="doc-card">
+        <h3><a href="/getting-started">Getting Started</a></h3>
         <p>
-          Start with the onboarding guide, then jump into Async when you want to
-          see the full framework shape.
+          Install the library, understand the docs structure, and take the
+          shortest path into a working Bedrock pattern.
         </p>
-      </div>
-      <div class="pill-row" style="gap: 0.6rem;">
-        <a class="button button-primary" href="/getting-started">Getting Started</a>
-        <a class="button button-secondary" href="/async">Async Framework</a>
-      </div>
+      </article>
+      <article class="doc-card">
+        <h3><a href="/console">Bedrock Console</a></h3>
+        <p>
+          Use the console docs when you want to inspect Async, EventRelay, REST,
+          and Scheduler work from a Salesforce-facing interface.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3><a href="/test-data">Testing Foundation</a></h3>
+        <p>
+          Start with <a href="/test-data">TestData</a>,
+          <a href="/dml">DML</a>, and <a href="/query">Query</a> to make fast,
+          database-light Apex tests feel normal.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3><a href="/async">Frameworks</a></h3>
+        <p>
+          Jump into <a href="/async">Async</a>,
+          <a href="/event-relay">EventRelay</a>,
+          <a href="/scheduler">Scheduler</a>, or <a href="/rest">REST</a> when
+          platform behavior needs a shared pattern.
+        </p>
+      </article>
     </div>
   </section>
 </DocsLayout>
