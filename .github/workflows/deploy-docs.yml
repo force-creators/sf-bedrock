@@ -7,6 +7,7 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/deploy-docs.yml"
+      - "wrangler.toml"
   workflow_dispatch:
 
 concurrency:
@@ -42,10 +43,11 @@ jobs:
         working-directory: docs
         run: npm run build
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy docs/dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
+          wranglerVersion: "4"
+          command: deploy --config wrangler.toml
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
