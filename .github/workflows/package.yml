@@ -59,6 +59,7 @@ jobs:
         id: package
         shell: bash
         run: |
+          set +e
           sf package version create \
             --package "$SF_PACKAGE" \
             --installation-key-bypass \
@@ -66,8 +67,17 @@ jobs:
             --wait 10 \
             --target-dev-hub devhub \
             --json > package-version.json
+          package_create_status=$?
+          set -e
 
           cat package-version.json
+
+          if [ "$package_create_status" -ne 0 ]; then
+            echo "Package version creation failed. Salesforce CLI output:"
+            jq -r '.message // .result.Message // .result.Status // empty' package-version.json
+            exit "$package_create_status"
+          fi
+
           subscriber_package_version_id="$(jq -r '.result.SubscriberPackageVersionId' package-version.json)"
           package_version_id="$(jq -r '.result.PackageVersionId' package-version.json)"
           install_url="https://login.salesforce.com/packaging/installPackage.apexp?p0=$subscriber_package_version_id"
