@@ -137,7 +137,11 @@ pre code {
 .brand-logo {
     width: 2.65rem;
     flex: 0 0 auto;
-    height: auto;
+    height: 2.65rem;
+    padding: 0.08rem;
+    border-radius: 0.75rem;
+    background: white;
+    box-shadow: 0 0.35rem 0.8rem rgba(3, 45, 96, 0.14);
 }
 
 .brand-text {
@@ -1322,6 +1326,9 @@ p {
 
     .brand-logo {
         width: 2rem;
+        height: 2rem;
+        padding: 0.06rem;
+        border-radius: 0.55rem;
     }
 
     .menu-toggle-text {

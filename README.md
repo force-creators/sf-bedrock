@@ -1,3 +1,5 @@
+<img src="docs/assets/icon.png" alt="Bedrock app icon" width="120" height="120">
+
 # sf-bedrock
 
 sf-bedrock is a Salesforce foundation library for Apex automation. It provides a
