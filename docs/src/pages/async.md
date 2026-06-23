@@ -224,7 +224,7 @@ user, flow, trigger, or integration may have changed the record.
 or minutes after the original transaction.
 
 > If the payload itself is the work, use a purpose-built integration or event
-> pattern. `Async` is for saved records that can be re-queried by Id.
+> pattern. `Async` is for saved records that can be re-queried by Id
 
 ## Staging Work
 
