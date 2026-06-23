@@ -1,10 +1,16 @@
 <template>
     <lightning-card title="Async Jobs" icon-name="utility:settings">
-        <lightning-badge slot="actions" label={recordCountLabel}></lightning-badge>
+        <lightning-badge
+            slot="actions"
+            label={recordCountLabel}
+        ></lightning-badge>
 
         <div class="slds-p-horizontal_medium slds-p-bottom_medium">
             <template lwc:if={hasError}>
-                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                <div
+                    class="slds-notify slds-notify_alert slds-alert_error"
+                    role="alert"
+                >
                     <span class="slds-assistive-text">Error</span>
                     {errorMessage}
                 </div>
@@ -28,7 +34,9 @@
                         size="medium"
                         alternative-text=""
                     ></lightning-icon>
-                    <p class="slds-m-top_small">No async job metadata records found.</p>
+                    <p class="slds-m-top_small">
+                        No async job metadata records found.
+                    </p>
                 </div>
             </template>
         </div>

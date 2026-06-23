@@ -6,24 +6,24 @@ eyebrow: Frameworks
 heading: REST
 lede: REST gives Bedrock one Apex REST gateway at /services/apexrest/api and routes versioned endpoint roots from Rest_Config__mdt into Apex classes that extend Rest.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Routing
-    href: "#routing"
-  - label: Settings
-    href: "#settings"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Routing
+      href: "#routing"
+    - label: Settings
+      href: "#settings"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -47,21 +47,19 @@ supports.
 ```apex
 public inherited sharing class AccountRest extends Rest {
     public override void get(Rest.Request request) {
-        respond(new Map<String, Object> {
-            'accountId' => request.primaryId
-        });
+        respond(new Map<String, Object>{ 'accountId' => request.primaryId });
     }
 }
 ```
 
 Create one `Rest_Config__mdt` record:
 
-| Field | Value |
-| --- | --- |
-| `Active__c` | `true` |
-| `Route__c` | `accounts` |
-| `Version__c` | `1` |
-| `Apex__c` | `AccountRest` |
+| Field        | Value         |
+| ------------ | ------------- |
+| `Active__c`  | `true`        |
+| `Route__c`   | `accounts`    |
+| `Version__c` | `1`           |
+| `Apex__c`    | `AccountRest` |
 
 Then call:
 
@@ -79,10 +77,12 @@ Sub-endpoints are inner classes that also extend `Rest`.
 public inherited sharing class AccountRest extends Rest {
     public class Contacts extends Rest {
         public override void get(Rest.Request request) {
-            respond(new Map<String, Object> {
-                'accountId' => request.primaryId,
-                'contactId' => request.secondaryId
-            });
+            respond(
+                new Map<String, Object>{
+                    'accountId' => request.primaryId,
+                    'contactId' => request.secondaryId
+                }
+            );
         }
     }
 }
@@ -137,13 +137,13 @@ route.
 
 After the root, these shapes are supported:
 
-| Shape | Meaning |
-| --- | --- |
-| `/accounts` | root endpoint |
-| `/accounts/{primaryContext}` | root endpoint with context |
-| `/accounts/contacts` | `Contacts` sub-endpoint |
-| `/accounts/{primaryContext}/contacts` | context plus sub-endpoint |
-| `/accounts/contacts/{primaryContext}` | sub-endpoint plus context |
+| Shape                                                    | Meaning                                  |
+| -------------------------------------------------------- | ---------------------------------------- |
+| `/accounts`                                              | root endpoint                            |
+| `/accounts/{primaryContext}`                             | root endpoint with context               |
+| `/accounts/contacts`                                     | `Contacts` sub-endpoint                  |
+| `/accounts/{primaryContext}/contacts`                    | context plus sub-endpoint                |
+| `/accounts/contacts/{primaryContext}`                    | sub-endpoint plus context                |
 | `/accounts/{primaryContext}/contacts/{secondaryContext}` | context, sub-endpoint, secondary context |
 
 Sub-endpoint resolution wins over context. If `contacts` resolves to an inner
@@ -154,13 +154,13 @@ Sub-endpoint resolution wins over context. If `contacts` resolves to an inner
 `Rest_Settings__c` is a hierarchy custom setting. Blank or invalid values fall
 back to safe defaults.
 
-| Field | Default behavior |
-| --- | --- |
-| `Unknown_Route_Status_Code__c` | `404` |
-| `Inactive_Route_Status_Code__c` | `404` |
-| `Unsupported_Method_Status_Code__c` | `405` |
-| `Access_Denied_Status_Code__c` | `403` |
-| `Expose_Error_Details__c` | `false` |
+| Field                               | Default behavior |
+| ----------------------------------- | ---------------- |
+| `Unknown_Route_Status_Code__c`      | `404`            |
+| `Inactive_Route_Status_Code__c`     | `404`            |
+| `Unsupported_Method_Status_Code__c` | `405`            |
+| `Access_Denied_Status_Code__c`      | `403`            |
+| `Expose_Error_Details__c`           | `false`          |
 
 ## Testing
 
@@ -207,17 +207,17 @@ They call `respond` or `error`, which writes to `RestContext.response`.
 
 Most app code extends `Rest` and overrides the method it needs.
 
-| Member | Signature | Description |
-| --- | --- | --- |
-| `get` | `public virtual void get(Rest.Request request)` | Handles GET; default returns method-not-allowed. |
-| `post` | `public virtual void post(Rest.Request request)` | Handles POST; default returns method-not-allowed. |
-| `put` | `public virtual void put(Rest.Request request)` | Handles PUT; default returns method-not-allowed. |
-| `patch` | `public virtual void patch(Rest.Request request)` | Handles PATCH; default returns method-not-allowed. |
-| `del` | `public virtual void del(Rest.Request request)` | Handles DELETE; default returns method-not-allowed. |
-| `canAccess` | `public virtual Boolean canAccess(Rest.Request request)` | Endpoint access hook; defaults to `true`. |
-| `respond` | `protected void respond(Object body)` | Writes a JSON `200` response. |
-| `respond` | `protected void respond(Integer statusCode, Object body)` | Writes a JSON response with the given status. |
-| `error` | `protected void error(Integer statusCode, String message)` | Writes a JSON error response. |
+| Member      | Signature                                                  | Description                                         |
+| ----------- | ---------------------------------------------------------- | --------------------------------------------------- |
+| `get`       | `public virtual void get(Rest.Request request)`            | Handles GET; default returns method-not-allowed.    |
+| `post`      | `public virtual void post(Rest.Request request)`           | Handles POST; default returns method-not-allowed.   |
+| `put`       | `public virtual void put(Rest.Request request)`            | Handles PUT; default returns method-not-allowed.    |
+| `patch`     | `public virtual void patch(Rest.Request request)`          | Handles PATCH; default returns method-not-allowed.  |
+| `del`       | `public virtual void del(Rest.Request request)`            | Handles DELETE; default returns method-not-allowed. |
+| `canAccess` | `public virtual Boolean canAccess(Rest.Request request)`   | Endpoint access hook; defaults to `true`.           |
+| `respond`   | `protected void respond(Object body)`                      | Writes a JSON `200` response.                       |
+| `respond`   | `protected void respond(Integer statusCode, Object body)`  | Writes a JSON response with the given status.       |
+| `error`     | `protected void error(Integer statusCode, String message)` | Writes a JSON error response.                       |
 
 `Rest.Request` exposes `version`, `route`, `segments`, `primaryContext`,
 `secondaryContext`, `primaryId`, `secondaryId`, `ids`, `body`, and `params`.

@@ -16,7 +16,11 @@
 
         <c-bedrock-console-panel>
             <lightning-tabset>
-                <lightning-tab label="Running" value="running" onactive={handleTabActive}>
+                <lightning-tab
+                    label="Running"
+                    value="running"
+                    onactive={handleTabActive}
+                >
                     <div class="tab-panel">
                         <div class="section-heading">
                             <div>
@@ -25,11 +29,17 @@
                             </div>
                         </div>
 
-                        <c-thread-running oncountchange={handlePageCountChange}></c-thread-running>
+                        <c-thread-running
+                            oncountchange={handlePageCountChange}
+                        ></c-thread-running>
                     </div>
                 </lightning-tab>
 
-                <lightning-tab label="Completed" value="completed" onactive={handleTabActive}>
+                <lightning-tab
+                    label="Completed"
+                    value="completed"
+                    onactive={handleTabActive}
+                >
                     <div class="tab-panel">
                         <div class="section-heading">
                             <div>
@@ -38,7 +48,9 @@
                             </div>
                         </div>
 
-                        <c-thread-completed oncountchange={handlePageCountChange}></c-thread-completed>
+                        <c-thread-completed
+                            oncountchange={handlePageCountChange}
+                        ></c-thread-completed>
                     </div>
                 </lightning-tab>
 

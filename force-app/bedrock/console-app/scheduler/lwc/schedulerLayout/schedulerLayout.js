@@ -1,35 +1,52 @@
-import { LightningElement } from 'lwc';
-import { NavigationMixin } from 'lightning/navigation';
-import getSchedule from '@salesforce/apex/SchedulerConsoleController.getSchedule';
+import { LightningElement } from "lwc";
+import { NavigationMixin } from "lightning/navigation";
+import getSchedule from "@salesforce/apex/SchedulerConsoleController.getSchedule";
 
-const EMPTY_LABEL = 'Never';
+const EMPTY_LABEL = "Never";
 
 const METRIC_DEFINITIONS = [
-    { id: 'enabledJobCount', label: 'Enabled', className: 'metric metric-enabled' },
-    { id: 'dueJobCount', label: 'Due Now', className: 'metric metric-due' },
-    { id: 'errorJobCount', label: 'With Errors', className: 'metric metric-error' },
-    { id: 'disabledJobCount', label: 'Disabled', className: 'metric metric-muted' }
+    {
+        id: "enabledJobCount",
+        label: "Enabled",
+        className: "metric metric-enabled"
+    },
+    { id: "dueJobCount", label: "Due Now", className: "metric metric-due" },
+    {
+        id: "errorJobCount",
+        label: "With Errors",
+        className: "metric metric-error"
+    },
+    {
+        id: "disabledJobCount",
+        label: "Disabled",
+        className: "metric metric-muted"
+    }
 ];
 
 const JOB_CONFIGURATION_COLUMNS = [
     {
-        label: 'Open',
-        type: 'button',
+        label: "Open",
+        type: "button",
         initialWidth: 90,
         typeAttributes: {
-            label: 'Open',
-            name: 'open',
-            title: 'Open scheduler job configuration',
-            variant: 'base'
+            label: "Open",
+            name: "open",
+            title: "Open scheduler job configuration",
+            variant: "base"
         }
     },
-    { label: 'Developer Name', fieldName: 'developerName' },
-    { label: 'Label', fieldName: 'label' },
-    { label: 'Apex Class', fieldName: 'apexClass' },
-    { label: 'Enabled', fieldName: 'isEnabled', type: 'boolean', initialWidth: 110 },
-    { label: 'Frequency', fieldName: 'frequency', initialWidth: 130 },
-    { label: 'Interval', fieldName: 'frequencyValue', initialWidth: 100 },
-    { label: 'Cadence', fieldName: 'cadence', initialWidth: 150 }
+    { label: "Developer Name", fieldName: "developerName" },
+    { label: "Label", fieldName: "label" },
+    { label: "Apex Class", fieldName: "apexClass" },
+    {
+        label: "Enabled",
+        fieldName: "isEnabled",
+        type: "boolean",
+        initialWidth: 110
+    },
+    { label: "Frequency", fieldName: "frequency", initialWidth: 130 },
+    { label: "Interval", fieldName: "frequencyValue", initialWidth: 100 },
+    { label: "Cadence", fieldName: "cadence", initialWidth: 150 }
 ];
 
 export default class SchedulerLayout extends NavigationMixin(LightningElement) {
@@ -59,7 +76,7 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
 
     get jobConfigurationCountLabel() {
         const count = this.jobConfigurations.length;
-        return `${count} ${count === 1 ? 'configuration' : 'configurations'}`;
+        return `${count} ${count === 1 ? "configuration" : "configurations"}`;
     }
 
     get hasError() {
@@ -71,16 +88,19 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
     }
 
     get errorSummaryLabel() {
-        return `${this.errorJobCount} scheduler ${this.errorJobCount === 1 ? 'job has' : 'jobs have'} a stored error`;
+        return `${this.errorJobCount} scheduler ${this.errorJobCount === 1 ? "job has" : "jobs have"} a stored error`;
     }
 
     get metadataRecalculationLabel() {
-        return this.formatDateTime(this.metadataRecalculationAt, 'the next Scheduler heartbeat');
+        return this.formatDateTime(
+            this.metadataRecalculationAt,
+            "the next Scheduler heartbeat"
+        );
     }
 
     get lastRefreshedLabel() {
         if (!this.lastRefreshedAt) {
-            return 'Last refreshed: Not yet';
+            return "Last refreshed: Not yet";
         }
 
         return `Last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
@@ -121,16 +141,16 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
     handleJobConfigurationAction(event) {
         const { action, row } = event.detail;
 
-        if (action.name === 'open' && row.id) {
+        if (action.name === "open" && row.id) {
             this[NavigationMixin.GenerateUrl]({
-                type: 'standard__recordPage',
+                type: "standard__recordPage",
                 attributes: {
                     recordId: row.id,
-                    objectApiName: 'Scheduler_Job__mdt',
-                    actionName: 'view'
+                    objectApiName: "Scheduler_Job__mdt",
+                    actionName: "view"
                 }
             }).then((url) => {
-                window.open(url, '_blank', 'noopener');
+                window.open(url, "_blank", "noopener");
             });
         }
     }
@@ -145,7 +165,7 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
     emptyMetrics() {
         return METRIC_DEFINITIONS.map((metric) => ({
             ...metric,
-            value: '0'
+            value: "0"
         }));
     }
 
@@ -155,7 +175,7 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
         return rows
             .map((row) => {
                 const key = row.id || row.apexClass;
-                const status = row.status || 'Scheduled';
+                const status = row.status || "Scheduled";
 
                 return {
                     ...row,
@@ -163,8 +183,14 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
                     statusLabel: this.statusLabel(row, now),
                     statusClass: this.statusClass(status),
                     timelineClass: this.timelineClass(row),
-                    lastExecutedLabel: this.formatDateTime(row.lastExecutedAt, EMPTY_LABEL),
-                    nextScheduledLabel: this.formatDateTime(row.nextScheduledAt, status === 'Disabled' ? 'Paused' : 'Due now')
+                    lastExecutedLabel: this.formatDateTime(
+                        row.lastExecutedAt,
+                        EMPTY_LABEL
+                    ),
+                    nextScheduledLabel: this.formatDateTime(
+                        row.nextScheduledAt,
+                        status === "Disabled" ? "Paused" : "Due now"
+                    )
                 };
             })
             .sort((first, second) => this.compareJobs(first, second));
@@ -190,24 +216,28 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
 
         return sections.map((section) => ({
             ...section,
-            countLabel: `${section.jobs.length} ${section.jobs.length === 1 ? 'job' : 'jobs'}`
+            countLabel: `${section.jobs.length} ${section.jobs.length === 1 ? "job" : "jobs"}`
         }));
     }
 
     sectionForJob(job) {
-        if (job.status === 'Disabled') {
+        if (job.status === "Disabled") {
             return {
-                key: 'paused',
-                label: 'Paused',
-                description: 'Disabled scheduler jobs'
+                key: "paused",
+                label: "Paused",
+                description: "Disabled scheduler jobs"
             };
         }
 
-        if (job.status === 'Due Now' || !job.nextScheduledAt || new Date(job.nextScheduledAt).getTime() <= Date.now()) {
+        if (
+            job.status === "Due Now" ||
+            !job.nextScheduledAt ||
+            new Date(job.nextScheduledAt).getTime() <= Date.now()
+        ) {
             return {
-                key: 'due-now',
-                label: 'Due Now',
-                description: 'Ready for the next Scheduler heartbeat'
+                key: "due-now",
+                label: "Due Now",
+                description: "Ready for the next Scheduler heartbeat"
             };
         }
 
@@ -220,91 +250,97 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
 
         if (nextRun < tomorrow) {
             return {
-                key: 'today',
-                label: 'Today',
+                key: "today",
+                label: "Today",
                 description: this.formatSectionDate(today)
             };
         }
 
         if (nextRun < dayAfterTomorrow) {
             return {
-                key: 'tomorrow',
-                label: 'Tomorrow',
+                key: "tomorrow",
+                label: "Tomorrow",
                 description: this.formatSectionDate(tomorrow)
             };
         }
 
         if (nextRun < nextWeek) {
             return {
-                key: 'this-week',
-                label: 'This Week',
-                description: 'Later this week'
+                key: "this-week",
+                label: "This Week",
+                description: "Later this week"
             };
         }
 
         if (nextRun < followingWeek) {
             return {
-                key: 'next-week',
-                label: 'Next Week',
-                description: '7 to 14 days out'
+                key: "next-week",
+                label: "Next Week",
+                description: "7 to 14 days out"
             };
         }
 
         return {
             key: `date-${nextRun.getFullYear()}-${nextRun.getMonth()}-${nextRun.getDate()}`,
             label: this.formatSectionDate(nextRun),
-            description: 'Further out'
+            description: "Further out"
         };
     }
 
     compareJobs(first, second) {
-        const firstTime = first.nextScheduledAt ? new Date(first.nextScheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
-        const secondTime = second.nextScheduledAt ? new Date(second.nextScheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
+        const firstTime = first.nextScheduledAt
+            ? new Date(first.nextScheduledAt).getTime()
+            : Number.MAX_SAFE_INTEGER;
+        const secondTime = second.nextScheduledAt
+            ? new Date(second.nextScheduledAt).getTime()
+            : Number.MAX_SAFE_INTEGER;
 
         if (firstTime !== secondTime) {
             return firstTime - secondTime;
         }
 
-        return (first.apexClass || '').localeCompare(second.apexClass || '');
+        return (first.apexClass || "").localeCompare(second.apexClass || "");
     }
 
     statusLabel(row, now) {
-        if (row.status === 'Disabled') {
-            return 'Disabled';
+        if (row.status === "Disabled") {
+            return "Disabled";
         }
 
-        if (row.status === 'Due Now' || !row.nextScheduledAt) {
-            return 'Due now';
+        if (row.status === "Due Now" || !row.nextScheduledAt) {
+            return "Due now";
         }
 
-        const millisecondsUntilRun = new Date(row.nextScheduledAt).getTime() - now;
+        const millisecondsUntilRun =
+            new Date(row.nextScheduledAt).getTime() - now;
         if (millisecondsUntilRun <= 0) {
-            return 'Due now';
+            return "Due now";
         }
 
         return `In ${this.formatDuration(millisecondsUntilRun)}`;
     }
 
     timelineClass(row) {
-        const classes = ['timeline-item'];
+        const classes = ["timeline-item"];
 
-        if (row.status === 'Disabled') {
-            classes.push('timeline-disabled');
+        if (row.status === "Disabled") {
+            classes.push("timeline-disabled");
         }
 
         if (row.hasError) {
-            classes.push('timeline-error');
+            classes.push("timeline-error");
         }
 
-        return classes.join(' ');
+        return classes.join(" ");
     }
 
     statusClass(status) {
-        const variant = {
-            'Due Now': 'due',
-            Disabled: 'disabled',
-            Scheduled: 'scheduled'
-        }[status] || 'scheduled';
+        const variant =
+            {
+                "Due Now": "due",
+                Disabled: "disabled",
+                Scheduled: "scheduled"
+            }[status] || "scheduled";
 
         return `status-pill status-${variant}`;
     }
@@ -316,11 +352,11 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
         const minutes = totalMinutes % 60;
 
         if (days > 0) {
-            return `${days}d${hours > 0 ? ` ${hours}h` : ''}`;
+            return `${days}d${hours > 0 ? ` ${hours}h` : ""}`;
         }
 
         if (hours > 0) {
-            return `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`;
+            return `${hours}h${minutes > 0 ? ` ${minutes}m` : ""}`;
         }
 
         return `${minutes}m`;
@@ -332,14 +368,18 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
     }
 
     addDays(date, days) {
-        return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+        return new Date(
+            date.getFullYear(),
+            date.getMonth(),
+            date.getDate() + days
+        );
     }
 
     formatSectionDate(date) {
         return new Intl.DateTimeFormat(undefined, {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric'
+            weekday: "short",
+            month: "short",
+            day: "numeric"
         }).format(date);
     }
 
@@ -349,18 +389,22 @@ export default class SchedulerLayout extends NavigationMixin(LightningElement) {
         }
 
         return new Intl.DateTimeFormat(undefined, {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit'
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit"
         }).format(new Date(value));
     }
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load the Scheduler console.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load the Scheduler console."
+        );
     }
 }

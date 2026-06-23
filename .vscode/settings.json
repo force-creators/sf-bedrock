@@ -1,4 +1,7 @@
 {
+  "editor.detectIndentation": false,
+  "editor.insertSpaces": true,
+  "editor.tabSize": 4,
   "search.exclude": {
     "**/node_modules": true,
     "**/bower_components": true,

@@ -1,9 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>65.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>Scheduler Layout</masterLabel>
-    <description>Live chronological view of Bedrock Scheduler jobs.</description>
+    <description
+    >Live chronological view of Bedrock Scheduler jobs.</description>
     <targets>
         <target>lightning__AppPage</target>
         <target>lightning__Tab</target>

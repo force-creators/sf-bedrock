@@ -6,20 +6,20 @@ eyebrow: Tools
 heading: Query
 lede: Query lets production code use real SOQL results while tests supply the records a service should read, with no database setup and no SeeAllData.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -100,7 +100,7 @@ Assert.areEqual(2, result.size(), 'Default Query returns all provided records.')
 Assert.areEqual(records, result, 'Default implementation passes through the same list instance.');
 ```
 
-> The default `query(...)` returns the *identical* list reference, not a copy.
+> The default `query(...)` returns the _identical_ list reference, not a copy.
 > Do not rely on `Query` to defensively clone your data.
 
 ### Injecting an empty result
@@ -193,7 +193,7 @@ Assert.areEqual(1, result.size(), 'Single-record constructor yields one-element 
 ### Multiple responses
 
 When the unit under test calls `Query.records(...)` more than once and each call
-should return *different* records, use `QueryMock.Multiple`. It holds a queue of
+should return _different_ records, use `QueryMock.Multiple`. It holds a queue of
 response lists and hands them out in order, one per call.
 
 `add(...)` is fluent — it returns `this`, so you can chain calls. **The order
@@ -312,10 +312,10 @@ The DI facade lives in two `public virtual inherited sharing` classes: `Query`
 
 ### `Query`
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| `query` | `query(List<SObject> records)` | `List<SObject>` | Instance method, `virtual`. Default implementation returns its argument unchanged. Overridden by mocks. You rarely call this directly — call `records(...)` instead. |
-| `records` | `records(List<SObject> records)` | `List<SObject>` | **Static** entry point. Delegates to the current instance's `query(...)`. This is what production code calls. |
+| Member    | Signature                        | Returns         | Description                                                                                                                                                          |
+| --------- | -------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `query`   | `query(List<SObject> records)`   | `List<SObject>` | Instance method, `virtual`. Default implementation returns its argument unchanged. Overridden by mocks. You rarely call this directly — call `records(...)` instead. |
+| `records` | `records(List<SObject> records)` | `List<SObject>` | **Static** entry point. Delegates to the current instance's `query(...)`. This is what production code calls.                                                        |
 
 > `setMock(Query mock)` is **not public** — it is `@TestVisible static`, so it
 > is only reachable from test code. It replaces the active instance and is the
@@ -326,23 +326,23 @@ The DI facade lives in two `public virtual inherited sharing` classes: `Query`
 
 A drop-in `Query` whose `query(...)` returns a fixed list regardless of input.
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| Constructor | `QueryMock()` | `QueryMock` | Default constructor. Returns `null` from `query(...)` — no records are primed. |
-| Constructor | `QueryMock(SObject record)` | `QueryMock` | Wraps a single record into a one-element list. |
-| Constructor | `QueryMock(List<SObject> records)` | `QueryMock` | The common case: primes the mock to return exactly this list. |
-| `query` | `query(List<SObject> ignore)` | `List<SObject>` | `override`. Ignores its argument and returns the primed records. |
+| Member      | Signature                          | Returns         | Description                                                                    |
+| ----------- | ---------------------------------- | --------------- | ------------------------------------------------------------------------------ |
+| Constructor | `QueryMock()`                      | `QueryMock`     | Default constructor. Returns `null` from `query(...)` — no records are primed. |
+| Constructor | `QueryMock(SObject record)`        | `QueryMock`     | Wraps a single record into a one-element list.                                 |
+| Constructor | `QueryMock(List<SObject> records)` | `QueryMock`     | The common case: primes the mock to return exactly this list.                  |
+| `query`     | `query(List<SObject> ignore)`      | `List<SObject>` | `override`. Ignores its argument and returns the primed records.               |
 
 ### `QueryMock.Multiple` (inner class, extends `QueryMock`)
 
 A mock that returns a **different** list on each successive call — useful when
 the unit under test calls `Query.records(...)` more than once.
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| Constructor | `Multiple()` | `Multiple` | Creates an empty queue of responses. |
-| `add` | `add(List<SObject> records)` | `Multiple` | Appends one response list to the queue and returns `this` (fluent). Call once per expected query. |
-| `query` | `query(List<SObject> ignore)` | `List<SObject>` | `override`. Returns the next queued list and advances an internal index. Throws `QueryMock.QueryMockException` if called more times than there are queued responses. |
+| Member      | Signature                     | Returns         | Description                                                                                                                                                          |
+| ----------- | ----------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Constructor | `Multiple()`                  | `Multiple`      | Creates an empty queue of responses.                                                                                                                                 |
+| `add`       | `add(List<SObject> records)`  | `Multiple`      | Appends one response list to the queue and returns `this` (fluent). Call once per expected query.                                                                    |
+| `query`     | `query(List<SObject> ignore)` | `List<SObject>` | `override`. Returns the next queued list and advances an internal index. Throws `QueryMock.QueryMockException` if called more times than there are queued responses. |
 
 ### `QueryMock.QueryMockException` (inner class, extends `Exception`)
 
@@ -355,7 +355,7 @@ not a silent `null`.
 - **The injected instance is static state.** `setMock` replaces a static field on
   `Query`. Salesforce resets static state between test methods, so each `@istest`
   method starts with the default (pass-through) `Query` — no manual reset needed.
-  That said, if one assertion in the *same* method sets a mock and a later one
+  That said, if one assertion in the _same_ method sets a mock and a later one
   expects default behavior, the mock is still active. Keep that in mind.
 
 - **`setMock` is test-only.** It is `@TestVisible`, so production code cannot call

@@ -1,12 +1,23 @@
-import { LightningElement, api } from 'lwc';
-import getCompleted from '@salesforce/apex/AsyncCompletedController.getCompleted';
+import { LightningElement, api } from "lwc";
+import getCompleted from "@salesforce/apex/AsyncCompletedController.getCompleted";
 
 const COLUMNS = [
-    { label: 'Async Job', fieldName: 'asyncJobNumber', sortable: true, initialWidth: 130 },
-    { label: 'Apex Class', fieldName: 'apexClass', sortable: true },
-    { label: 'Record Id', fieldName: 'recordId', sortable: true },
-    { label: 'Thread', fieldName: 'thread', sortable: true },
-    { label: 'Created Date', fieldName: 'createdDate', type: 'date', sortable: true, initialWidth: 180 }
+    {
+        label: "Async Job",
+        fieldName: "asyncJobNumber",
+        sortable: true,
+        initialWidth: 130
+    },
+    { label: "Apex Class", fieldName: "apexClass", sortable: true },
+    { label: "Record Id", fieldName: "recordId", sortable: true },
+    { label: "Thread", fieldName: "thread", sortable: true },
+    {
+        label: "Created Date",
+        fieldName: "createdDate",
+        type: "date",
+        sortable: true,
+        initialWidth: 180
+    }
 ];
 
 export default class AsyncCompleted extends LightningElement {
@@ -14,9 +25,9 @@ export default class AsyncCompleted extends LightningElement {
     rows = [];
     isLoading = false;
     errorMessage;
-    searchTerm = '';
-    sortBy = 'createdDate';
-    sortDirection = 'desc';
+    searchTerm = "";
+    sortBy = "createdDate";
+    sortDirection = "desc";
     searchRefreshTimer;
 
     connectedCallback() {
@@ -32,11 +43,13 @@ export default class AsyncCompleted extends LightningElement {
 
     get recordCountLabel() {
         const count = this.rows.length;
-        return `${count} ${count === 1 ? 'record' : 'records'}`;
+        return `${count} ${count === 1 ? "record" : "records"}`;
     }
 
     get refreshButtonClass() {
-        return this.isLoading ? 'refresh-button is-refreshing' : 'refresh-button';
+        return this.isLoading
+            ? "refresh-button is-refreshing"
+            : "refresh-button";
     }
 
     get hasRows() {
@@ -71,6 +84,8 @@ export default class AsyncCompleted extends LightningElement {
             clearTimeout(this.searchRefreshTimer);
         }
 
+        // Debounce user search input before refreshing the server-backed table.
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
         this.searchRefreshTimer = setTimeout(() => {
             this.loadCompleted();
         }, 250);
@@ -103,7 +118,7 @@ export default class AsyncCompleted extends LightningElement {
 
     dispatchCountChange() {
         this.dispatchEvent(
-            new CustomEvent('countchange', {
+            new CustomEvent("countchange", {
                 detail: { count: this.rows.length }
             })
         );
@@ -111,9 +126,13 @@ export default class AsyncCompleted extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load completed async jobs.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load completed async jobs."
+        );
     }
 }

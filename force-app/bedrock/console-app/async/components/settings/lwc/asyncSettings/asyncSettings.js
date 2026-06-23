@@ -1,10 +1,10 @@
-import { LightningElement } from 'lwc';
-import LightningConfirm from 'lightning/confirm';
-import deleteUserSettings from '@salesforce/apex/AsyncSettingsController.deleteUserSettings';
-import getSettings from '@salesforce/apex/AsyncSettingsController.getSettings';
-import saveSettings from '@salesforce/apex/AsyncSettingsController.saveSettings';
-import searchUsers from '@salesforce/apex/AsyncSettingsController.searchUsers';
-import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { LightningElement } from "lwc";
+import LightningConfirm from "lightning/confirm";
+import deleteUserSettings from "@salesforce/apex/AsyncSettingsController.deleteUserSettings";
+import getSettings from "@salesforce/apex/AsyncSettingsController.getSettings";
+import saveSettings from "@salesforce/apex/AsyncSettingsController.saveSettings";
+import searchUsers from "@salesforce/apex/AsyncSettingsController.searchUsers";
+import { ShowToastEvent } from "lightning/platformShowToastEvent";
 
 const USER_SEARCH_DELAY_MS = 250;
 
@@ -20,7 +20,7 @@ export default class AsyncSettings extends LightningElement {
     newUserMaxArchiveAgeDays;
     newUserMaxThreads;
     selectedUser;
-    userSearchTerm = '';
+    userSearchTerm = "";
     userOptions = [];
     isCreatingUserOverride = false;
     isEditingOrganization = false;
@@ -68,15 +68,19 @@ export default class AsyncSettings extends LightningElement {
     }
 
     get archiveCleanupStatusLabel() {
-        return this.settings?.effectiveArchiveCleanupEnabled ? 'Archive cleanup enabled' : 'Archive cleanup disabled';
+        return this.settings?.effectiveArchiveCleanupEnabled
+            ? "Archive cleanup enabled"
+            : "Archive cleanup disabled";
     }
 
     get organizationRecordLabel() {
-        return this.settings?.organization?.hasRecord ? 'Custom setting exists' : 'Using framework default';
+        return this.settings?.organization?.hasRecord
+            ? "Custom setting exists"
+            : "Using framework default";
     }
 
     get organizationMaxThreadsDisplay() {
-        return this.organizationMaxThreads || 'Default';
+        return this.organizationMaxThreads || "Default";
     }
 
     get organizationArchiveThresholdDisplay() {
@@ -88,28 +92,28 @@ export default class AsyncSettings extends LightningElement {
     }
 
     get organizationArchiveCleanupDisplay() {
-        return this.organizationArchiveCleanupEnabled ? 'Enabled' : 'Disabled';
+        return this.organizationArchiveCleanupEnabled ? "Enabled" : "Disabled";
     }
 
     get userOverrideCountLabel() {
         const count = this.userOverrideRows.length;
-        return `${count} ${count === 1 ? 'config' : 'configs'}`;
+        return `${count} ${count === 1 ? "config" : "configs"}`;
     }
 
     get selectedUserLabel() {
         if (!this.selectedUser) {
-            return '';
+            return "";
         }
 
         return `${this.selectedUser.label} (${this.selectedUser.username})`;
     }
 
     get newOverrideHeading() {
-        return this.selectedUser?.label || 'Choose a User';
+        return this.selectedUser?.label || "Choose a User";
     }
 
     get newOverrideSubheading() {
-        return this.selectedUser?.username || 'Search active users';
+        return this.selectedUser?.username || "Search active users";
     }
 
     get isNewUserSaveDisabled() {
@@ -126,10 +130,17 @@ export default class AsyncSettings extends LightningElement {
     }
 
     handleCancelOrganizationEdit() {
-        this.organizationArchiveCleanupEnabled = this.settings?.organization?.archiveCleanupEnabled || false;
-        this.organizationArchiveThresholdHours = this.toInputValue(this.settings?.organization?.archiveThresholdHours);
-        this.organizationMaxArchiveAgeDays = this.toInputValue(this.settings?.organization?.maxArchiveAgeDays);
-        this.organizationMaxThreads = this.toInputValue(this.settings?.organization?.maxThreads);
+        this.organizationArchiveCleanupEnabled =
+            this.settings?.organization?.archiveCleanupEnabled || false;
+        this.organizationArchiveThresholdHours = this.toInputValue(
+            this.settings?.organization?.archiveThresholdHours
+        );
+        this.organizationMaxArchiveAgeDays = this.toInputValue(
+            this.settings?.organization?.maxArchiveAgeDays
+        );
+        this.organizationMaxThreads = this.toInputValue(
+            this.settings?.organization?.maxThreads
+        );
         this.isEditingOrganization = false;
     }
 
@@ -227,8 +238,12 @@ export default class AsyncSettings extends LightningElement {
             return {
                 ...row,
                 draftArchiveCleanupEnabled: row.archiveCleanupEnabled,
-                draftArchiveThresholdHours: this.toInputValue(row.archiveThresholdHours),
-                draftMaxArchiveAgeDays: this.toInputValue(row.maxArchiveAgeDays),
+                draftArchiveThresholdHours: this.toInputValue(
+                    row.archiveThresholdHours
+                ),
+                draftMaxArchiveAgeDays: this.toInputValue(
+                    row.maxArchiveAgeDays
+                ),
                 draftMaxThreads: this.toInputValue(row.maxThreads),
                 isEditing: false
             };
@@ -260,6 +275,8 @@ export default class AsyncSettings extends LightningElement {
     handleUserSearchChange(event) {
         this.userSearchTerm = event.target.value;
         this.clearUserSearchTimer();
+        // Debounce user lookup requests while typing.
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
         this.userSearchTimer = setTimeout(() => {
             this.searchForUsers(this.userSearchTerm);
         }, USER_SEARCH_DELAY_MS);
@@ -267,7 +284,9 @@ export default class AsyncSettings extends LightningElement {
 
     handleUserSelect(event) {
         const userId = event.currentTarget.dataset.userId;
-        const userOption = this.userOptions.find((option) => option.id === userId);
+        const userOption = this.userOptions.find(
+            (option) => option.id === userId
+        );
 
         if (!userOption) {
             return;
@@ -280,13 +299,13 @@ export default class AsyncSettings extends LightningElement {
 
     handleSaveOrganization() {
         this.saveSetting(
-            'Organization',
+            "Organization",
             null,
             this.organizationMaxThreads,
             this.organizationArchiveThresholdHours,
             this.organizationMaxArchiveAgeDays,
             this.organizationArchiveCleanupEnabled,
-            'Global settings saved'
+            "Global settings saved"
         );
     }
 
@@ -314,34 +333,38 @@ export default class AsyncSettings extends LightningElement {
 
     handleSaveUserOverride(event) {
         const userId = event.currentTarget.dataset.userId;
-        const row = this.userOverrideRows.find((overrideRow) => overrideRow.userId === userId);
+        const row = this.userOverrideRows.find(
+            (overrideRow) => overrideRow.userId === userId
+        );
 
         if (row) {
             this.saveSetting(
-                'User',
+                "User",
                 userId,
                 row.draftMaxThreads,
                 row.draftArchiveThresholdHours,
                 row.draftMaxArchiveAgeDays,
                 row.draftArchiveCleanupEnabled,
-                'User settings saved'
+                "User settings saved"
             );
         }
     }
 
     async handleDeleteUserOverride(event) {
         const userId = event.currentTarget.dataset.userId;
-        const row = this.userOverrideRows.find((overrideRow) => overrideRow.userId === userId);
+        const row = this.userOverrideRows.find(
+            (overrideRow) => overrideRow.userId === userId
+        );
 
         if (!row) {
             return;
         }
 
         const confirmed = await LightningConfirm.open({
-            label: 'Delete user settings',
+            label: "Delete user settings",
             message: `Delete async settings for ${row.userLabel}? This user will inherit the global setting.`,
-            theme: 'error',
-            variant: 'header'
+            theme: "error",
+            variant: "header"
         });
 
         if (!confirmed) {
@@ -353,13 +376,13 @@ export default class AsyncSettings extends LightningElement {
 
     handleSaveNewUserOverride() {
         this.saveSetting(
-            'User',
+            "User",
             this.selectedUser.id,
             this.newUserMaxThreads,
             this.newUserArchiveThresholdHours,
             this.newUserMaxArchiveAgeDays,
             this.newUserArchiveCleanupEnabled,
-            'User settings saved'
+            "User settings saved"
         );
     }
 
@@ -370,11 +393,20 @@ export default class AsyncSettings extends LightningElement {
         try {
             this.settings = await getSettings({ userId });
             this.selectedUser = this.settings.selectedUser;
-            this.organizationArchiveCleanupEnabled = this.settings.organization?.archiveCleanupEnabled || false;
-            this.organizationArchiveThresholdHours = this.toInputValue(this.settings.organization?.archiveThresholdHours);
-            this.organizationMaxArchiveAgeDays = this.toInputValue(this.settings.organization?.maxArchiveAgeDays);
-            this.organizationMaxThreads = this.toInputValue(this.settings.organization?.maxThreads);
-            this.userOverrideRows = this.toUserOverrideRows(this.settings.userOverrides);
+            this.organizationArchiveCleanupEnabled =
+                this.settings.organization?.archiveCleanupEnabled || false;
+            this.organizationArchiveThresholdHours = this.toInputValue(
+                this.settings.organization?.archiveThresholdHours
+            );
+            this.organizationMaxArchiveAgeDays = this.toInputValue(
+                this.settings.organization?.maxArchiveAgeDays
+            );
+            this.organizationMaxThreads = this.toInputValue(
+                this.settings.organization?.maxThreads
+            );
+            this.userOverrideRows = this.toUserOverrideRows(
+                this.settings.userOverrides
+            );
             this.userSearchTerm = this.selectedUserLabel;
             this.isEditingOrganization = false;
         } catch (error) {
@@ -395,7 +427,15 @@ export default class AsyncSettings extends LightningElement {
         }
     }
 
-    async saveSetting(scope, userId, maxThreads, archiveThresholdHours, maxArchiveAgeDays, archiveCleanupEnabled, title) {
+    async saveSetting(
+        scope,
+        userId,
+        maxThreads,
+        archiveThresholdHours,
+        maxArchiveAgeDays,
+        archiveCleanupEnabled,
+        title
+    ) {
         this.isSaving = true;
         this.errorMessage = undefined;
 
@@ -409,11 +449,20 @@ export default class AsyncSettings extends LightningElement {
                 archiveCleanupEnabled
             });
             this.selectedUser = this.settings.selectedUser;
-            this.organizationArchiveCleanupEnabled = this.settings.organization?.archiveCleanupEnabled || false;
-            this.organizationArchiveThresholdHours = this.toInputValue(this.settings.organization?.archiveThresholdHours);
-            this.organizationMaxArchiveAgeDays = this.toInputValue(this.settings.organization?.maxArchiveAgeDays);
-            this.organizationMaxThreads = this.toInputValue(this.settings.organization?.maxThreads);
-            this.userOverrideRows = this.toUserOverrideRows(this.settings.userOverrides);
+            this.organizationArchiveCleanupEnabled =
+                this.settings.organization?.archiveCleanupEnabled || false;
+            this.organizationArchiveThresholdHours = this.toInputValue(
+                this.settings.organization?.archiveThresholdHours
+            );
+            this.organizationMaxArchiveAgeDays = this.toInputValue(
+                this.settings.organization?.maxArchiveAgeDays
+            );
+            this.organizationMaxThreads = this.toInputValue(
+                this.settings.organization?.maxThreads
+            );
+            this.userOverrideRows = this.toUserOverrideRows(
+                this.settings.userOverrides
+            );
             this.userSearchTerm = this.selectedUserLabel;
             this.isCreatingUserOverride = false;
             this.newUserArchiveCleanupEnabled = false;
@@ -424,8 +473,8 @@ export default class AsyncSettings extends LightningElement {
             this.dispatchEvent(
                 new ShowToastEvent({
                     title,
-                    message: 'Async thread settings were updated.',
-                    variant: 'success'
+                    message: "Async thread settings were updated.",
+                    variant: "success"
                 })
             );
         } catch (error) {
@@ -442,11 +491,20 @@ export default class AsyncSettings extends LightningElement {
         try {
             this.settings = await deleteUserSettings({ userId });
             this.selectedUser = this.settings.selectedUser;
-            this.organizationArchiveCleanupEnabled = this.settings.organization?.archiveCleanupEnabled || false;
-            this.organizationArchiveThresholdHours = this.toInputValue(this.settings.organization?.archiveThresholdHours);
-            this.organizationMaxArchiveAgeDays = this.toInputValue(this.settings.organization?.maxArchiveAgeDays);
-            this.organizationMaxThreads = this.toInputValue(this.settings.organization?.maxThreads);
-            this.userOverrideRows = this.toUserOverrideRows(this.settings.userOverrides);
+            this.organizationArchiveCleanupEnabled =
+                this.settings.organization?.archiveCleanupEnabled || false;
+            this.organizationArchiveThresholdHours = this.toInputValue(
+                this.settings.organization?.archiveThresholdHours
+            );
+            this.organizationMaxArchiveAgeDays = this.toInputValue(
+                this.settings.organization?.maxArchiveAgeDays
+            );
+            this.organizationMaxThreads = this.toInputValue(
+                this.settings.organization?.maxThreads
+            );
+            this.userOverrideRows = this.toUserOverrideRows(
+                this.settings.userOverrides
+            );
             this.userSearchTerm = this.selectedUserLabel;
             this.isCreatingUserOverride = false;
             this.newUserArchiveCleanupEnabled = false;
@@ -455,9 +513,10 @@ export default class AsyncSettings extends LightningElement {
             this.newUserMaxThreads = null;
             this.dispatchEvent(
                 new ShowToastEvent({
-                    title: 'User settings deleted',
-                    message: 'The user now inherits global async thread settings.',
-                    variant: 'success'
+                    title: "User settings deleted",
+                    message:
+                        "The user now inherits global async thread settings.",
+                    variant: "success"
                 })
             );
         } catch (error) {
@@ -471,13 +530,19 @@ export default class AsyncSettings extends LightningElement {
         return rows.map((row) => ({
             id: row.id,
             archiveCleanupEnabled: row.archiveCleanupEnabled,
-            archiveCleanupDisplay: row.archiveCleanupEnabled ? 'Enabled' : 'Disabled',
+            archiveCleanupDisplay: row.archiveCleanupEnabled
+                ? "Enabled"
+                : "Disabled",
             archiveThresholdHours: row.archiveThresholdHours,
-            archiveThresholdDisplay: this.toDisplayValue(row.archiveThresholdHours),
+            archiveThresholdDisplay: this.toDisplayValue(
+                row.archiveThresholdHours
+            ),
             maxArchiveAgeDays: row.maxArchiveAgeDays,
             maxArchiveAgeDisplay: this.toDisplayValue(row.maxArchiveAgeDays),
             draftArchiveCleanupEnabled: row.archiveCleanupEnabled,
-            draftArchiveThresholdHours: this.toInputValue(row.archiveThresholdHours),
+            draftArchiveThresholdHours: this.toInputValue(
+                row.archiveThresholdHours
+            ),
             draftMaxArchiveAgeDays: this.toInputValue(row.maxArchiveAgeDays),
             userId: row.user.id,
             userLabel: row.user.label,
@@ -501,11 +566,13 @@ export default class AsyncSettings extends LightningElement {
     }
 
     toDisplayValue(value) {
-        return value === null || value === undefined || value === '' ? 'Default' : String(value);
+        return value === null || value === undefined || value === ""
+            ? "Default"
+            : String(value);
     }
 
     toNumber(value) {
-        if (value === null || value === undefined || value === '') {
+        if (value === null || value === undefined || value === "") {
             return null;
         }
 
@@ -514,9 +581,13 @@ export default class AsyncSettings extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load async settings.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load async settings."
+        );
     }
 }

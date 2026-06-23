@@ -6,26 +6,26 @@ eyebrow: Tools
 heading: TestData
 lede: A fluent builder that creates in-memory SObject records for Apex tests — including writing fields you normally cannot set, like formula fields, system audit fields, parent relationships, and Ids — without ever touching the database.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Relationships
-    href: "#relationships"
-  - label: Read-Only & System Fields
-    href: "#read-only-and-system-fields"
-  - label: Mock Ids
-    href: "#mock-ids"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Relationships
+      href: "#relationships"
+    - label: Read-Only & System Fields
+      href: "#read-only-and-system-fields"
+    - label: Mock Ids
+      href: "#mock-ids"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -44,7 +44,7 @@ testing code whose behavior depends on values your test cannot otherwise fake.
 **Use `TestData` when** you want realistic records fast — no DML, no SOQL, no
 governor-limit cost — typically to feed a service or unit under test.
 
-**Reach for real DML instead when** the thing you are proving *is* database
+**Reach for real DML instead when** the thing you are proving _is_ database
 behavior: validation rules, triggers, flows, sharing, rollups recalculated by
 the platform, or anything that only happens on a real `insert`/`update`.
 
@@ -177,7 +177,7 @@ Things to remember:
   field; passing the record also hydrates the dotted-path relationship.
 - **Give the parent an Id first.** Call `mockIds()` on the parent builder.
   Without it the parent's `Id` is `null`, so the child's lookup field is `null`.
-- **Parent direction only.** This handles lookups and master-detail *up* to a
+- **Parent direction only.** This handles lookups and master-detail _up_ to a
   parent. Child relationship lists (e.g. `account.Contacts`) are not built this
   way because child relationships are not `SObjectField`s.
 
@@ -200,7 +200,7 @@ Assert.isTrue(
 ```
 
 The same approach works for formula and rollup-summary fields. The record
-*looks* like the platform produced it without needing the platform to produce
+_looks_ like the platform produced it without needing the platform to produce
 it.
 
 > **Important:** these values exist only on the in-memory record. If you ever
@@ -347,22 +347,22 @@ fluent methods, and one inner class.
 > methods below. That keeps the builder consistent, and it is why the fluent
 > API is the only supported entry point.
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| Constructor | `TestData(SObjectType sObjectType)` | `TestData` | Starts a builder bound to one object type. Required first step. |
-| `put` | `put(SObjectField field, Object value)` | `TestData` | Adds or overwrites a field/value pair in the record template. When `value` is an `SObject`, it is treated as a parent relationship — see [Relationships](#relationships). |
-| `count` | `count(Integer count)` | `TestData` | Sets how many records `build()` returns. Defaults to `1`. |
-| `mockIds` | `mockIds()` | `TestData` | Enables synthetic Id generation so every built record gets a unique, valid-looking `Id`. Off by default (`Id` is `null`). |
-| `build` | `build()` | `List<SObject>` | Produces the records from the current template and returns them. Can be called more than once on the same builder. |
+| Member      | Signature                               | Returns         | Description                                                                                                                                                               |
+| ----------- | --------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Constructor | `TestData(SObjectType sObjectType)`     | `TestData`      | Starts a builder bound to one object type. Required first step.                                                                                                           |
+| `put`       | `put(SObjectField field, Object value)` | `TestData`      | Adds or overwrites a field/value pair in the record template. When `value` is an `SObject`, it is treated as a parent relationship — see [Relationships](#relationships). |
+| `count`     | `count(Integer count)`                  | `TestData`      | Sets how many records `build()` returns. Defaults to `1`.                                                                                                                 |
+| `mockIds`   | `mockIds()`                             | `TestData`      | Enables synthetic Id generation so every built record gets a unique, valid-looking `Id`. Off by default (`Id` is `null`).                                                 |
+| `build`     | `build()`                               | `List<SObject>` | Produces the records from the current template and returns them. Can be called more than once on the same builder.                                                        |
 
 ### Private state
 
-| Field | Default | Set by | Effect |
-| --- | --- | --- | --- |
-| `sObjectType` | — | constructor | The object type every built record is deserialized into. |
-| `template` | empty map | `put` | A `Map<SObjectField, Object>` of field values applied to every record. |
-| `count` | `1` | `count` | Number of records produced by `build()`. |
-| `mockids` | `false` | `mockIds` | When `true`, each record receives a generated `Id`. |
+| Field         | Default   | Set by      | Effect                                                                 |
+| ------------- | --------- | ----------- | ---------------------------------------------------------------------- |
+| `sObjectType` | —         | constructor | The object type every built record is deserialized into.               |
+| `template`    | empty map | `put`       | A `Map<SObjectField, Object>` of field values applied to every record. |
+| `count`       | `1`       | `count`     | Number of records produced by `build()`.                               |
+| `mockids`     | `false`   | `mockIds`   | When `true`, each record receives a generated `Id`.                    |
 
 ### `IdService` (inner class)
 
@@ -371,9 +371,9 @@ fluent methods, and one inner class.
 object type. You normally never call it directly — `mockIds()` uses it for you
 — but it is a `public` inner class, so it is part of the surface.
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| `get` | `get(SObjectType sObjectType)` | `Id` | Returns the next sequential mock Id for the given object type, using that type's key prefix and a zero-padded 15-character format. |
+| Member | Signature                      | Returns | Description                                                                                                                        |
+| ------ | ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `get`  | `get(SObjectType sObjectType)` | `Id`    | Returns the next sequential mock Id for the given object type, using that type's key prefix and a zero-padded 15-character format. |
 
 ## Notes & Edge Cases
 

@@ -6,7 +6,10 @@
         </div>
         <div class="section-actions">
             <template lwc:if={isLoading}>
-                <lightning-spinner alternative-text={loadingAlternativeText} size="small"></lightning-spinner>
+                <lightning-spinner
+                    alternative-text={loadingAlternativeText}
+                    size="small"
+                ></lightning-spinner>
             </template>
             <slot name="actions"></slot>
         </div>

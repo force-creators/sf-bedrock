@@ -6,22 +6,22 @@ eyebrow: Tools
 heading: Limiter
 lede: Limiter reports current transaction and org/platform limit usage in one place. Use it in subscriber Apex before starting work that should wait when the org is near a limit.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Known Limit Types
-    href: "#known-limit-types"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Known Limit Types
+      href: "#known-limit-types"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -76,7 +76,12 @@ public inherited sharing class SubscriberWorkLauncher {
     public static void launch() {
         Decimal thresholdPercent = 85;
 
-        if (!Limiter.isSafe(Limiter.types.DAILY_ASYNC_APEX_EXECUTIONS, thresholdPercent)) {
+        if (
+            !Limiter.isSafe(
+                Limiter.types.DAILY_ASYNC_APEX_EXECUTIONS,
+                thresholdPercent
+            )
+        ) {
             return;
         }
 
@@ -128,14 +133,14 @@ if (!Limiter.isSafe('DailyApiRequests', 90)) {
 
 Use `Limiter.types` when you do not want magic strings in subscriber code.
 
-| Type | Salesforce key |
-| --- | --- |
-| `QUEUEABLE_JOBS` | `QueueableJobs` |
-| `SOQL_QUERIES` | `SOQLQueries` |
-| `CPU_TIME` | `CPUTime` |
-| `HEAP_SIZE` | `HeapSize` |
-| `DML_STATEMENTS` | `DMLStatements` |
-| `DAILY_ASYNC_APEX_EXECUTIONS` | `DailyAsyncApexExecutions` |
+| Type                                    | Salesforce key                      |
+| --------------------------------------- | ----------------------------------- |
+| `QUEUEABLE_JOBS`                        | `QueueableJobs`                     |
+| `SOQL_QUERIES`                          | `SOQLQueries`                       |
+| `CPU_TIME`                              | `CPUTime`                           |
+| `HEAP_SIZE`                             | `HeapSize`                          |
+| `DML_STATEMENTS`                        | `DMLStatements`                     |
+| `DAILY_ASYNC_APEX_EXECUTIONS`           | `DailyAsyncApexExecutions`          |
 | `DAILY_STANDARD_VOLUME_PLATFORM_EVENTS` | `DailyStandardVolumePlatformEvents` |
 
 ## Testing
@@ -206,32 +211,32 @@ facade methods backed by an injectable nested `Service`.
 
 ### Static Methods
 
-| Method | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| `getLimits` | `getLimits()` | `Map<String, Limiter.LimitUsage>` | Returns all tracked transaction and org/platform limits keyed by limit name. |
-| `getLimit` | `getLimit(String name)` | `Limiter.LimitUsage` | Returns one tracked limit by raw name, or `null` when the name is not present. |
-| `getLimit` | `getLimit(Limiter.types name)` | `Limiter.LimitUsage` | Returns one tracked known limit by enum value. |
-| `isSafe` | `isSafe(String name)` | `Boolean` | Checks one raw named limit against the default 90 percent threshold. |
-| `isSafe` | `isSafe(String name, Decimal thresholdPercent)` | `Boolean` | Checks one raw named limit against the caller-provided threshold. |
-| `isSafe` | `isSafe(Limiter.types name)` | `Boolean` | Checks one known limit against the default 90 percent threshold. |
-| `isSafe` | `isSafe(Limiter.types name, Decimal thresholdPercent)` | `Boolean` | Checks one known limit against the caller-provided threshold. |
-| `key` | `key(Limiter.types name)` | `String` | Returns the Salesforce key used for a known enum value. |
+| Method      | Signature                                              | Returns                           | Description                                                                    |
+| ----------- | ------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------------------------ |
+| `getLimits` | `getLimits()`                                          | `Map<String, Limiter.LimitUsage>` | Returns all tracked transaction and org/platform limits keyed by limit name.   |
+| `getLimit`  | `getLimit(String name)`                                | `Limiter.LimitUsage`              | Returns one tracked limit by raw name, or `null` when the name is not present. |
+| `getLimit`  | `getLimit(Limiter.types name)`                         | `Limiter.LimitUsage`              | Returns one tracked known limit by enum value.                                 |
+| `isSafe`    | `isSafe(String name)`                                  | `Boolean`                         | Checks one raw named limit against the default 90 percent threshold.           |
+| `isSafe`    | `isSafe(String name, Decimal thresholdPercent)`        | `Boolean`                         | Checks one raw named limit against the caller-provided threshold.              |
+| `isSafe`    | `isSafe(Limiter.types name)`                           | `Boolean`                         | Checks one known limit against the default 90 percent threshold.               |
+| `isSafe`    | `isSafe(Limiter.types name, Decimal thresholdPercent)` | `Boolean`                         | Checks one known limit against the caller-provided threshold.                  |
+| `key`       | `key(Limiter.types name)`                              | `String`                          | Returns the Salesforce key used for a known enum value.                        |
 
 ### Inner Types
 
-| Type | Members | Description |
-| --- | --- | --- |
-| `Limiter.LimitUsage` | `name`, `used`, `allowed`, `remaining`, `ratio` | A single limit's current usage. `ratio` is `used / allowed`, or `0` when allowed is blank or zero. |
-| `Limiter.types` | `QUEUEABLE_JOBS`, `SOQL_QUERIES`, `CPU_TIME`, `HEAP_SIZE`, `DML_STATEMENTS`, `DAILY_ASYNC_APEX_EXECUTIONS`, `DAILY_STANDARD_VOLUME_PLATFORM_EVENTS` | Known limit keys with enum overloads for `getLimit` and `isSafe`. |
-| `Limiter.Service` | `getLimits`, `getLimit`, `isSafe` | Injectable implementation used by the static facade. |
+| Type                 | Members                                                                                                                                             | Description                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `Limiter.LimitUsage` | `name`, `used`, `allowed`, `remaining`, `ratio`                                                                                                     | A single limit's current usage. `ratio` is `used / allowed`, or `0` when allowed is blank or zero. |
+| `Limiter.types`      | `QUEUEABLE_JOBS`, `SOQL_QUERIES`, `CPU_TIME`, `HEAP_SIZE`, `DML_STATEMENTS`, `DAILY_ASYNC_APEX_EXECUTIONS`, `DAILY_STANDARD_VOLUME_PLATFORM_EVENTS` | Known limit keys with enum overloads for `getLimit` and `isSafe`.                                  |
+| `Limiter.Service`    | `getLimits`, `getLimit`, `isSafe`                                                                                                                   | Injectable implementation used by the static facade.                                               |
 
 ### Test Helper
 
-| Class | Method | Description |
-| --- | --- | --- |
-| `LimiterMock` | `setLimit(String name, Integer used, Integer allowed)` | Seeds a raw named limit for tests. |
-| `LimiterMock` | `setLimit(Limiter.types name, Integer used, Integer allowed)` | Seeds a known enum limit for tests. |
-| `LimiterMock` | `limits(Map<String, Limiter.LimitUsage> currentLimits)` | Replaces the mock's full limits map. |
+| Class         | Method                                                        | Description                          |
+| ------------- | ------------------------------------------------------------- | ------------------------------------ |
+| `LimiterMock` | `setLimit(String name, Integer used, Integer allowed)`        | Seeds a raw named limit for tests.   |
+| `LimiterMock` | `setLimit(Limiter.types name, Integer used, Integer allowed)` | Seeds a known enum limit for tests.  |
+| `LimiterMock` | `limits(Map<String, Limiter.LimitUsage> currentLimits)`       | Replaces the mock's full limits map. |
 
 ## Notes & Edge Cases
 

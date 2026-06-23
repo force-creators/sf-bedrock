@@ -6,24 +6,24 @@ eyebrow: Tools
 heading: TriggerHandler
 lede: A lightweight base class that reads the running trigger's context, routes it to the right before/after hook, and wraps the whole dispatch in a RecordBuffer so your handler can stage DML and have it flushed automatically.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Wiring Into a Trigger
-    href: "#wiring-into-a-trigger"
-  - label: Buffered DML
-    href: "#buffered-dml"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Wiring Into a Trigger
+      href: "#wiring-into-a-trigger"
+    - label: Buffered DML
+      href: "#buffered-dml"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -66,9 +66,14 @@ public inherited sharing class AccountTriggerHandler extends TriggerHandler {
 
 ```apex
 // AccountTrigger.trigger
-trigger AccountTrigger on Account (
-    before insert, before update, before delete,
-    after insert, after update, after delete, after undelete
+trigger AccountTrigger on Account(
+    before insert,
+    before update,
+    before delete,
+    after insert,
+    after update,
+    after delete,
+    after undelete
 ) {
     new AccountTriggerHandler().run();
 }
@@ -110,8 +115,9 @@ public inherited sharing class OpportunityTriggerHandler extends TriggerHandler 
     ) {
         for (Opportunity opp : (List<Opportunity>) records) {
             Opportunity previous = (Opportunity) oldMap.get(opp.Id);
-            Boolean justWon = opp.StageName == 'Closed Won'
-                && previous.StageName != 'Closed Won';
+            Boolean justWon =
+                opp.StageName == 'Closed Won' &&
+                previous.StageName != 'Closed Won';
             if (justWon) {
                 // fire follow-up logic for newly won deals
             }
@@ -176,9 +182,14 @@ This keeps the trigger itself a one-liner — all logic lives in the testable
 handler class:
 
 ```apex
-trigger AccountTrigger on Account (
-    before insert, before update, before delete,
-    after insert, after update, after delete, after undelete
+trigger AccountTrigger on Account(
+    before insert,
+    before update,
+    before delete,
+    after insert,
+    after update,
+    after delete,
+    after undelete
 ) {
     new AccountTriggerHandler().run();
 }
@@ -212,10 +223,9 @@ public inherited sharing class ContactTriggerHandler extends TriggerHandler {
     protected override void afterInsert(List<SObject> records) {
         List<Task> followUps = new List<Task>();
         for (Contact contact : (List<Contact>) records) {
-            followUps.add(new Task(
-                WhoId = contact.Id,
-                Subject = 'Welcome call'
-            ));
+            followUps.add(
+                new Task(WhoId = contact.Id, Subject = 'Welcome call')
+            );
         }
         // Staged now, upserted automatically when the buffer flushes.
         RecordBuffer.put(followUps);
@@ -259,17 +269,30 @@ private class AccountTriggerHandlerTest {
         ) {
             this.executing = true;
             this.operation = op;
-            this.triggerNew = newRecords == null ? new List<SObject>() : newRecords;
-            this.triggerOldMap = oldRecordsById == null ? new Map<Id, SObject>() : oldRecordsById;
+            this.triggerNew = newRecords == null
+                ? new List<SObject>()
+                : newRecords;
+            this.triggerOldMap = oldRecordsById == null
+                ? new Map<Id, SObject>()
+                : oldRecordsById;
         }
 
-        protected override Boolean isExecuting() { return this.executing; }
-        protected override System.TriggerOperation operationType() { return this.operation; }
-        protected override List<SObject> newRecords() { return this.triggerNew; }
-        protected override Map<Id, SObject> oldRecordsById() { return this.triggerOldMap; }
+        protected override Boolean isExecuting() {
+            return this.executing;
+        }
+        protected override System.TriggerOperation operationType() {
+            return this.operation;
+        }
+        protected override List<SObject> newRecords() {
+            return this.triggerNew;
+        }
+        protected override Map<Id, SObject> oldRecordsById() {
+            return this.triggerOldMap;
+        }
     }
 
-    @istest static void defaultsCountryOnInsert() {
+    @istest
+    static void defaultsCountryOnInsert() {
         Account account = (Account) new TestData(Account.sObjectType)
             .put(Account.Name, 'Acme')
             .build()[0];
@@ -283,7 +306,11 @@ private class AccountTriggerHandlerTest {
 
         harness.run();
 
-        Assert.areEqual('USA', account.ShippingCountry, 'Expected beforeInsert to default the country.');
+        Assert.areEqual(
+            'USA',
+            account.ShippingCountry,
+            'Expected beforeInsert to default the country.'
+        );
     }
 }
 ```
@@ -356,40 +383,40 @@ trigger body.
 
 ### Lifecycle methods
 
-| Member | Signature | Description |
-| --- | --- | --- |
-| `run` | `public void run()` | The main entry point. Exits immediately unless `isExecuting()` is `true`; otherwise opens a buffer, dispatches to the matching hook, and flushes. |
-| `stageBuffers` | `protected void stageBuffers()` | Opens a `RecordBuffer` context via `RecordBuffer.start()`. Called by `run()`. |
-| `flushBuffers` | `protected void flushBuffers()` | Flushes the `RecordBuffer` via `RecordBuffer.flush()`. Called by `run()`. |
+| Member         | Signature                       | Description                                                                                                                                       |
+| -------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run`          | `public void run()`             | The main entry point. Exits immediately unless `isExecuting()` is `true`; otherwise opens a buffer, dispatches to the matching hook, and flushes. |
+| `stageBuffers` | `protected void stageBuffers()` | Opens a `RecordBuffer` context via `RecordBuffer.start()`. Called by `run()`.                                                                     |
+| `flushBuffers` | `protected void flushBuffers()` | Flushes the `RecordBuffer` via `RecordBuffer.flush()`. Called by `run()`.                                                                         |
 
 ### Context accessors (override to mock; otherwise leave alone)
 
 These are `protected virtual` and, in the base class, simply read the platform
 `Trigger` variables (returning empty collections instead of `null`).
 
-| Member | Signature | Base behavior |
-| --- | --- | --- |
-| `isExecuting` | `protected virtual Boolean isExecuting()` | `Trigger.isExecuting` |
-| `operationType` | `protected virtual System.TriggerOperation operationType()` | `Trigger.operationType` |
-| `newRecords` | `protected virtual List<SObject> newRecords()` | `Trigger.new`, or an empty list if `null` |
-| `oldRecords` | `protected virtual List<SObject> oldRecords()` | `Trigger.old`, or an empty list if `null` |
-| `newRecordsById` | `protected virtual Map<Id, SObject> newRecordsById()` | `Trigger.newMap`, or an empty map if `null` |
-| `oldRecordsById` | `protected virtual Map<Id, SObject> oldRecordsById()` | `Trigger.oldMap`, or an empty map if `null` |
+| Member           | Signature                                                   | Base behavior                               |
+| ---------------- | ----------------------------------------------------------- | ------------------------------------------- |
+| `isExecuting`    | `protected virtual Boolean isExecuting()`                   | `Trigger.isExecuting`                       |
+| `operationType`  | `protected virtual System.TriggerOperation operationType()` | `Trigger.operationType`                     |
+| `newRecords`     | `protected virtual List<SObject> newRecords()`              | `Trigger.new`, or an empty list if `null`   |
+| `oldRecords`     | `protected virtual List<SObject> oldRecords()`              | `Trigger.old`, or an empty list if `null`   |
+| `newRecordsById` | `protected virtual Map<Id, SObject> newRecordsById()`       | `Trigger.newMap`, or an empty map if `null` |
+| `oldRecordsById` | `protected virtual Map<Id, SObject> oldRecordsById()`       | `Trigger.oldMap`, or an empty map if `null` |
 
 ### Hook methods (override the ones you need)
 
 All seven hooks are `protected virtual void` and empty by default. Override
 only the events your object cares about.
 
-| Member | Signature |
-| --- | --- |
-| `beforeInsert` | `protected virtual void beforeInsert(List<SObject> records)` |
-| `beforeUpdate` | `protected virtual void beforeUpdate(List<SObject> records, Map<Id, SObject> oldMap)` |
-| `beforeDelete` | `protected virtual void beforeDelete(List<SObject> oldRecords, Map<Id, SObject> oldMap)` |
-| `afterInsert` | `protected virtual void afterInsert(List<SObject> records)` |
-| `afterUpdate` | `protected virtual void afterUpdate(List<SObject> records, Map<Id, SObject> oldMap)` |
-| `afterDelete` | `protected virtual void afterDelete(List<SObject> oldRecords, Map<Id, SObject> oldMap)` |
-| `afterUndelete` | `protected virtual void afterUndelete(List<SObject> records)` |
+| Member          | Signature                                                                                |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `beforeInsert`  | `protected virtual void beforeInsert(List<SObject> records)`                             |
+| `beforeUpdate`  | `protected virtual void beforeUpdate(List<SObject> records, Map<Id, SObject> oldMap)`    |
+| `beforeDelete`  | `protected virtual void beforeDelete(List<SObject> oldRecords, Map<Id, SObject> oldMap)` |
+| `afterInsert`   | `protected virtual void afterInsert(List<SObject> records)`                              |
+| `afterUpdate`   | `protected virtual void afterUpdate(List<SObject> records, Map<Id, SObject> oldMap)`     |
+| `afterDelete`   | `protected virtual void afterDelete(List<SObject> oldRecords, Map<Id, SObject> oldMap)`  |
+| `afterUndelete` | `protected virtual void afterUndelete(List<SObject> records)`                            |
 
 The arguments match what the platform makes available for each event: insert
 events have no old data; delete events have no new records; `before` events have
@@ -399,8 +426,8 @@ no Id map for new records (records don't have Ids yet). If you need the
 
 ### Private members
 
-| Member | Signature | Description |
-| --- | --- | --- |
+| Member     | Signature         | Description                                                                                                              |
+| ---------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `dispatch` | `void dispatch()` | Private (no modifier). Reads `operationType()` and calls the matching hook with the matching arguments. Not overridable. |
 
 ## Notes & Edge Cases

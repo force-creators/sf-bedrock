@@ -1,53 +1,53 @@
 name: Deploy docs
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "docs/**"
-      - ".github/workflows/deploy-docs.yml"
-      - "wrangler.toml"
-  workflow_dispatch:
+    push:
+        branches:
+            - main
+        paths:
+            - "docs/**"
+            - ".github/workflows/deploy-docs.yml"
+            - "wrangler.toml"
+    workflow_dispatch:
 
 concurrency:
-  group: docs-deploy-${{ github.ref }}
-  cancel-in-progress: true
+    group: docs-deploy-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: Build and deploy docs
-    runs-on: ubuntu-latest
-    environment: main
+    deploy:
+        name: Build and deploy docs
+        runs-on: ubuntu-latest
+        environment: main
 
-    permissions:
-      contents: read
-      deployments: write
+        permissions:
+            contents: read
+            deployments: write
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: docs/package-lock.json
+            - name: Setup Node
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 22
+                  cache: npm
+                  cache-dependency-path: docs/package-lock.json
 
-      - name: Install dependencies
-        working-directory: docs
-        run: npm ci
+            - name: Install dependencies
+              working-directory: docs
+              run: npm ci
 
-      - name: Build docs
-        working-directory: docs
-        run: npm run build
+            - name: Build docs
+              working-directory: docs
+              run: npm run build
 
-      - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4"
-          command: deploy --config wrangler.toml
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+            - name: Deploy to Cloudflare Workers
+              uses: cloudflare/wrangler-action@v3
+              with:
+                  apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+                  accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+                  wranglerVersion: "4"
+                  command: deploy --config wrangler.toml
+                  gitHubToken: ${{ secrets.GITHUB_TOKEN }}

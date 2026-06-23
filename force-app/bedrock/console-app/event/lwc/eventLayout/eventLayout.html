@@ -21,16 +21,24 @@
                         <div class="section-heading">
                             <div>
                                 <h2>Events</h2>
-                                <p>{eventRouteCountLabel}. {lastRefreshedLabel}</p>
+                                <p>
+                                    {eventRouteCountLabel}. {lastRefreshedLabel}
+                                </p>
                             </div>
                             <template lwc:if={isRefreshing}>
-                                <lightning-spinner alternative-text="Loading event routes" size="small"></lightning-spinner>
+                                <lightning-spinner
+                                    alternative-text="Loading event routes"
+                                    size="small"
+                                ></lightning-spinner>
                             </template>
                         </div>
 
                         <template lwc:if={hasConfigRows}>
                             <div class="route-grid">
-                                <template for:each={routeCards} for:item="route">
+                                <template
+                                    for:each={routeCards}
+                                    for:item="route"
+                                >
                                     <c-bedrock-route-card
                                         key={route.id}
                                         label={route.payloadType}
@@ -39,20 +47,20 @@
                                         badges={route.badges}
                                     >
                                         <div slot="details">
-                                        <dl class="route-details">
-                                            <div>
-                                                <dt>Payload Type</dt>
-                                                <dd>{route.payloadType}</dd>
-                                            </div>
-                                            <div>
-                                                <dt>Route</dt>
-                                                <dd>{route.route}</dd>
-                                            </div>
-                                            <div>
-                                                <dt>Work Items</dt>
-                                                <dd>{route.workItems}</dd>
-                                            </div>
-                                        </dl>
+                                            <dl class="route-details">
+                                                <div>
+                                                    <dt>Payload Type</dt>
+                                                    <dd>{route.payloadType}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Route</dt>
+                                                    <dd>{route.route}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Work Items</dt>
+                                                    <dd>{route.workItems}</dd>
+                                                </div>
+                                            </dl>
                                         </div>
                                     </c-bedrock-route-card>
                                 </template>
@@ -61,9 +69,15 @@
 
                         <template lwc:else>
                             <div class="empty-state">
-                                <lightning-icon icon-name="utility:event" size="medium"></lightning-icon>
+                                <lightning-icon
+                                    icon-name="utility:event"
+                                    size="medium"
+                                ></lightning-icon>
                                 <h3>No event routes found</h3>
-                                <p>Publish work creates route summaries as EventRelay records are queued.</p>
+                                <p>
+                                    Publish work creates route summaries as
+                                    EventRelay records are queued.
+                                </p>
                             </div>
                         </template>
                     </div>
@@ -74,9 +88,14 @@
                         <div class="section-heading">
                             <div>
                                 <h2>Backlog</h2>
-                                <p>Pending publish work waiting for a lane. {lastRefreshedLabel}</p>
+                                <p>
+                                    Pending publish work waiting for a lane.
+                                    {lastRefreshedLabel}
+                                </p>
                             </div>
-                            <lightning-badge label={backlogCountLabel}></lightning-badge>
+                            <lightning-badge
+                                label={backlogCountLabel}
+                            ></lightning-badge>
                         </div>
 
                         <template lwc:if={hasBacklogRows}>
@@ -94,9 +113,15 @@
 
                         <template lwc:else>
                             <div class="empty-state">
-                                <lightning-icon icon-name="utility:success" size="medium"></lightning-icon>
+                                <lightning-icon
+                                    icon-name="utility:success"
+                                    size="medium"
+                                ></lightning-icon>
                                 <h3>No pending publish work found</h3>
-                                <p>EventRelay publish backlog appears here while work waits for a lane.</p>
+                                <p>
+                                    EventRelay publish backlog appears here
+                                    while work waits for a lane.
+                                </p>
                             </div>
                         </template>
                     </div>
@@ -109,7 +134,9 @@
                                 <h2>Errors</h2>
                                 <p>{lastRefreshedLabel}</p>
                             </div>
-                            <lightning-badge label={errorCountLabel}></lightning-badge>
+                            <lightning-badge
+                                label={errorCountLabel}
+                            ></lightning-badge>
                         </div>
 
                         <template lwc:if={hasErrorRows}>
@@ -128,7 +155,10 @@
                                         onclick={handleDeleteSelected}
                                         disabled={isSelectedErrorActionDisabled}
                                     ></lightning-button>
-                                    <span class="selected-count">{selectedErrorCountLabel} selected</span>
+                                    <span class="selected-count"
+                                        >{selectedErrorCountLabel}
+                                        selected</span
+                                    >
                                 </div>
                             </template>
 
@@ -147,9 +177,15 @@
 
                         <template lwc:else>
                             <div class="empty-state">
-                                <lightning-icon icon-name="utility:success" size="medium"></lightning-icon>
+                                <lightning-icon
+                                    icon-name="utility:success"
+                                    size="medium"
+                                ></lightning-icon>
                                 <h3>No failed publish work found</h3>
-                                <p>EventRelay publish errors appear here when retryable work fails.</p>
+                                <p>
+                                    EventRelay publish errors appear here when
+                                    retryable work fails.
+                                </p>
                             </div>
                         </template>
                     </div>
@@ -162,7 +198,9 @@
                                 <h2>Archive</h2>
                                 <p>{lastRefreshedLabel}</p>
                             </div>
-                            <lightning-badge label={archiveCountLabel}></lightning-badge>
+                            <lightning-badge
+                                label={archiveCountLabel}
+                            ></lightning-badge>
                         </div>
 
                         <template lwc:if={hasArchiveRows}>
@@ -180,9 +218,15 @@
 
                         <template lwc:else>
                             <div class="empty-state">
-                                <lightning-icon icon-name="utility:event" size="medium"></lightning-icon>
+                                <lightning-icon
+                                    icon-name="utility:event"
+                                    size="medium"
+                                ></lightning-icon>
                                 <h3>No archived publish work found</h3>
-                                <p>Stale or duplicate EventRelay publish work is retained here for audit.</p>
+                                <p>
+                                    Stale or duplicate EventRelay publish work
+                                    is retained here for audit.
+                                </p>
                             </div>
                         </template>
                     </div>

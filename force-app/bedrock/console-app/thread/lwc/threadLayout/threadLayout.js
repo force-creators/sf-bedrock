@@ -1,13 +1,25 @@
-import { LightningElement } from 'lwc';
-import getMetrics from '@salesforce/apex/ThreadDashboardController.getMetrics';
+import { LightningElement } from "lwc";
+import getMetrics from "@salesforce/apex/ThreadDashboardController.getMetrics";
 
-const PAGE_SELECTORS = ['c-thread-running', 'c-thread-completed'];
+const PAGE_SELECTORS = ["c-thread-running", "c-thread-completed"];
 
 const METRIC_DEFINITIONS = [
-    { id: 'runningThreads', label: 'Running', className: 'metric metric-running' },
-    { id: 'pendingThreads', label: 'Pending', className: 'metric metric-pending' },
-    { id: 'staleThreads', label: 'Stale', className: 'metric metric-stale' },
-    { id: 'completedToday', label: 'Completed Today', className: 'metric metric-success' }
+    {
+        id: "runningThreads",
+        label: "Running",
+        className: "metric metric-running"
+    },
+    {
+        id: "pendingThreads",
+        label: "Pending",
+        className: "metric metric-pending"
+    },
+    { id: "staleThreads", label: "Stale", className: "metric metric-stale" },
+    {
+        id: "completedToday",
+        label: "Completed Today",
+        className: "metric metric-success"
+    }
 ];
 
 export default class ThreadLayout extends LightningElement {
@@ -33,14 +45,14 @@ export default class ThreadLayout extends LightningElement {
 
     get lastRefreshedLabel() {
         if (!this.lastRefreshedAt) {
-            return 'Last refreshed: Not yet';
+            return "Last refreshed: Not yet";
         }
 
         return `Last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
     }
 
     get refreshButtonLabel() {
-        return this.isRefreshing ? 'Refreshing...' : 'Refresh';
+        return this.isRefreshing ? "Refreshing..." : "Refresh";
     }
 
     handleRefresh() {
@@ -54,12 +66,12 @@ export default class ThreadLayout extends LightningElement {
     handleTabActive(event) {
         const selectedTab = event.target?.value;
 
-        if (selectedTab === 'running') {
-            this.refreshPage('c-thread-running');
+        if (selectedTab === "running") {
+            this.refreshPage("c-thread-running");
         }
 
-        if (selectedTab === 'completed') {
-            this.refreshPage('c-thread-completed');
+        if (selectedTab === "completed") {
+            this.refreshPage("c-thread-completed");
         }
     }
 
@@ -107,9 +119,13 @@ export default class ThreadLayout extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load thread counts.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load thread counts."
+        );
     }
 }

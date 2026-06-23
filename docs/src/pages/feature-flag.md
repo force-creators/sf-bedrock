@@ -6,33 +6,33 @@ eyebrow: Tools
 heading: FeatureFlag
 lede: A tiny, cached gateway for turning Apex behavior on and off at runtime. It reads boolean toggles from Feature_Flag__mdt custom metadata, fails closed when a flag is missing, and lets tests override any flag in memory — no DML required.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Where Flag Values Come From
-    href: "#where-flag-values-come-from"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Where Flag Values Come From
+      href: "#where-flag-values-come-from"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
 
 `FeatureFlag` answers one question: **"is this feature turned on right now?"** You give it a flag name, it returns a `Boolean`. That single check lets you ship code that stays dormant until you flip a switch — useful for gradual rollouts, kill switches, or guarding risky behavior.
 
-Flag values live in **`Feature_Flag__mdt` custom metadata**, so toggling a feature is a configuration change, not a code change. Deploy or edit a metadata record in the target org and you're done. This is the classic *Feature Toggle* pattern: separate the decision to *deploy* code from the decision to *release* it.
+Flag values live in **`Feature_Flag__mdt` custom metadata**, so toggling a feature is a configuration change, not a code change. Deploy or edit a metadata record in the target org and you're done. This is the classic _Feature Toggle_ pattern: separate the decision to _deploy_ code from the decision to _release_ it.
 
 **Use `FeatureFlag` when** you want a runtime on/off switch that admins or release engineers can control without redeploying Apex — gradual rollouts, kill switches, environment-specific behavior, or guarding work-in-progress code.
 
-**Reach for a custom setting or your own custom metadata type instead when** you need more than a boolean. `FeatureFlag` has no percentage rollouts, no per-user or per-profile targeting, and no values beyond `true`/`false`. If you need configurable *values* (a threshold, a URL, a limit), model those directly rather than stretching a boolean toggle.
+**Reach for a custom setting or your own custom metadata type instead when** you need more than a boolean. `FeatureFlag` has no percentage rollouts, no per-user or per-profile targeting, and no values beyond `true`/`false`. If you need configurable _values_ (a threshold, a URL, a limit), model those directly rather than stretching a boolean toggle.
 
 ## Quickstart
 
@@ -92,10 +92,10 @@ for (Account account : accounts) {
 
 Flag values come from a single source: the **`Feature_Flag__mdt`** custom metadata type in `force-app/bedrock/lib/feature-flag/objects/`. The class queries two fields:
 
-| Field label | API name | Type | Role |
-| --- | --- | --- | --- |
-| Flag Key | `Name__c` | Text (255, required, unique) | The string you pass to `isEnabled`. The query matches on this field — **not** the record's `DeveloperName` or `Label`. |
-| Is Enabled | `Is_Enabled__c` | Checkbox (default `false`) | The on/off value returned by `isEnabled`. |
+| Field label | API name        | Type                         | Role                                                                                                                   |
+| ----------- | --------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Flag Key    | `Name__c`       | Text (255, required, unique) | The string you pass to `isEnabled`. The query matches on this field — **not** the record's `DeveloperName` or `Label`. |
+| Is Enabled  | `Is_Enabled__c` | Checkbox (default `false`)   | The on/off value returned by `isEnabled`.                                                                              |
 
 ```apex
 // The lookup the class performs (from FeatureFlag.cls)
@@ -110,13 +110,13 @@ List<Feature_Flag__mdt> flags = [
 A few consequences worth internalizing:
 
 - **The match is on `Name__c`, the custom "Flag Key" field.** Whatever string you store in `Name__c` is the exact string you must pass to `isEnabled`. The examples in the tests use a dotted convention like `bedrock.feature.newCheckout`, which is a readable way to namespace flags.
-- **There is no hierarchy and no per-user or per-profile override.** Custom *metadata* is org-wide configuration; unlike hierarchy custom *settings*, there is no user or profile layering here. A flag is the same value for everyone in the org.
+- **There is no hierarchy and no per-user or per-profile override.** Custom _metadata_ is org-wide configuration; unlike hierarchy custom _settings_, there is no user or profile layering here. A flag is the same value for everyone in the org.
 - **`Is_Enabled__c` defaults to `false`.** A newly created flag record is off until someone checks the box.
 - **To change a flag in a real org**, deploy or edit the corresponding `Feature_Flag__mdt` record. No Apex redeploy is needed to flip a feature.
 
 ## Testing
 
-Here is the problem `FeatureFlag.set` solves. Custom *metadata* records deployed to an org are visible to test methods, but you usually cannot rely on org data in a unit test — it makes tests environment-dependent. You also cannot insert new `Feature_Flag__mdt` records with DML the way you would a normal SObject. `FeatureFlag.set(name, enabled)` writes a synthetic value straight into the in-memory cache. The very next `isEnabled(name)` call returns whatever you set — no DML, no SOQL, no dependency on what is deployed.
+Here is the problem `FeatureFlag.set` solves. Custom _metadata_ records deployed to an org are visible to test methods, but you usually cannot rely on org data in a unit test — it makes tests environment-dependent. You also cannot insert new `Feature_Flag__mdt` records with DML the way you would a normal SObject. `FeatureFlag.set(name, enabled)` writes a synthetic value straight into the in-memory cache. The very next `isEnabled(name)` call returns whatever you set — no DML, no SOQL, no dependency on what is deployed.
 
 ### Turn a flag on for a test
 
@@ -209,11 +209,11 @@ This behavior is deliberate and safe: if a flag is misspelled or its metadata wa
 
 ### 3. It caches per transaction
 
-The class keeps a private static `Map<String, Feature_Flag__mdt>` named `flagsByName`. The first time you ask about a flag, it runs one SOQL query and stores the result — *including a `null` entry* when no record was found. Every later read of the same name returns the cached value with no further query.
+The class keeps a private static `Map<String, Feature_Flag__mdt>` named `flagsByName`. The first time you ask about a flag, it runs one SOQL query and stores the result — _including a `null` entry_ when no record was found. Every later read of the same name returns the cached value with no further query.
 
 `static` state in Apex lives for the duration of a single transaction, so the cache is naturally scoped to one execution context and starts empty in the next one.
 
-> **Why caching a `null` matters:** when a flag has no metadata record, `FeatureFlag` still writes a `null` entry for that name. A missing flag costs *one* query per transaction — not one per check. Check an undefined flag a thousand times in a loop and you still make a single SOQL call.
+> **Why caching a `null` matters:** when a flag has no metadata record, `FeatureFlag` still writes a `null` entry for that name. A missing flag costs _one_ query per transaction — not one per check. Check an undefined flag a thousand times in a loop and you still make a single SOQL call.
 
 ## Public API
 
@@ -221,10 +221,10 @@ The class keeps a private static `Map<String, Feature_Flag__mdt>` named `flagsBy
 
 > **A note on access modifiers:** in Apex, a member with **no** access modifier is `private`. Two methods in this class — `get(String name)` and `clearCache()` — have no `public` modifier, so they are private. `clearCache` is annotated `@TestVisible`, which exposes it to test classes only. It remains private to all other callers.
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| `isEnabled` | `public static Boolean isEnabled(String name)` | `Boolean` | The one method production code should call. Returns `true` only when a `Feature_Flag__mdt` record with `Name__c = name` exists and its `Is_Enabled__c` is `true`. Returns `false` for blank names and missing flags (fail closed). |
-| `set` | `@TestVisible public static void set(String name, Boolean enabled)` | `void` | Public cache override for tests. Writes a flag value directly into the in-memory cache, overriding or pre-seeding what `isEnabled` will return for `name` in the current transaction. See [Testing](#testing). |
+| Member      | Signature                                                           | Returns   | Description                                                                                                                                                                                                                        |
+| ----------- | ------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isEnabled` | `public static Boolean isEnabled(String name)`                      | `Boolean` | The one method production code should call. Returns `true` only when a `Feature_Flag__mdt` record with `Name__c = name` exists and its `Is_Enabled__c` is `true`. Returns `false` for blank names and missing flags (fail closed). |
+| `set`       | `@TestVisible public static void set(String name, Boolean enabled)` | `void`    | Public cache override for tests. Writes a flag value directly into the in-memory cache, overriding or pre-seeding what `isEnabled` will return for `name` in the current transaction. See [Testing](#testing).                     |
 
 ### Public properties
 
@@ -232,11 +232,11 @@ The class keeps a private static `Map<String, Feature_Flag__mdt>` named `flagsBy
 
 ### Private members (for context, not for calling)
 
-| Member | Visibility | Role |
-| --- | --- | --- |
-| `flagsByName` | `private static` | The per-transaction cache of `Name__c` → `Feature_Flag__mdt` (or `null`). |
-| `get(String name)` | `private static` | Cache-aware lookup: returns the cached entry if present, otherwise runs the SOQL query and caches the result (including `null` when no record is found). |
-| `clearCache()` | `private static`, `@TestVisible` | Empties the entire cache. Reachable from test code only; lets a test discard all overrides and cached SOQL results so the next read re-queries. |
+| Member             | Visibility                       | Role                                                                                                                                                     |
+| ------------------ | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `flagsByName`      | `private static`                 | The per-transaction cache of `Name__c` → `Feature_Flag__mdt` (or `null`).                                                                                |
+| `get(String name)` | `private static`                 | Cache-aware lookup: returns the cached entry if present, otherwise runs the SOQL query and caches the result (including `null` when no record is found). |
+| `clearCache()`     | `private static`, `@TestVisible` | Empties the entire cache. Reachable from test code only; lets a test discard all overrides and cached SOQL results so the next read re-queries.          |
 
 ## Notes & Edge Cases
 

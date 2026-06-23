@@ -2,10 +2,18 @@
     <lightning-card title="Thread Settings" icon-name="utility:settings">
         <div slot="actions" class="card-actions">
             <template lwc:if={hasSettings}>
-                <lightning-badge label={archiveCleanupStatusLabel}></lightning-badge>
-                <lightning-badge label={effectiveMaxArchiveAgeLabel}></lightning-badge>
-                <lightning-badge label={effectiveArchiveThresholdLabel}></lightning-badge>
-                <lightning-badge label={effectiveMaxThreadsLabel}></lightning-badge>
+                <lightning-badge
+                    label={archiveCleanupStatusLabel}
+                ></lightning-badge>
+                <lightning-badge
+                    label={effectiveMaxArchiveAgeLabel}
+                ></lightning-badge>
+                <lightning-badge
+                    label={effectiveArchiveThresholdLabel}
+                ></lightning-badge>
+                <lightning-badge
+                    label={effectiveMaxThreadsLabel}
+                ></lightning-badge>
             </template>
 
             <lightning-button-icon
@@ -19,14 +27,20 @@
 
         <div class="slds-p-horizontal_medium slds-p-bottom_medium">
             <template lwc:if={hasError}>
-                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                <div
+                    class="slds-notify slds-notify_alert slds-alert_error"
+                    role="alert"
+                >
                     <span class="slds-assistive-text">Error</span>
                     {errorMessage}
                 </div>
             </template>
 
             <template lwc:if={isLoading}>
-                <lightning-spinner alternative-text="Loading async settings" size="small"></lightning-spinner>
+                <lightning-spinner
+                    alternative-text="Loading async settings"
+                    size="small"
+                ></lightning-spinner>
             </template>
 
             <div class="settings-rows">
@@ -70,7 +84,9 @@
                                 ></lightning-input>
                             </template>
                             <template lwc:else>
-                                <strong>{organizationArchiveThresholdDisplay}</strong>
+                                <strong
+                                    >{organizationArchiveThresholdDisplay}</strong
+                                >
                             </template>
                         </div>
                         <div class="setting-cell">
@@ -88,7 +104,9 @@
                                 ></lightning-input>
                             </template>
                             <template lwc:else>
-                                <strong>{organizationMaxArchiveAgeDisplay}</strong>
+                                <strong
+                                    >{organizationMaxArchiveAgeDisplay}</strong
+                                >
                             </template>
                         </div>
                         <div class="setting-cell">
@@ -103,7 +121,9 @@
                                 ></lightning-input>
                             </template>
                             <template lwc:else>
-                                <strong>{organizationArchiveCleanupDisplay}</strong>
+                                <strong
+                                    >{organizationArchiveCleanupDisplay}</strong
+                                >
                             </template>
                         </div>
                     </div>
@@ -139,11 +159,16 @@
                     </div>
                 </article>
 
-                <section class="override-group" aria-labelledby="user-overrides-heading">
+                <section
+                    class="override-group"
+                    aria-labelledby="user-overrides-heading"
+                >
                     <div class="override-heading">
                         <div>
                             <p>User Overrides</p>
-                            <h3 id="user-overrides-heading">{userOverrideCountLabel}</h3>
+                            <h3 id="user-overrides-heading">
+                                {userOverrideCountLabel}
+                            </h3>
                         </div>
                         <lightning-button
                             icon-name="utility:add"
@@ -155,8 +180,14 @@
 
                     <template lwc:if={hasUserOverrideRows}>
                         <div class="override-rows">
-                            <template for:each={userOverrideRows} for:item="row">
-                                <article key={row.userId} class="setting-row user-row">
+                            <template
+                                for:each={userOverrideRows}
+                                for:item="row"
+                            >
+                                <article
+                                    key={row.userId}
+                                    class="setting-row user-row"
+                                >
                                     <div class="user-record-header">
                                         <div class="row-owner">
                                             <p>User</p>
@@ -208,7 +239,9 @@
                                             </template>
                                         </div>
                                     </div>
-                                    <div class="setting-values user-setting-values">
+                                    <div
+                                        class="setting-values user-setting-values"
+                                    >
                                         <div class="setting-cell">
                                             <span>Max Threads</span>
                                             <template lwc:if={row.isEditing}>
@@ -225,7 +258,9 @@
                                                 ></lightning-input>
                                             </template>
                                             <template lwc:else>
-                                                <strong>{row.maxThreadsDisplay}</strong>
+                                                <strong
+                                                    >{row.maxThreadsDisplay}</strong
+                                                >
                                             </template>
                                         </div>
                                         <div class="setting-cell">
@@ -244,7 +279,9 @@
                                                 ></lightning-input>
                                             </template>
                                             <template lwc:else>
-                                                <strong>{row.archiveThresholdDisplay}</strong>
+                                                <strong
+                                                    >{row.archiveThresholdDisplay}</strong
+                                                >
                                             </template>
                                         </div>
                                         <div class="setting-cell">
@@ -263,7 +300,9 @@
                                                 ></lightning-input>
                                             </template>
                                             <template lwc:else>
-                                                <strong>{row.maxArchiveAgeDisplay}</strong>
+                                                <strong
+                                                    >{row.maxArchiveAgeDisplay}</strong
+                                                >
                                             </template>
                                         </div>
                                         <div class="setting-cell">
@@ -279,7 +318,9 @@
                                                 ></lightning-input>
                                             </template>
                                             <template lwc:else>
-                                                <strong>{row.archiveCleanupDisplay}</strong>
+                                                <strong
+                                                    >{row.archiveCleanupDisplay}</strong
+                                                >
                                             </template>
                                         </div>
                                     </div>
@@ -290,9 +331,15 @@
 
                     <template lwc:else>
                         <div class="empty-state">
-                            <lightning-icon icon-name="utility:user" size="medium"></lightning-icon>
+                            <lightning-icon
+                                icon-name="utility:user"
+                                size="medium"
+                            ></lightning-icon>
                             <h3>No user configs yet</h3>
-                            <p>Global settings apply until a user override exists.</p>
+                            <p>
+                                Global settings apply until a user override
+                                exists.
+                            </p>
                         </div>
                     </template>
 
@@ -335,8 +382,14 @@
                                     ></lightning-input>
 
                                     <template lwc:if={hasUserOptions}>
-                                        <div class="lookup-results" role="listbox">
-                                            <template for:each={userOptions} for:item="userOption">
+                                        <div
+                                            class="lookup-results"
+                                            role="listbox"
+                                        >
+                                            <template
+                                                for:each={userOptions}
+                                                for:item="userOption"
+                                            >
                                                 <button
                                                     key={userOption.id}
                                                     class="lookup-result"
@@ -344,8 +397,12 @@
                                                     data-user-id={userOption.id}
                                                     onclick={handleUserSelect}
                                                 >
-                                                    <span>{userOption.label}</span>
-                                                    <small>{userOption.username}</small>
+                                                    <span
+                                                        >{userOption.label}</span
+                                                    >
+                                                    <small
+                                                        >{userOption.username}</small
+                                                    >
                                                 </button>
                                             </template>
                                         </div>

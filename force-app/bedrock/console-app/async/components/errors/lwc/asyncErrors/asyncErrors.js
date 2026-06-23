@@ -1,16 +1,16 @@
-import { LightningElement, api } from 'lwc';
-import getErrors from '@salesforce/apex/AsyncErrorsController.getErrors';
-import retryErrors from '@salesforce/apex/AsyncErrorsController.retryErrors';
-import deleteErrors from '@salesforce/apex/AsyncErrorsController.deleteErrors';
-import LightningConfirm from 'lightning/confirm';
-import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { LightningElement, api } from "lwc";
+import getErrors from "@salesforce/apex/AsyncErrorsController.getErrors";
+import retryErrors from "@salesforce/apex/AsyncErrorsController.retryErrors";
+import deleteErrors from "@salesforce/apex/AsyncErrorsController.deleteErrors";
+import LightningConfirm from "lightning/confirm";
+import { ShowToastEvent } from "lightning/platformShowToastEvent";
 
 const COLUMNS = [
-    { label: 'Thread', fieldName: 'threadLabel', initialWidth: 220 },
-    { label: 'Class', fieldName: 'apexClass' },
-    { label: 'Record Id', fieldName: 'recordId' },
-    { label: 'Error Message', fieldName: 'errorMessage', wrapText: true },
-    { label: 'Error Stack Trace', fieldName: 'errorStackTrace', wrapText: true }
+    { label: "Thread", fieldName: "threadLabel", initialWidth: 220 },
+    { label: "Class", fieldName: "apexClass" },
+    { label: "Record Id", fieldName: "recordId" },
+    { label: "Error Message", fieldName: "errorMessage", wrapText: true },
+    { label: "Error Stack Trace", fieldName: "errorStackTrace", wrapText: true }
 ];
 
 export default class AsyncErrors extends LightningElement {
@@ -27,12 +27,17 @@ export default class AsyncErrors extends LightningElement {
     }
 
     get recordCountLabel() {
-        const count = this.treeRows.reduce((total, group) => total + group._children.length, 0);
-        return `${count} ${count === 1 ? 'record' : 'records'}`;
+        const count = this.treeRows.reduce(
+            (total, group) => total + group._children.length,
+            0
+        );
+        return `${count} ${count === 1 ? "record" : "records"}`;
     }
 
     get refreshButtonClass() {
-        return this.isLoading ? 'refresh-button is-refreshing' : 'refresh-button';
+        return this.isLoading
+            ? "refresh-button is-refreshing"
+            : "refresh-button";
     }
 
     get hasRows() {
@@ -64,9 +69,13 @@ export default class AsyncErrors extends LightningElement {
     handleRowSelection(event) {
         const selectedRowIds = new Set();
         const selectedWorkItemIds = new Set();
-        const groupsById = new Map(this.treeRows.map((group) => [group.id, group]));
+        const groupsById = new Map(
+            this.treeRows.map((group) => [group.id, group])
+        );
         const workItemIds = new Set(
-            this.treeRows.flatMap((group) => group._children.map((row) => row.id))
+            this.treeRows.flatMap((group) =>
+                group._children.map((row) => row.id)
+            )
         );
 
         event.detail.selectedRows.forEach((row) => {
@@ -93,10 +102,10 @@ export default class AsyncErrors extends LightningElement {
 
     async handleRetrySelected() {
         const confirmed = await LightningConfirm.open({
-            label: 'Retry async errors',
-            message: `Retry ${this.selectedWorkItemIds.length} selected async error ${this.selectedWorkItemIds.length === 1 ? 'record' : 'records'}?`,
-            theme: 'warning',
-            variant: 'header'
+            label: "Retry async errors",
+            message: `Retry ${this.selectedWorkItemIds.length} selected async error ${this.selectedWorkItemIds.length === 1 ? "record" : "records"}?`,
+            theme: "warning",
+            variant: "header"
         });
 
         if (!confirmed) {
@@ -105,17 +114,17 @@ export default class AsyncErrors extends LightningElement {
 
         await this.runSelectedAction(
             () => retryErrors({ workItemIds: this.selectedWorkItemIds }),
-            'Retry queued',
-            'Selected async errors were queued for retry.'
+            "Retry queued",
+            "Selected async errors were queued for retry."
         );
     }
 
     async handleDeleteSelected() {
         const confirmed = await LightningConfirm.open({
-            label: 'Delete async errors',
-            message: `Delete ${this.selectedWorkItemIds.length} selected async error ${this.selectedWorkItemIds.length === 1 ? 'record' : 'records'}?`,
-            theme: 'error',
-            variant: 'header'
+            label: "Delete async errors",
+            message: `Delete ${this.selectedWorkItemIds.length} selected async error ${this.selectedWorkItemIds.length === 1 ? "record" : "records"}?`,
+            theme: "error",
+            variant: "header"
         });
 
         if (!confirmed) {
@@ -124,8 +133,8 @@ export default class AsyncErrors extends LightningElement {
 
         await this.runSelectedAction(
             () => deleteErrors({ workItemIds: this.selectedWorkItemIds }),
-            'Errors deleted',
-            'Selected async errors were deleted.'
+            "Errors deleted",
+            "Selected async errors were deleted."
         );
     }
 
@@ -160,9 +169,12 @@ export default class AsyncErrors extends LightningElement {
     }
 
     dispatchCountChange() {
-        const count = this.treeRows.reduce((total, group) => total + group._children.length, 0);
+        const count = this.treeRows.reduce(
+            (total, group) => total + group._children.length,
+            0
+        );
         this.dispatchEvent(
-            new CustomEvent('countchange', {
+            new CustomEvent("countchange", {
                 detail: { count }
             })
         );
@@ -177,8 +189,8 @@ export default class AsyncErrors extends LightningElement {
             this.dispatchEvent(
                 new ShowToastEvent({
                     title,
-                    message: `${message} ${count} ${count === 1 ? 'record was' : 'records were'} affected.`,
-                    variant: 'success'
+                    message: `${message} ${count} ${count === 1 ? "record was" : "records were"} affected.`,
+                    variant: "success"
                 })
             );
             await this.loadErrors();
@@ -191,9 +203,13 @@ export default class AsyncErrors extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load the async errors.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load the async errors."
+        );
     }
 }

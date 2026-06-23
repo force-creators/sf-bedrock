@@ -15,7 +15,10 @@
         ></lightning-button>
 
         <template lwc:if={hasMetadataChanges}>
-            <div class="slds-notify slds-notify_alert warning-alert" role="alert">
+            <div
+                class="slds-notify slds-notify_alert warning-alert"
+                role="alert"
+            >
                 <span class="slds-assistive-text">Warning</span>
                 <lightning-icon
                     icon-name="utility:warning"
@@ -24,14 +27,18 @@
                     class="alert-icon"
                 ></lightning-icon>
                 <span>
-                    Scheduler metadata changed. Runtime rows will be recalculated at
+                    Scheduler metadata changed. Runtime rows will be
+                    recalculated at
                     <strong>{metadataRecalculationLabel}</strong>.
                 </span>
             </div>
         </template>
 
         <template lwc:if={hasJobErrors}>
-            <div class="slds-notify slds-notify_alert job-error-alert" role="alert">
+            <div
+                class="slds-notify slds-notify_alert job-error-alert"
+                role="alert"
+            >
                 <span class="slds-assistive-text">Error</span>
                 <lightning-icon
                     icon-name="utility:error"
@@ -40,13 +47,14 @@
                     class="alert-icon"
                 ></lightning-icon>
                 <span>
-                    {errorSummaryLabel}. Review the highlighted job rows below for the stored error message.
+                    {errorSummaryLabel}. Review the highlighted job rows below
+                    for the stored error message.
                 </span>
             </div>
         </template>
 
         <c-bedrock-console-panel>
-            <lightning-tabset >
+            <lightning-tabset>
                 <lightning-tab label="Schedule" value="schedule">
                     <div class="tab-panel">
                         <div class="section-heading">
@@ -55,14 +63,23 @@
                                 <p>{lastRefreshedLabel}</p>
                             </div>
                             <template lwc:if={isLoading}>
-                                <lightning-spinner alternative-text="Loading scheduler jobs" size="small"></lightning-spinner>
+                                <lightning-spinner
+                                    alternative-text="Loading scheduler jobs"
+                                    size="small"
+                                ></lightning-spinner>
                             </template>
                         </div>
 
                         <template lwc:if={hasJobs}>
                             <div class="schedule-sections">
-                                <template for:each={scheduleSections} for:item="section">
-                                    <section key={section.key} class="schedule-section">
+                                <template
+                                    for:each={scheduleSections}
+                                    for:item="section"
+                                >
+                                    <section
+                                        key={section.key}
+                                        class="schedule-section"
+                                    >
                                         <div class="schedule-section-heading">
                                             <div>
                                                 <h3>{section.label}</h3>
@@ -72,41 +89,83 @@
                                         </div>
 
                                         <ol class="timeline">
-                                            <template for:each={section.jobs} for:item="job">
-                                                <li key={job.key} class={job.timelineClass}>
-                                                    <div class="timeline-marker" aria-hidden="true"></div>
+                                            <template
+                                                for:each={section.jobs}
+                                                for:item="job"
+                                            >
+                                                <li
+                                                    key={job.key}
+                                                    class={job.timelineClass}
+                                                >
+                                                    <div
+                                                        class="timeline-marker"
+                                                        aria-hidden="true"
+                                                    ></div>
                                                     <article class="job-card">
                                                         <div class="job-main">
                                                             <div>
-                                                                <h3>{job.apexClass}</h3>
+                                                                <h3>
+                                                                    {job.apexClass}
+                                                                </h3>
                                                             </div>
-                                                            <div class="badge-row">
-                                                                <span class={job.statusClass}>{job.statusLabel}</span>
-                                                                <template lwc:if={job.hasError}>
-                                                                    <span class="error-badge">Last run error</span>
+                                                            <div
+                                                                class="badge-row"
+                                                            >
+                                                                <span
+                                                                    class={job.statusClass}
+                                                                    >{job.statusLabel}</span
+                                                                >
+                                                                <template
+                                                                    lwc:if={job.hasError}
+                                                                >
+                                                                    <span
+                                                                        class="error-badge"
+                                                                        >Last
+                                                                        run
+                                                                        error</span
+                                                                    >
                                                                 </template>
                                                             </div>
                                                         </div>
 
                                                         <dl class="job-times">
                                                             <div>
-                                                                <dt>Last ran</dt>
-                                                                <dd>{job.lastExecutedLabel}</dd>
+                                                                <dt>
+                                                                    Last ran
+                                                                </dt>
+                                                                <dd>
+                                                                    {job.lastExecutedLabel}
+                                                                </dd>
                                                             </div>
                                                             <div>
-                                                                <dt>Next run</dt>
-                                                                <dd>{job.nextScheduledLabel}</dd>
+                                                                <dt>
+                                                                    Next run
+                                                                </dt>
+                                                                <dd>
+                                                                    {job.nextScheduledLabel}
+                                                                </dd>
                                                             </div>
                                                             <div>
                                                                 <dt>Cadence</dt>
-                                                                <dd>{job.cadence}</dd>
+                                                                <dd>
+                                                                    {job.cadence}
+                                                                </dd>
                                                             </div>
                                                         </dl>
 
-                                                        <template lwc:if={job.hasError}>
-                                                            <div class="last-error">
-                                                                <span>Last error</span>
-                                                                <p>{job.lastError}</p>
+                                                        <template
+                                                            lwc:if={job.hasError}
+                                                        >
+                                                            <div
+                                                                class="last-error"
+                                                            >
+                                                                <span
+                                                                    >Last
+                                                                    error</span
+                                                                >
+                                                                <p>
+                                                                    {job.lastError}
+                                                                </p>
                                                             </div>
                                                         </template>
                                                     </article>
@@ -120,9 +179,15 @@
 
                         <template lwc:else>
                             <div class="empty-state">
-                                <lightning-icon icon-name="utility:clock" size="medium"></lightning-icon>
+                                <lightning-icon
+                                    icon-name="utility:clock"
+                                    size="medium"
+                                ></lightning-icon>
                                 <h3>No scheduler runtime rows yet</h3>
-                                <p>Run the Scheduler heartbeat once to translate metadata into runtime records.</p>
+                                <p>
+                                    Run the Scheduler heartbeat once to
+                                    translate metadata into runtime records.
+                                </p>
                             </div>
                         </template>
                     </div>
@@ -136,7 +201,10 @@
                                 <p>{jobConfigurationCountLabel}</p>
                             </div>
                             <template lwc:if={isLoading}>
-                                <lightning-spinner alternative-text="Loading scheduler job configurations" size="small"></lightning-spinner>
+                                <lightning-spinner
+                                    alternative-text="Loading scheduler job configurations"
+                                    size="small"
+                                ></lightning-spinner>
                             </template>
                         </div>
 
@@ -153,9 +221,15 @@
 
                         <template lwc:else>
                             <div class="empty-state">
-                                <lightning-icon icon-name="utility:settings" size="medium"></lightning-icon>
+                                <lightning-icon
+                                    icon-name="utility:settings"
+                                    size="medium"
+                                ></lightning-icon>
                                 <h3>No scheduler job configurations yet</h3>
-                                <p>Create Scheduler Job custom metadata records to define logical jobs.</p>
+                                <p>
+                                    Create Scheduler Job custom metadata records
+                                    to define logical jobs.
+                                </p>
                             </div>
                         </template>
                     </div>

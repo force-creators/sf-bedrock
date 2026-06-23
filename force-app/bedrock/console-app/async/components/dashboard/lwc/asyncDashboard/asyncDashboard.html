@@ -8,7 +8,10 @@
                     <div key={item.id} class="metric-tile">
                         <span class="slds-text-title_caps">{item.label}</span>
                         <template lwc:if={isLoading}>
-                            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                            <lightning-spinner
+                                alternative-text="Loading"
+                                size="small"
+                            ></lightning-spinner>
                         </template>
                         <template lwc:else>
                             <strong>{item.value}</strong>
@@ -18,7 +21,10 @@
             </div>
 
             <template lwc:if={hasError}>
-                <div class="slds-notify slds-notify_alert slds-alert_error slds-m-top_medium" role="alert">
+                <div
+                    class="slds-notify slds-notify_alert slds-alert_error slds-m-top_medium"
+                    role="alert"
+                >
                     <span class="slds-assistive-text">Error</span>
                     {errorMessage}
                 </div>

@@ -6,32 +6,32 @@ eyebrow: Frameworks
 heading: EventRelay
 lede: EventRelay turns event publication and event processing into durable, tracked work. Bedrock stores Platform Event or generic payloads as Event__c rows, then ordered lanes drain them through publishers or handlers.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Configuration
-    href: "#configuration"
-  - label: Ingesting Work
-    href: "#ingesting-work"
-  - label: Publishing Work
-    href: "#publishing-work"
-  - label: Routes & Lanes
-    href: "#routes--lanes"
-  - label: Custom Handlers
-    href: "#custom-handlers"
-  - label: Custom Publishers
-    href: "#custom-publishers"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Configuration
+      href: "#configuration"
+    - label: Ingesting Work
+      href: "#ingesting-work"
+    - label: Publishing Work
+      href: "#publishing-work"
+    - label: Routes & Lanes
+      href: "#routes--lanes"
+    - label: Custom Handlers
+      href: "#custom-handlers"
+    - label: Custom Publishers
+      href: "#custom-publishers"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -92,7 +92,7 @@ SObjects and calls `EventBus.publish(...)` in a background transaction.
 For inbound event processing, add a one-line trigger and a handler.
 
 ```apex
-trigger AccountChangedTrigger on Account_Changed__e (after insert) {
+trigger AccountChangedTrigger on Account_Changed__e(after insert) {
     EventRelay.ingest(Trigger.new, AccountChangedHandler.class);
 }
 ```
@@ -124,10 +124,12 @@ public with sharing class AccountIntegrationEventService {
         List<SObject> events = new List<SObject>();
 
         for (Account account : accounts) {
-            events.add(new Account_Health_Changed__e(
-                Account_Id__c = account.Id,
-                Health_Score__c = account.Health_Score__c
-            ));
+            events.add(
+                new Account_Health_Changed__e(
+                    Account_Id__c = account.Id,
+                    Health_Score__c = account.Health_Score__c
+                )
+            );
         }
 
         return EventRelay.publish(events);
@@ -147,15 +149,17 @@ transaction. Use `flush` once at the orchestration boundary.
 ```apex
 public with sharing class OrderEventService {
     public void stageSubmitted(Order__c order) {
-        EventRelay.stage(new List<SObject>{
-            new Order_Submitted__e(Order_Id__c = order.Id)
-        });
+        EventRelay.stage(
+            new List<SObject>{ new Order_Submitted__e(Order_Id__c = order.Id) }
+        );
     }
 
     public void stageFulfillmentRequested(Order__c order) {
-        EventRelay.stage(new List<SObject>{
-            new Fulfillment_Requested__e(Order_Id__c = order.Id)
-        });
+        EventRelay.stage(
+            new List<SObject>{
+                new Fulfillment_Requested__e(Order_Id__c = order.Id)
+            }
+        );
     }
 
     public List<Id> flushEvents() {
@@ -173,7 +177,7 @@ Use `ingest` when a Platform Event trigger should persist the payload and proces
 it later through a handler.
 
 ```apex
-trigger OrderSubmittedTrigger on Order_Submitted__e (after insert) {
+trigger OrderSubmittedTrigger on Order_Submitted__e(after insert) {
     EventRelay.ingest(Trigger.new, OrderSubmittedHandler.class);
 }
 ```
@@ -186,11 +190,13 @@ public with sharing class OrderSubmittedHandler extends EventRelay.Handler {
             orderIds.add((Id) record.get('Order_Id__c'));
         }
 
-        List<Order__c> orders = (List<Order__c>) Query.records([
-            SELECT Id, Status__c
-            FROM Order__c
-            WHERE Id IN :orderIds
-        ]);
+        List<Order__c> orders = (List<Order__c>) Query.records(
+            [
+                SELECT Id, Status__c
+                FROM Order__c
+                WHERE Id IN :orderIds
+            ]
+        );
 
         for (Order__c order : orders) {
             order.Status__c = 'Submitted';
@@ -249,7 +255,10 @@ class and lane should receive the payload.
 public with sharing class OrderWebhookPublisher extends EventRelay.Publisher {
     public override void execute(List<Generic> records) {
         for (Generic record : records) {
-            String orderNumber = (String) record.get('orderNumber', String.class);
+            String orderNumber = (String) record.get(
+                'orderNumber',
+                String.class
+            );
             if (String.isBlank(orderNumber)) {
                 fail(record, 'Order number is required.');
                 continue;
@@ -306,21 +315,21 @@ without an explicit Apex type. One config record defines one route.
 
 For Platform Event ingestion, configure a route like this:
 
-| Field | Value |
-| --- | --- |
-| `DeveloperName` | `OrderSubmittedIngest` |
-| `Active__c` | `true` |
-| `Direction__c` | `Ingest` |
-| `Source_Type__c` | `PlatformEvent` |
-| `Routing_Key__c` | `SObjectType` |
-| `Routing_Value__c` | `Order_Submitted__e` |
-| `Apex__c` | `OrderSubmittedHandler` |
-| `Batch_Size__c` | `50` |
+| Field              | Value                   |
+| ------------------ | ----------------------- |
+| `DeveloperName`    | `OrderSubmittedIngest`  |
+| `Active__c`        | `true`                  |
+| `Direction__c`     | `Ingest`                |
+| `Source_Type__c`   | `PlatformEvent`         |
+| `Routing_Key__c`   | `SObjectType`           |
+| `Routing_Value__c` | `Order_Submitted__e`    |
+| `Apex__c`          | `OrderSubmittedHandler` |
+| `Batch_Size__c`    | `50`                    |
 
 Then the trigger can rely on metadata routing:
 
 ```apex
-trigger OrderSubmittedTrigger on Order_Submitted__e (after insert) {
+trigger OrderSubmittedTrigger on Order_Submitted__e(after insert) {
     EventRelay.ingest(Trigger.new);
 }
 ```
@@ -339,14 +348,14 @@ EventRelay.ingest(new List<Generic>{
 
 That payload resolves to a config like this:
 
-| Field | Value |
-| --- | --- |
-| `DeveloperName` | `OrderSubmittedGenericIngest` |
-| `Direction__c` | `Ingest` |
-| `Source_Type__c` | `Generic` |
-| `Routing_Key__c` | `EventType` |
-| `Routing_Value__c` | `OrderSubmitted` |
-| `Apex__c` | `OrderSubmittedHandler` |
+| Field              | Value                         |
+| ------------------ | ----------------------------- |
+| `DeveloperName`    | `OrderSubmittedGenericIngest` |
+| `Direction__c`     | `Ingest`                      |
+| `Source_Type__c`   | `Generic`                     |
+| `Routing_Key__c`   | `EventType`                   |
+| `Routing_Value__c` | `OrderSubmitted`              |
+| `Apex__c`          | `OrderSubmittedHandler`       |
 
 `DeveloperName` is the route and thread key for metadata-backed routes. Keep it
 stable once work exists. `Batch_Size__c` overrides EventRelay's default batch
@@ -483,7 +492,10 @@ public with sharing class ContactChangedHandler extends EventRelay.Handler {
 public with sharing class OrderWebhookHandler extends EventRelay.Handler {
     public override void execute(List<Generic> records) {
         for (Generic record : records) {
-            String orderNumber = (String) record.get('orderNumber', String.class);
+            String orderNumber = (String) record.get(
+                'orderNumber',
+                String.class
+            );
             if (String.isBlank(orderNumber)) {
                 fail(record, 'Order number is required.');
             }
@@ -535,12 +547,15 @@ collaborators your handler uses, then assert the business behavior it owns.
 ```apex
 @istest
 class OrderSubmittedHandlerTest {
-    @istest static void execute_updatesSubmittedOrders() {
+    @istest
+    static void execute_updatesSubmittedOrders() {
         OrderSubmittedHandler handler = new OrderSubmittedHandler();
 
-        handler.execute(new List<SObject>{
-            new Order_Submitted__e(Order_Id__c = 'a00000000000001AAA')
-        });
+        handler.execute(
+            new List<SObject>{
+                new Order_Submitted__e(Order_Id__c = 'a00000000000001AAA')
+            }
+        );
 
         // Assert the DML or service behavior the handler owns.
     }
@@ -579,83 +594,83 @@ become `Done`; failed items become `Error` or return to `Pending` when
 
 ### Static entry points
 
-| Member | Signature | Description |
-| --- | --- | --- |
-| `publish` | `public static List<Id> publish(List<SObject> events)` | Creates durable publish work for Platform Event SObjects. Uses active `Event_Config__mdt` publish routes when they match; otherwise uses the built-in Platform Event publisher route. |
-| `publish` | `public static List<Id> publish(List<SObject> events, Type publisherType)` | Creates durable publish work for Platform Event SObjects and routes it to the explicit publisher class. |
-| `publish` | `public static List<Id> publish(List<Generic> payloads)` | Creates durable publish work for generic payloads. Requires an active matching `Event_Config__mdt` publish route. |
-| `ingest` | `public static List<Id> ingest(List<SObject> events)` | Creates durable process work for Platform Event SObjects. Requires an active matching `Event_Config__mdt` ingest route. |
-| `ingest` | `public static List<Id> ingest(List<SObject> events, Type handlerType)` | Creates durable process work for Platform Event SObjects and routes it to the explicit handler class. |
-| `ingest` | `public static List<Id> ingest(List<Generic> payloads)` | Creates durable process work for generic payloads. Requires an active matching `Event_Config__mdt` ingest route. |
-| `ingest` | `public static List<Id> ingest(List<Generic> payloads, Type handlerType)` | Creates durable process work for generic payloads and routes it to the explicit handler class. |
-| `stage` | `public static void stage(List<SObject> events)` | Adds Platform Event SObjects to the current transaction buffer. |
-| `flush` | `public static List<Id> flush()` | Persists buffered Platform Events and returns the new `Event__c` Ids. Returns an empty list when the buffer is empty. |
+| Member    | Signature                                                                  | Description                                                                                                                                                                           |
+| --------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `publish` | `public static List<Id> publish(List<SObject> events)`                     | Creates durable publish work for Platform Event SObjects. Uses active `Event_Config__mdt` publish routes when they match; otherwise uses the built-in Platform Event publisher route. |
+| `publish` | `public static List<Id> publish(List<SObject> events, Type publisherType)` | Creates durable publish work for Platform Event SObjects and routes it to the explicit publisher class.                                                                               |
+| `publish` | `public static List<Id> publish(List<Generic> payloads)`                   | Creates durable publish work for generic payloads. Requires an active matching `Event_Config__mdt` publish route.                                                                     |
+| `ingest`  | `public static List<Id> ingest(List<SObject> events)`                      | Creates durable process work for Platform Event SObjects. Requires an active matching `Event_Config__mdt` ingest route.                                                               |
+| `ingest`  | `public static List<Id> ingest(List<SObject> events, Type handlerType)`    | Creates durable process work for Platform Event SObjects and routes it to the explicit handler class.                                                                                 |
+| `ingest`  | `public static List<Id> ingest(List<Generic> payloads)`                    | Creates durable process work for generic payloads. Requires an active matching `Event_Config__mdt` ingest route.                                                                      |
+| `ingest`  | `public static List<Id> ingest(List<Generic> payloads, Type handlerType)`  | Creates durable process work for generic payloads and routes it to the explicit handler class.                                                                                        |
+| `stage`   | `public static void stage(List<SObject> events)`                           | Adds Platform Event SObjects to the current transaction buffer.                                                                                                                       |
+| `flush`   | `public static List<Id> flush()`                                           | Persists buffered Platform Events and returns the new `Event__c` Ids. Returns an empty list when the buffer is empty.                                                                 |
 
 ### Handler contract
 
-| Member | Signature | Description |
-| --- | --- | --- |
-| `execute` | `public virtual void execute(List<SObject> records)` | Override this for Platform Event-shaped payloads. The base implementation converts records to `Generic` and calls `execute(List<Generic>)`, preserving existing Generic handlers. |
-| `execute` | `public virtual void execute(List<Generic> records)` | Override this for generic payloads. The base implementation throws. |
-| `complete` | `public void complete(SObject record)` | Marks one SObject payload successful in the current handler batch. Items are successful by default, so this is only needed after an earlier `fail`. |
-| `complete` | `public void complete(Generic record)` | Marks one generic payload successful in the current handler batch. Items are successful by default, so this is only needed after an earlier `fail`. |
-| `fail` | `public void fail(SObject record, String message)` | Marks one SObject payload failed in the current handler batch with a message. |
-| `fail` | `public void fail(Generic record, String message)` | Marks one generic payload failed in the current handler batch with a message. |
+| Member     | Signature                                            | Description                                                                                                                                                                       |
+| ---------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `execute`  | `public virtual void execute(List<SObject> records)` | Override this for Platform Event-shaped payloads. The base implementation converts records to `Generic` and calls `execute(List<Generic>)`, preserving existing Generic handlers. |
+| `execute`  | `public virtual void execute(List<Generic> records)` | Override this for generic payloads. The base implementation throws.                                                                                                               |
+| `complete` | `public void complete(SObject record)`               | Marks one SObject payload successful in the current handler batch. Items are successful by default, so this is only needed after an earlier `fail`.                               |
+| `complete` | `public void complete(Generic record)`               | Marks one generic payload successful in the current handler batch. Items are successful by default, so this is only needed after an earlier `fail`.                               |
+| `fail`     | `public void fail(SObject record, String message)`   | Marks one SObject payload failed in the current handler batch with a message.                                                                                                     |
+| `fail`     | `public void fail(Generic record, String message)`   | Marks one generic payload failed in the current handler batch with a message.                                                                                                     |
 
 ### Publisher contract
 
-| Member | Signature | Description |
-| --- | --- | --- |
-| `execute` | `public virtual void execute(List<SObject> records)` | Override this for Platform Event-shaped payloads. The base implementation throws. |
-| `execute` | `public virtual void execute(List<Generic> records)` | Override this for generic payloads. The base implementation throws. |
-| `complete` | `public void complete(SObject record)` | Marks one SObject payload successful in the current batch. |
-| `complete` | `public void complete(Generic record)` | Marks one generic payload successful in the current batch. |
-| `succeed` | `public void succeed(SObject record)` | Marks one SObject payload successful in the current batch. |
-| `succeed` | `public void succeed(Generic record)` | Marks one generic payload successful in the current batch. |
-| `fail` | `public void fail(SObject record, String message)` | Marks one SObject payload failed in the current batch with a message. |
-| `fail` | `public void fail(Generic record, String message)` | Marks one generic payload failed in the current batch with a message. |
+| Member     | Signature                                            | Description                                                                       |
+| ---------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `execute`  | `public virtual void execute(List<SObject> records)` | Override this for Platform Event-shaped payloads. The base implementation throws. |
+| `execute`  | `public virtual void execute(List<Generic> records)` | Override this for generic payloads. The base implementation throws.               |
+| `complete` | `public void complete(SObject record)`               | Marks one SObject payload successful in the current batch.                        |
+| `complete` | `public void complete(Generic record)`               | Marks one generic payload successful in the current batch.                        |
+| `succeed`  | `public void succeed(SObject record)`                | Marks one SObject payload successful in the current batch.                        |
+| `succeed`  | `public void succeed(Generic record)`                | Marks one generic payload successful in the current batch.                        |
+| `fail`     | `public void fail(SObject record, String message)`   | Marks one SObject payload failed in the current batch with a message.             |
+| `fail`     | `public void fail(Generic record, String message)`   | Marks one generic payload failed in the current batch with a message.             |
 
 ### Work metadata
 
-| Artifact | Field | Purpose |
-| --- | --- | --- |
-| `Event__c` | `Apex__c` | Publisher or handler class name. Blank publish values use the built-in Platform Event publisher. |
-| `Event__c` | `Job_Type__c` | `Publish` for outbound publication work or `Process` for inbound handler work. |
-| `Event__c` | `Status__c` | Work state. Implemented statuses include `Pending`, `Running`, `Done`, `Stale`, and `Error`. |
-| `Event__c` | `Route__c` | Route or destination key selected for the payload. |
-| `Event__c` | `Payload_Type__c` | Platform Event API name or `Generic`. |
-| `Event__c` | `Thread__c` | Lookup to the `Thread__c` lane that owns the work. |
-| `Event__c` | `Thread_Key__c` | FIFO lane key. |
-| `Event__c` | `Order__c` | Per-create-call ordering value used after `CreatedDate`. |
-| `Event__c` | `Retry_Count__c` | Stored retry count. Automatic retry increments this value when a failed item is requeued below its configured cap. |
-| `Event__c` | `Idempotency_Key__c` | Optional framework-derived logical work key. Duplicate accepted work for the same job type and route is inserted as `Stale`. |
-| `Event__c` | `Payload1__c` - `Payload4__c` | Serialized payload chunks. Each chunk stores up to 32,768 characters. |
-| `Event__c` | `Error_Message__c` | Publisher or handler error, stale duplicate reason, or runtime failure message. |
-| `Event__c` | `Error_Stack_Trace__c` | Runtime failure stack trace when available. |
+| Artifact   | Field                         | Purpose                                                                                                                      |
+| ---------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `Event__c` | `Apex__c`                     | Publisher or handler class name. Blank publish values use the built-in Platform Event publisher.                             |
+| `Event__c` | `Job_Type__c`                 | `Publish` for outbound publication work or `Process` for inbound handler work.                                               |
+| `Event__c` | `Status__c`                   | Work state. Implemented statuses include `Pending`, `Running`, `Done`, `Stale`, and `Error`.                                 |
+| `Event__c` | `Route__c`                    | Route or destination key selected for the payload.                                                                           |
+| `Event__c` | `Payload_Type__c`             | Platform Event API name or `Generic`.                                                                                        |
+| `Event__c` | `Thread__c`                   | Lookup to the `Thread__c` lane that owns the work.                                                                           |
+| `Event__c` | `Thread_Key__c`               | FIFO lane key.                                                                                                               |
+| `Event__c` | `Order__c`                    | Per-create-call ordering value used after `CreatedDate`.                                                                     |
+| `Event__c` | `Retry_Count__c`              | Stored retry count. Automatic retry increments this value when a failed item is requeued below its configured cap.           |
+| `Event__c` | `Idempotency_Key__c`          | Optional framework-derived logical work key. Duplicate accepted work for the same job type and route is inserted as `Stale`. |
+| `Event__c` | `Payload1__c` - `Payload4__c` | Serialized payload chunks. Each chunk stores up to 32,768 characters.                                                        |
+| `Event__c` | `Error_Message__c`            | Publisher or handler error, stale duplicate reason, or runtime failure message.                                              |
+| `Event__c` | `Error_Stack_Trace__c`        | Runtime failure stack trace when available.                                                                                  |
 
 ### Route metadata
 
-| Artifact | Field | Purpose |
-| --- | --- | --- |
-| `Event_Config__mdt` | `DeveloperName` | Stable route name. Metadata-backed work stores this value in `Event__c.Route__c` and `Event__c.Thread_Key__c`. |
-| `Event_Config__mdt` | `Active__c` | Enables the route when `true`. Inactive routes are ignored. |
-| `Event_Config__mdt` | `Direction__c` | `Publish`, `Ingest`, or `Both`. |
-| `Event_Config__mdt` | `Source_Type__c` | `PlatformEvent` or `Generic`. |
-| `Event_Config__mdt` | `Routing_Key__c` | `SObjectType` for Platform Event routes; a payload key such as `EventType` for generic routes. |
-| `Event_Config__mdt` | `Routing_Value__c` | Platform Event API name or generic payload value that selects the route. |
-| `Event_Config__mdt` | `Apex__c` | Publisher class for publish routes or handler class for ingest routes. Platform Event publish routes may leave this blank to use the built-in publisher. |
-| `Event_Config__mdt` | `Batch_Size__c` | Optional batch size override for this route. |
-| `Event_Config__mdt` | `Max_Retries__c` | Optional automatic retry cap for failed publish and process work on this route. Blank or zero disables automatic retry. |
-| `Event_Config__mdt` | `Idempotency_Key_Path__c` | Optional Platform Event field API name or `Generic` path used to derive `Event__c.Idempotency_Key__c` during intake. |
+| Artifact            | Field                     | Purpose                                                                                                                                                  |
+| ------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Event_Config__mdt` | `DeveloperName`           | Stable route name. Metadata-backed work stores this value in `Event__c.Route__c` and `Event__c.Thread_Key__c`.                                           |
+| `Event_Config__mdt` | `Active__c`               | Enables the route when `true`. Inactive routes are ignored.                                                                                              |
+| `Event_Config__mdt` | `Direction__c`            | `Publish`, `Ingest`, or `Both`.                                                                                                                          |
+| `Event_Config__mdt` | `Source_Type__c`          | `PlatformEvent` or `Generic`.                                                                                                                            |
+| `Event_Config__mdt` | `Routing_Key__c`          | `SObjectType` for Platform Event routes; a payload key such as `EventType` for generic routes.                                                           |
+| `Event_Config__mdt` | `Routing_Value__c`        | Platform Event API name or generic payload value that selects the route.                                                                                 |
+| `Event_Config__mdt` | `Apex__c`                 | Publisher class for publish routes or handler class for ingest routes. Platform Event publish routes may leave this blank to use the built-in publisher. |
+| `Event_Config__mdt` | `Batch_Size__c`           | Optional batch size override for this route.                                                                                                             |
+| `Event_Config__mdt` | `Max_Retries__c`          | Optional automatic retry cap for failed publish and process work on this route. Blank or zero disables automatic retry.                                  |
+| `Event_Config__mdt` | `Idempotency_Key_Path__c` | Optional Platform Event field API name or `Generic` path used to derive `Event__c.Idempotency_Key__c` during intake.                                     |
 
 ### Runtime defaults
 
-| Setting | Value | Description |
-| --- | --- | --- |
-| Publish pool | `EventRelayPublish` | Thread pool used by EventRelay publication lanes. |
-| Process pool | `EventRelayProcess` | Thread pool used by EventRelay process lanes. |
-| Batch size | `50` | Default number of work items selected for one publish or process job when the route has no `Batch_Size__c`. |
-| Limit threshold | `90` | Platform Event publish limit safety threshold used with `Limiter` for the built-in publisher. |
+| Setting         | Value               | Description                                                                                                 |
+| --------------- | ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Publish pool    | `EventRelayPublish` | Thread pool used by EventRelay publication lanes.                                                           |
+| Process pool    | `EventRelayProcess` | Thread pool used by EventRelay process lanes.                                                               |
+| Batch size      | `50`                | Default number of work items selected for one publish or process job when the route has no `Batch_Size__c`. |
+| Limit threshold | `90`                | Platform Event publish limit safety threshold used with `Limiter` for the built-in publisher.               |
 
 ## Notes & Edge Cases
 

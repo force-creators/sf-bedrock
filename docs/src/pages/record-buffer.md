@@ -6,24 +6,24 @@ eyebrow: Tools
 heading: RecordBuffer
 lede: A static, transaction-scoped staging area that collects SObject records as your trigger logic runs and writes them to the database in one grouped upsert per object type when you flush — so each unit of work issues the fewest possible DML statements.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Contexts & Nested Flushes
-    href: "#contexts-and-nested-flushes"
-  - label: Reading Staged Records
-    href: "#reading-staged-records"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Contexts & Nested Flushes
+      href: "#contexts-and-nested-flushes"
+    - label: Reading Staged Records
+      href: "#reading-staged-records"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -47,7 +47,7 @@ grouped write. Classic trigger-context staging: handlers stage records, a single
 point flushes them.
 
 **Reach for direct DML instead when** you genuinely need the write to happen
-*now* — for example, because later logic in the same transaction must re-query
+_now_ — for example, because later logic in the same transaction must re-query
 the saved row, or because you need the inserted Ids immediately. The buffer
 defers the write until `flush()`. Anything that depends on the write having
 already happened should not go through it.
@@ -210,7 +210,7 @@ Assert.areEqual('Outer', ((Account) dmlMock.upserts[1][0]).Name,
 ## Reading Staged Records
 
 The buffer is not just a write sink. It can answer: "what does this record
-look like *right now*, including changes staged but not yet flushed?" That is
+look like _right now_, including changes staged but not yet flushed?" That is
 what the `put(Id)` getter and `get(Set<Id>)` are for. Logic later in the same
 context can see the not-yet-committed version of a record instead of querying
 a stale copy from the database.
@@ -260,7 +260,7 @@ Assert.isNull(RecordBuffer.get(new Set<Id>()),
     'Expected get(Set<Id>) to return null for an empty Id set.');
 ```
 
-> **Reads only see staged *updates*, not staged *inserts*.** The getter
+> **Reads only see staged _updates_, not staged _inserts_.** The getter
 > resolves Ids against the `updates` map. Records staged without an Id have no
 > Id to look up, so the getter cannot return them. An Id that was never staged
 > as an update always yields a skeleton — never an error.
@@ -335,7 +335,7 @@ calls (one Account upsert, one Contact upsert) — not eight.
 
 > The buffer commits through the sf-bedrock `DML` facade (`DML.upsertRecords`),
 > not raw `upsert` DML. That is what lets tests swap in a `DMLMock` and assert
-> on what *would* have been written — without touching the database.
+> on what _would_ have been written — without touching the database.
 
 ### 3. State is a stack of contexts
 
@@ -364,15 +364,15 @@ points — you never instantiate it.
 > `inserts`/`updates` maps, but `TriggerContext` is an implementation detail
 > you are not expected to construct or touch directly.
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| `start` | `start()` | `void` | Pushes a new, empty context onto the stack. Use it to open a nested unit of work. Optional for the simple case — `put`/`flush` auto-start a context if none exists. |
-| `put` | `put(SObject record)` | `void` | Stages one record in the current context. A record with no `Id` is staged as an insert; a record with an `Id` is staged as an update (deduped by Id). `null` is ignored. |
-| `put` | `put(List<SObject> records)` | `void` | Stages each record in the list (skipping any `null` elements). A `null` list is ignored. |
-| `put` | `put(Map<Id, SObject> recordsById)` | `void` | Stages every value in the map. A `null` map is ignored. |
-| `put` | `put(Id recordId)` | `SObject` | **Read accessor, not a stage.** Returns the staged record for that Id, or a skeletal SObject of the right type carrying just the Id if nothing is staged. Returns `null` for a `null` Id. See [Reading Staged Records](#reading-staged-records). |
-| `get` | `get(Set<Id> recordIds)` | `List<SObject>` | Returns one entry per Id (each resolved exactly like `put(Id)`). Returns `null` for a `null` or empty set. |
-| `flush` | `flush()` | `void` | Upserts everything staged in the current (top) context — one `DML.upsertRecords` call per object type — then removes that context from the stack. Does nothing if the stack is empty. |
+| Member  | Signature                           | Returns         | Description                                                                                                                                                                                                                                      |
+| ------- | ----------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `start` | `start()`                           | `void`          | Pushes a new, empty context onto the stack. Use it to open a nested unit of work. Optional for the simple case — `put`/`flush` auto-start a context if none exists.                                                                              |
+| `put`   | `put(SObject record)`               | `void`          | Stages one record in the current context. A record with no `Id` is staged as an insert; a record with an `Id` is staged as an update (deduped by Id). `null` is ignored.                                                                         |
+| `put`   | `put(List<SObject> records)`        | `void`          | Stages each record in the list (skipping any `null` elements). A `null` list is ignored.                                                                                                                                                         |
+| `put`   | `put(Map<Id, SObject> recordsById)` | `void`          | Stages every value in the map. A `null` map is ignored.                                                                                                                                                                                          |
+| `put`   | `put(Id recordId)`                  | `SObject`       | **Read accessor, not a stage.** Returns the staged record for that Id, or a skeletal SObject of the right type carrying just the Id if nothing is staged. Returns `null` for a `null` Id. See [Reading Staged Records](#reading-staged-records). |
+| `get`   | `get(Set<Id> recordIds)`            | `List<SObject>` | Returns one entry per Id (each resolved exactly like `put(Id)`). Returns `null` for a `null` or empty set.                                                                                                                                       |
+| `flush` | `flush()`                           | `void`          | Upserts everything staged in the current (top) context — one `DML.upsertRecords` call per object type — then removes that context from the stack. Does nothing if the stack is empty.                                                            |
 
 > **The `put(Id)` overload is a getter.** It shares the `put` name but it does
 > **not** stage anything — it reads. It delegates to the inner context's
@@ -381,10 +381,10 @@ points — you never instantiate it.
 
 ### Inner types
 
-| Type | Visibility | Role |
-| --- | --- | --- |
-| `RecordBuffer.TriggerContext` | `public` (inner class) | One unit of work's staging buckets (`inserts`, `updates`) plus its own `put`/`get`/`flush`. The buffer keeps a stack of these. You normally never reference it directly. |
-| `RecordBuffer.RecordBufferException` | `public` (extends `Exception`) | A custom exception type declared on the class. Not currently thrown by the buffer's own methods. |
+| Type                                 | Visibility                     | Role                                                                                                                                                                     |
+| ------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RecordBuffer.TriggerContext`        | `public` (inner class)         | One unit of work's staging buckets (`inserts`, `updates`) plus its own `put`/`get`/`flush`. The buffer keeps a stack of these. You normally never reference it directly. |
+| `RecordBuffer.RecordBufferException` | `public` (extends `Exception`) | A custom exception type declared on the class. Not currently thrown by the buffer's own methods.                                                                         |
 
 ## Notes & Edge Cases
 

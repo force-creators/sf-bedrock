@@ -6,20 +6,20 @@ eyebrow: Tools
 heading: Pluck
 lede: Pluck turns a list of SObject records into a deduped `Set<Id>` in one call — either from each record's own Id, or from a lookup field on each record. It is what `Async.enqueue` uses internally to build its work-item payload.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -203,10 +203,10 @@ has no inner types, no instance state, and no test-only members.
 > are `public static` and return a new `Set<Id>` on every call. There is no
 > shared state between calls.
 
-| Method | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| `ids` | `ids(List<SObject> records)` | `Set<Id>` | Returns the non-null `Id` of each record in the list. Duplicates collapse; null Ids are skipped. |
-| `ids` | `ids(SObjectField field, List<SObject> records)` | `Set<Id>` | Returns the non-null value of `field` on each record, cast to `Id`. Duplicates collapse; null values are skipped. |
+| Method | Signature                                        | Returns   | Description                                                                                                       |
+| ------ | ------------------------------------------------ | --------- | ----------------------------------------------------------------------------------------------------------------- |
+| `ids`  | `ids(List<SObject> records)`                     | `Set<Id>` | Returns the non-null `Id` of each record in the list. Duplicates collapse; null Ids are skipped.                  |
+| `ids`  | `ids(SObjectField field, List<SObject> records)` | `Set<Id>` | Returns the non-null value of `field` on each record, cast to `Id`. Duplicates collapse; null values are skipped. |
 
 ## Notes & Edge Cases
 

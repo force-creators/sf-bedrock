@@ -1,10 +1,10 @@
-import { LightningElement } from 'lwc';
-import LightningConfirm from 'lightning/confirm';
-import deleteUserSettings from '@salesforce/apex/ThreadSettingsController.deleteUserSettings';
-import getSettings from '@salesforce/apex/ThreadSettingsController.getSettings';
-import saveSettings from '@salesforce/apex/ThreadSettingsController.saveSettings';
-import searchUsers from '@salesforce/apex/ThreadSettingsController.searchUsers';
-import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { LightningElement } from "lwc";
+import LightningConfirm from "lightning/confirm";
+import deleteUserSettings from "@salesforce/apex/ThreadSettingsController.deleteUserSettings";
+import getSettings from "@salesforce/apex/ThreadSettingsController.getSettings";
+import saveSettings from "@salesforce/apex/ThreadSettingsController.saveSettings";
+import searchUsers from "@salesforce/apex/ThreadSettingsController.searchUsers";
+import { ShowToastEvent } from "lightning/platformShowToastEvent";
 
 const USER_SEARCH_DELAY_MS = 250;
 
@@ -22,7 +22,7 @@ export default class ThreadSettings extends LightningElement {
     newUserRecoveryLimitThresholdPct;
     newUserRecoveryThresholdMinutes;
     selectedUser;
-    userSearchTerm = '';
+    userSearchTerm = "";
     userOptions = [];
     isCreatingUserOverride = false;
     isEditingOrganization = false;
@@ -72,11 +72,15 @@ export default class ThreadSettings extends LightningElement {
     }
 
     get recoveryStatusLabel() {
-        return this.settings?.effectiveRecoveryEnabled ? 'Recovery enabled' : 'Recovery disabled';
+        return this.settings?.effectiveRecoveryEnabled
+            ? "Recovery enabled"
+            : "Recovery disabled";
     }
 
     get organizationRecordLabel() {
-        return this.settings?.organization?.hasRecord ? 'Custom setting exists' : 'Using framework default';
+        return this.settings?.organization?.hasRecord
+            ? "Custom setting exists"
+            : "Using framework default";
     }
 
     get organizationMaxThreadsDisplay() {
@@ -96,28 +100,28 @@ export default class ThreadSettings extends LightningElement {
     }
 
     get organizationRecoveryDisplay() {
-        return this.organizationRecoveryEnabled ? 'Enabled' : 'Disabled';
+        return this.organizationRecoveryEnabled ? "Enabled" : "Disabled";
     }
 
     get userOverrideCountLabel() {
         const count = this.userOverrideRows.length;
-        return `${count} ${count === 1 ? 'config' : 'configs'}`;
+        return `${count} ${count === 1 ? "config" : "configs"}`;
     }
 
     get selectedUserLabel() {
         if (!this.selectedUser) {
-            return '';
+            return "";
         }
 
         return `${this.selectedUser.label} (${this.selectedUser.username})`;
     }
 
     get newOverrideHeading() {
-        return this.selectedUser?.label || 'Choose a User';
+        return this.selectedUser?.label || "Choose a User";
     }
 
     get newOverrideSubheading() {
-        return this.selectedUser?.username || 'Search active users';
+        return this.selectedUser?.username || "Search active users";
     }
 
     get isNewUserSaveDisabled() {
@@ -159,23 +163,33 @@ export default class ThreadSettings extends LightningElement {
     }
 
     handleOverrideMaxThreadsChange(event) {
-        this.updateOverrideDraft(event.target.dataset.userId, { draftMaxThreads: event.target.value });
+        this.updateOverrideDraft(event.target.dataset.userId, {
+            draftMaxThreads: event.target.value
+        });
     }
 
     handleOverrideRecoveryThresholdChange(event) {
-        this.updateOverrideDraft(event.target.dataset.userId, { draftRecoveryThresholdMinutes: event.target.value });
+        this.updateOverrideDraft(event.target.dataset.userId, {
+            draftRecoveryThresholdMinutes: event.target.value
+        });
     }
 
     handleOverrideRecoveryBatchSizeChange(event) {
-        this.updateOverrideDraft(event.target.dataset.userId, { draftRecoveryBatchSize: event.target.value });
+        this.updateOverrideDraft(event.target.dataset.userId, {
+            draftRecoveryBatchSize: event.target.value
+        });
     }
 
     handleOverrideRecoveryLimitChange(event) {
-        this.updateOverrideDraft(event.target.dataset.userId, { draftRecoveryLimitThresholdPct: event.target.value });
+        this.updateOverrideDraft(event.target.dataset.userId, {
+            draftRecoveryLimitThresholdPct: event.target.value
+        });
     }
 
     handleOverrideRecoveryEnabledChange(event) {
-        this.updateOverrideDraft(event.target.dataset.userId, { draftRecoveryEnabled: event.target.checked });
+        this.updateOverrideDraft(event.target.dataset.userId, {
+            draftRecoveryEnabled: event.target.checked
+        });
     }
 
     handleEditUserOverride(event) {
@@ -226,6 +240,8 @@ export default class ThreadSettings extends LightningElement {
     handleUserSearchChange(event) {
         this.userSearchTerm = event.target.value;
         this.clearUserSearchTimer();
+        // Debounce user lookup requests while typing.
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
         this.userSearchTimer = setTimeout(() => {
             this.searchForUsers(this.userSearchTerm);
         }, USER_SEARCH_DELAY_MS);
@@ -233,7 +249,9 @@ export default class ThreadSettings extends LightningElement {
 
     handleUserSelect(event) {
         const userId = event.currentTarget.dataset.userId;
-        const userOption = this.userOptions.find((option) => option.id === userId);
+        const userOption = this.userOptions.find(
+            (option) => option.id === userId
+        );
 
         if (!userOption) {
             return;
@@ -246,14 +264,14 @@ export default class ThreadSettings extends LightningElement {
 
     handleSaveOrganization() {
         this.saveSetting(
-            'Organization',
+            "Organization",
             null,
             this.organizationMaxThreads,
             this.organizationRecoveryThresholdMinutes,
             this.organizationRecoveryBatchSize,
             this.organizationRecoveryLimitThresholdPct,
             this.organizationRecoveryEnabled,
-            'Global settings saved'
+            "Global settings saved"
         );
     }
 
@@ -283,35 +301,39 @@ export default class ThreadSettings extends LightningElement {
 
     handleSaveUserOverride(event) {
         const userId = event.currentTarget.dataset.userId;
-        const row = this.userOverrideRows.find((overrideRow) => overrideRow.userId === userId);
+        const row = this.userOverrideRows.find(
+            (overrideRow) => overrideRow.userId === userId
+        );
 
         if (row) {
             this.saveSetting(
-                'User',
+                "User",
                 userId,
                 row.draftMaxThreads,
                 row.draftRecoveryThresholdMinutes,
                 row.draftRecoveryBatchSize,
                 row.draftRecoveryLimitThresholdPct,
                 row.draftRecoveryEnabled,
-                'User settings saved'
+                "User settings saved"
             );
         }
     }
 
     async handleDeleteUserOverride(event) {
         const userId = event.currentTarget.dataset.userId;
-        const row = this.userOverrideRows.find((overrideRow) => overrideRow.userId === userId);
+        const row = this.userOverrideRows.find(
+            (overrideRow) => overrideRow.userId === userId
+        );
 
         if (!row) {
             return;
         }
 
         const confirmed = await LightningConfirm.open({
-            label: 'Delete user settings',
+            label: "Delete user settings",
             message: `Delete thread settings for ${row.userLabel}? This user will inherit the global setting.`,
-            theme: 'error',
-            variant: 'header'
+            theme: "error",
+            variant: "header"
         });
 
         if (!confirmed) {
@@ -323,14 +345,14 @@ export default class ThreadSettings extends LightningElement {
 
     handleSaveNewUserOverride() {
         this.saveSetting(
-            'User',
+            "User",
             this.selectedUser.id,
             this.newUserMaxThreads,
             this.newUserRecoveryThresholdMinutes,
             this.newUserRecoveryBatchSize,
             this.newUserRecoveryLimitThresholdPct,
             this.newUserRecoveryEnabled,
-            'User settings saved'
+            "User settings saved"
         );
     }
 
@@ -342,7 +364,9 @@ export default class ThreadSettings extends LightningElement {
             this.settings = await getSettings({ userId });
             this.selectedUser = this.settings.selectedUser;
             this.applyOrganizationSettings(this.settings);
-            this.userOverrideRows = this.toUserOverrideRows(this.settings.userOverrides);
+            this.userOverrideRows = this.toUserOverrideRows(
+                this.settings.userOverrides
+            );
             this.userSearchTerm = this.selectedUserLabel;
             this.isEditingOrganization = false;
         } catch (error) {
@@ -363,7 +387,16 @@ export default class ThreadSettings extends LightningElement {
         }
     }
 
-    async saveSetting(scope, userId, maxThreads, recoveryThresholdMinutes, recoveryBatchSize, recoveryLimitThresholdPct, recoveryEnabled, title) {
+    async saveSetting(
+        scope,
+        userId,
+        maxThreads,
+        recoveryThresholdMinutes,
+        recoveryBatchSize,
+        recoveryLimitThresholdPct,
+        recoveryEnabled,
+        title
+    ) {
         this.isSaving = true;
         this.errorMessage = undefined;
 
@@ -372,14 +405,20 @@ export default class ThreadSettings extends LightningElement {
                 scope,
                 userId,
                 maxThreads: this.toNumber(maxThreads),
-                recoveryThresholdMinutes: this.toNumber(recoveryThresholdMinutes),
+                recoveryThresholdMinutes: this.toNumber(
+                    recoveryThresholdMinutes
+                ),
                 recoveryBatchSize: this.toNumber(recoveryBatchSize),
-                recoveryLimitThresholdPct: this.toNumber(recoveryLimitThresholdPct),
+                recoveryLimitThresholdPct: this.toNumber(
+                    recoveryLimitThresholdPct
+                ),
                 recoveryEnabled
             });
             this.selectedUser = this.settings.selectedUser;
             this.applyOrganizationSettings(this.settings);
-            this.userOverrideRows = this.toUserOverrideRows(this.settings.userOverrides);
+            this.userOverrideRows = this.toUserOverrideRows(
+                this.settings.userOverrides
+            );
             this.userSearchTerm = this.selectedUserLabel;
             this.isCreatingUserOverride = false;
             this.newUserRecoveryEnabled = true;
@@ -391,8 +430,8 @@ export default class ThreadSettings extends LightningElement {
             this.dispatchEvent(
                 new ShowToastEvent({
                     title,
-                    message: 'Thread settings were updated.',
-                    variant: 'success'
+                    message: "Thread settings were updated.",
+                    variant: "success"
                 })
             );
         } catch (error) {
@@ -410,14 +449,16 @@ export default class ThreadSettings extends LightningElement {
             this.settings = await deleteUserSettings({ userId });
             this.selectedUser = this.settings.selectedUser;
             this.applyOrganizationSettings(this.settings);
-            this.userOverrideRows = this.toUserOverrideRows(this.settings.userOverrides);
+            this.userOverrideRows = this.toUserOverrideRows(
+                this.settings.userOverrides
+            );
             this.userSearchTerm = this.selectedUserLabel;
             this.isCreatingUserOverride = false;
             this.dispatchEvent(
                 new ShowToastEvent({
-                    title: 'User settings deleted',
-                    message: 'The user now inherits global thread settings.',
-                    variant: 'success'
+                    title: "User settings deleted",
+                    message: "The user now inherits global thread settings.",
+                    variant: "success"
                 })
             );
         } catch (error) {
@@ -428,11 +469,20 @@ export default class ThreadSettings extends LightningElement {
     }
 
     applyOrganizationSettings(settings) {
-        this.organizationRecoveryEnabled = settings?.organization?.recoveryEnabled !== false;
-        this.organizationMaxThreads = this.toInputValue(settings?.organization?.maxThreads);
-        this.organizationRecoveryBatchSize = this.toInputValue(settings?.organization?.recoveryBatchSize);
-        this.organizationRecoveryLimitThresholdPct = this.toInputValue(settings?.organization?.recoveryLimitThresholdPct);
-        this.organizationRecoveryThresholdMinutes = this.toInputValue(settings?.organization?.recoveryThresholdMinutes);
+        this.organizationRecoveryEnabled =
+            settings?.organization?.recoveryEnabled !== false;
+        this.organizationMaxThreads = this.toInputValue(
+            settings?.organization?.maxThreads
+        );
+        this.organizationRecoveryBatchSize = this.toInputValue(
+            settings?.organization?.recoveryBatchSize
+        );
+        this.organizationRecoveryLimitThresholdPct = this.toInputValue(
+            settings?.organization?.recoveryLimitThresholdPct
+        );
+        this.organizationRecoveryThresholdMinutes = this.toInputValue(
+            settings?.organization?.recoveryThresholdMinutes
+        );
     }
 
     updateOverrideDraft(userId, changes) {
@@ -457,17 +507,27 @@ export default class ThreadSettings extends LightningElement {
             id: row.id,
             source: row,
             recoveryEnabled: row.recoveryEnabled,
-            recoveryDisplay: row.recoveryEnabled ? 'Enabled' : 'Disabled',
+            recoveryDisplay: row.recoveryEnabled ? "Enabled" : "Disabled",
             recoveryThresholdMinutes: row.recoveryThresholdMinutes,
-            recoveryThresholdDisplay: this.toDisplayValue(row.recoveryThresholdMinutes),
+            recoveryThresholdDisplay: this.toDisplayValue(
+                row.recoveryThresholdMinutes
+            ),
             recoveryBatchSize: row.recoveryBatchSize,
-            recoveryBatchSizeDisplay: this.toDisplayValue(row.recoveryBatchSize),
+            recoveryBatchSizeDisplay: this.toDisplayValue(
+                row.recoveryBatchSize
+            ),
             recoveryLimitThresholdPct: row.recoveryLimitThresholdPct,
-            recoveryLimitDisplay: this.toDisplayValue(row.recoveryLimitThresholdPct),
+            recoveryLimitDisplay: this.toDisplayValue(
+                row.recoveryLimitThresholdPct
+            ),
             draftRecoveryEnabled: row.recoveryEnabled,
-            draftRecoveryThresholdMinutes: this.toInputValue(row.recoveryThresholdMinutes),
+            draftRecoveryThresholdMinutes: this.toInputValue(
+                row.recoveryThresholdMinutes
+            ),
             draftRecoveryBatchSize: this.toInputValue(row.recoveryBatchSize),
-            draftRecoveryLimitThresholdPct: this.toInputValue(row.recoveryLimitThresholdPct),
+            draftRecoveryLimitThresholdPct: this.toInputValue(
+                row.recoveryLimitThresholdPct
+            ),
             userId: row.user.id,
             userLabel: row.user.label,
             username: row.user.username,
@@ -490,11 +550,13 @@ export default class ThreadSettings extends LightningElement {
     }
 
     toDisplayValue(value) {
-        return value === null || value === undefined || value === '' ? 'Default' : String(value);
+        return value === null || value === undefined || value === ""
+            ? "Default"
+            : String(value);
     }
 
     toNumber(value) {
-        if (value === null || value === undefined || value === '') {
+        if (value === null || value === undefined || value === "") {
             return null;
         }
 
@@ -503,9 +565,13 @@ export default class ThreadSettings extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load thread settings.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load thread settings."
+        );
     }
 }

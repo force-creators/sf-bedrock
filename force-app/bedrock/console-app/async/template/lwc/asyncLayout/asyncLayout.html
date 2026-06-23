@@ -16,7 +16,11 @@
 
         <c-bedrock-console-panel>
             <lightning-tabset>
-                <lightning-tab label="Backlog" value="backlog" onactive={handleTabActive}>
+                <lightning-tab
+                    label="Backlog"
+                    value="backlog"
+                    onactive={handleTabActive}
+                >
                     <div class="tab-panel">
                         <div class="section-heading">
                             <div>
@@ -25,11 +29,17 @@
                             </div>
                         </div>
 
-                        <c-async-backlog oncountchange={handlePageCountChange}></c-async-backlog>
+                        <c-async-backlog
+                            oncountchange={handlePageCountChange}
+                        ></c-async-backlog>
                     </div>
                 </lightning-tab>
 
-                <lightning-tab label="Errors" value="errors" onactive={handleTabActive}>
+                <lightning-tab
+                    label="Errors"
+                    value="errors"
+                    onactive={handleTabActive}
+                >
                     <div class="tab-panel">
                         <div class="section-heading">
                             <div>
@@ -38,11 +48,17 @@
                             </div>
                         </div>
 
-                        <c-async-errors oncountchange={handlePageCountChange}></c-async-errors>
+                        <c-async-errors
+                            oncountchange={handlePageCountChange}
+                        ></c-async-errors>
                     </div>
                 </lightning-tab>
 
-                <lightning-tab label="Completed" value="completed" onactive={handleTabActive}>
+                <lightning-tab
+                    label="Completed"
+                    value="completed"
+                    onactive={handleTabActive}
+                >
                     <div class="tab-panel">
                         <div class="section-heading">
                             <div>
@@ -51,11 +67,17 @@
                             </div>
                         </div>
 
-                        <c-async-completed oncountchange={handlePageCountChange}></c-async-completed>
+                        <c-async-completed
+                            oncountchange={handlePageCountChange}
+                        ></c-async-completed>
                     </div>
                 </lightning-tab>
 
-                <lightning-tab label="Archive" value="archive" onactive={handleTabActive}>
+                <lightning-tab
+                    label="Archive"
+                    value="archive"
+                    onactive={handleTabActive}
+                >
                     <div class="tab-panel">
                         <div class="section-heading">
                             <div>
@@ -64,7 +86,9 @@
                             </div>
                         </div>
 
-                        <c-async-archive oncountchange={handlePageCountChange}></c-async-archive>
+                        <c-async-archive
+                            oncountchange={handlePageCountChange}
+                        ></c-async-archive>
                     </div>
                 </lightning-tab>
 

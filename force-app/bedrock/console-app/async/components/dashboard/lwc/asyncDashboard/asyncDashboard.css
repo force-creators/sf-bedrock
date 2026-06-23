@@ -11,7 +11,8 @@
 .metric-tile {
     position: relative;
     min-height: 4.75rem;
-    border: var(--lwc-borderWidthThin, 1px) solid var(--lwc-colorBorder, #dddbda);
+    border: var(--lwc-borderWidthThin, 1px) solid
+        var(--lwc-colorBorder, #dddbda);
     border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
     background: var(--lwc-colorBackgroundAlt, #ffffff);
     padding: var(--lwc-spacingSmall, 0.75rem);

@@ -1,13 +1,29 @@
-import { LightningElement } from 'lwc';
-import getMetrics from '@salesforce/apex/AsyncDashboardController.getMetrics';
+import { LightningElement } from "lwc";
+import getMetrics from "@salesforce/apex/AsyncDashboardController.getMetrics";
 
-const PAGE_SELECTORS = ['c-async-backlog', 'c-async-errors', 'c-async-completed'];
+const PAGE_SELECTORS = [
+    "c-async-backlog",
+    "c-async-errors",
+    "c-async-completed"
+];
 
 const METRIC_DEFINITIONS = [
-    { id: 'backlogCount', label: 'Backlog', className: 'metric metric-backlog' },
-    { id: 'runningThreads', label: 'Running Threads', className: 'metric metric-thread' },
-    { id: 'errors', label: 'Errors', className: 'metric metric-error' },
-    { id: 'jobsCompletedToday', label: 'Completed Today', className: 'metric metric-success' }
+    {
+        id: "backlogCount",
+        label: "Backlog",
+        className: "metric metric-backlog"
+    },
+    {
+        id: "runningThreads",
+        label: "Running Threads",
+        className: "metric metric-thread"
+    },
+    { id: "errors", label: "Errors", className: "metric metric-error" },
+    {
+        id: "jobsCompletedToday",
+        label: "Completed Today",
+        className: "metric metric-success"
+    }
 ];
 
 export default class AsyncLayout extends LightningElement {
@@ -33,14 +49,14 @@ export default class AsyncLayout extends LightningElement {
 
     get lastRefreshedLabel() {
         if (!this.lastRefreshedAt) {
-            return 'Last refreshed: Not yet';
+            return "Last refreshed: Not yet";
         }
 
         return `Last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
     }
 
     get refreshButtonLabel() {
-        return this.isRefreshing ? 'Refreshing…' : 'Refresh';
+        return this.isRefreshing ? "Refreshing…" : "Refresh";
     }
 
     handleRefresh() {
@@ -55,20 +71,20 @@ export default class AsyncLayout extends LightningElement {
     handleTabActive(event) {
         const selectedTab = event.target?.value;
 
-        if (selectedTab === 'backlog') {
-            this.refreshPage('c-async-backlog');
+        if (selectedTab === "backlog") {
+            this.refreshPage("c-async-backlog");
         }
 
-        if (selectedTab === 'errors') {
-            this.refreshPage('c-async-errors');
+        if (selectedTab === "errors") {
+            this.refreshPage("c-async-errors");
         }
 
-        if (selectedTab === 'completed') {
-            this.refreshPage('c-async-completed');
+        if (selectedTab === "completed") {
+            this.refreshPage("c-async-completed");
         }
 
-        if (selectedTab === 'archive') {
-            this.refreshPage('c-async-archive');
+        if (selectedTab === "archive") {
+            this.refreshPage("c-async-archive");
         }
     }
 
@@ -117,9 +133,13 @@ export default class AsyncLayout extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load async counts.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load async counts."
+        );
     }
 }

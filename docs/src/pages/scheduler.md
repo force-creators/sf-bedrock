@@ -6,22 +6,22 @@ eyebrow: Frameworks
 heading: Scheduler
 lede: Salesforce scheduled Apex slots are shared across your org and installed packages. Scheduler gives you one Bedrock heartbeat every five minutes, then runs your logical jobs from metadata when they are due.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Configuration
-    href: "#configuration"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Configuration
+      href: "#configuration"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -65,13 +65,13 @@ public with sharing class ExpireStaleQuotes extends Scheduler {
 
 **Step 2** - create a `Scheduler_Job__mdt` record.
 
-| Field | Example |
-| --- | --- |
+| Field           | Example             |
+| --------------- | ------------------- |
 | `DeveloperName` | `ExpireStaleQuotes` |
-| `Apex__c` | `ExpireStaleQuotes` |
-| `Enabled__c` | `true` |
-| `Frequency__c` | `Hours` |
-| `Interval__c` | `6` |
+| `Apex__c`       | `ExpireStaleQuotes` |
+| `Enabled__c`    | `true`              |
+| `Frequency__c`  | `Hours`             |
+| `Interval__c`   | `6`                 |
 
 That means: run `ExpireStaleQuotes` about every six hours.
 
@@ -109,12 +109,12 @@ public with sharing class RetryFailedCallouts extends Scheduler {
 
 Config:
 
-| Field | Value |
-| --- | --- |
-| `Apex__c` | `RetryFailedCallouts` |
-| `Enabled__c` | `true` |
-| `Frequency__c` | `Minutes` |
-| `Interval__c` | `5` |
+| Field          | Value                 |
+| -------------- | --------------------- |
+| `Apex__c`      | `RetryFailedCallouts` |
+| `Enabled__c`   | `true`                |
+| `Frequency__c` | `Minutes`             |
+| `Interval__c`  | `5`                   |
 
 Minute values are limited to five-minute increments: `5`, `10`, `15`, through
 `55`.
@@ -166,12 +166,12 @@ scheduled time.
 
 Each logical job has one `Scheduler_Job__mdt` record.
 
-| Field | Meaning |
-| --- | --- |
-| `Apex__c` | API name of the class to run. The class must extend `Scheduler`. Required. |
-| `Enabled__c` | Whether the job can run. Defaults to `true`. Set it to `false` to pause a job. |
-| `Frequency__c` | Cadence unit. Supported values are `Minutes`, `Hours`, `Days`, `Weeks`, and `Months`. Blank values are treated as `Minutes`. |
-| `Interval__c` | Cadence amount. `Minutes` values below `5` become `5` and values above `55` become `55`. `Days` cap at `31`, `Weeks` cap at `52`, and `Months` cap at `12`. Blank or invalid values become `1`, except minute jobs become `5`. |
+| Field          | Meaning                                                                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Apex__c`      | API name of the class to run. The class must extend `Scheduler`. Required.                                                                                                                                                     |
+| `Enabled__c`   | Whether the job can run. Defaults to `true`. Set it to `false` to pause a job.                                                                                                                                                 |
+| `Frequency__c` | Cadence unit. Supported values are `Minutes`, `Hours`, `Days`, `Weeks`, and `Months`. Blank values are treated as `Minutes`.                                                                                                   |
+| `Interval__c`  | Cadence amount. `Minutes` values below `5` become `5` and values above `55` become `55`. `Days` cap at `31`, `Weeks` cap at `52`, and `Months` cap at `12`. Blank or invalid values become `1`, except minute jobs become `5`. |
 
 To change how often a job runs, edit the metadata record. There is no job class
 to redeploy and no per-job scheduled Apex record to recreate. The change applies
@@ -192,9 +192,11 @@ Apex, so construct it and call `execute()`.
 ```apex
 @istest
 public with sharing class StampReviewedAccountsTest {
-
-    @istest static void testExecute_stampsReviewedAccounts() {
-        List<Account> accounts = (List<Account>) new TestData(Account.sObjectType)
+    @istest
+    static void testExecute_stampsReviewedAccounts() {
+        List<Account> accounts = (List<Account>) new TestData(
+                Account.sObjectType
+            )
             .put(Account.Name, 'Acme')
             .mockIds()
             .count(3)
@@ -256,39 +258,39 @@ teams unless another page explicitly says otherwise.
 
 ### Job contract
 
-| Member | Signature | Description |
-| --- | --- | --- |
+| Member    | Signature                        | Description                                                                             |
+| --------- | -------------------------------- | --------------------------------------------------------------------------------------- |
 | `execute` | `public override void execute()` | Holds the scheduled work. The base implementation throws, so each job must override it. |
 
 ### Setup method
 
-| Member | Signature | Description |
-| --- | --- | --- |
+| Member     | Signature                       | Description                                                                                           |
+| ---------- | ------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `schedule` | `public static void schedule()` | Replaces existing `Bedrock Scheduler %` scheduled jobs and creates twelve five-minute heartbeat jobs. |
 
 ### Schema
 
 **`Scheduler_Job__mdt`** is one metadata record per logical job.
 
-| Field | Purpose |
-| --- | --- |
-| `Apex__c` | API name of the `Scheduler` subclass to run. Required. |
-| `Enabled__c` | Whether the job can run. Defaults to `true`. |
+| Field          | Purpose                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------ |
+| `Apex__c`      | API name of the `Scheduler` subclass to run. Required.                                                 |
+| `Enabled__c`   | Whether the job can run. Defaults to `true`.                                                           |
 | `Frequency__c` | Cadence unit: `Minutes`, `Hours`, `Days`, `Weeks`, or `Months`. Blank values are treated as `Minutes`. |
-| `Interval__c` | Cadence amount. See [Configuration](#configuration) for clamping behavior. |
+| `Interval__c`  | Cadence amount. See [Configuration](#configuration) for clamping behavior.                             |
 
 **`Scheduler__c`** is one runtime row per logical job. Scheduler owns these rows.
 
-| Field | Purpose |
-| --- | --- |
-| `Apex__c` | Class name copied from metadata. This is the logical job key. |
-| `Enabled__c` | Runtime enabled flag copied from metadata. |
-| `Frequency__c` | Runtime cadence unit copied from metadata. |
-| `Interval__c` | Runtime cadence amount copied from metadata. |
-| `Hash__c` | Change marker owned by Scheduler. Useful only to know whether runtime rows match current metadata. |
-| `Next_Run__c` | Next heartbeat time when the job is eligible to run. |
-| `Last_Executed__c` | Last actual Queueable execution attempt. |
-| `Error_Message__c` | Last error message, or blank after a successful run. |
+| Field              | Purpose                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| `Apex__c`          | Class name copied from metadata. This is the logical job key.                                      |
+| `Enabled__c`       | Runtime enabled flag copied from metadata.                                                         |
+| `Frequency__c`     | Runtime cadence unit copied from metadata.                                                         |
+| `Interval__c`      | Runtime cadence amount copied from metadata.                                                       |
+| `Hash__c`          | Change marker owned by Scheduler. Useful only to know whether runtime rows match current metadata. |
+| `Next_Run__c`      | Next heartbeat time when the job is eligible to run.                                               |
+| `Last_Executed__c` | Last actual Queueable execution attempt.                                                           |
+| `Error_Message__c` | Last error message, or blank after a successful run.                                               |
 
 ## Notes & Edge Cases
 

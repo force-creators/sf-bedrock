@@ -1,14 +1,24 @@
-import { LightningElement, api } from 'lwc';
-import getBacklog from '@salesforce/apex/AsyncBacklogController.getBacklog';
+import { LightningElement, api } from "lwc";
+import getBacklog from "@salesforce/apex/AsyncBacklogController.getBacklog";
 
 const COLUMNS = [
-    { label: 'Thread / Job', fieldName: 'threadLabel', initialWidth: 220 },
-    { label: 'Running User', fieldName: 'runningUser' },
-    { label: 'Apex Class', fieldName: 'apexClass' },
-    { label: 'Priority', fieldName: 'priority', type: 'number', initialWidth: 110 },
-    { label: 'Record Id', fieldName: 'recordId' },
-    { label: 'Status', fieldName: 'status', initialWidth: 130 },
-    { label: 'Created Date', fieldName: 'createdDate', type: 'date', initialWidth: 180 }
+    { label: "Thread / Job", fieldName: "threadLabel", initialWidth: 220 },
+    { label: "Running User", fieldName: "runningUser" },
+    { label: "Apex Class", fieldName: "apexClass" },
+    {
+        label: "Priority",
+        fieldName: "priority",
+        type: "number",
+        initialWidth: 110
+    },
+    { label: "Record Id", fieldName: "recordId" },
+    { label: "Status", fieldName: "status", initialWidth: 130 },
+    {
+        label: "Created Date",
+        fieldName: "createdDate",
+        type: "date",
+        initialWidth: 180
+    }
 ];
 
 export default class AsyncBacklog extends LightningElement {
@@ -23,12 +33,17 @@ export default class AsyncBacklog extends LightningElement {
     }
 
     get recordCountLabel() {
-        const count = this.treeRows.reduce((total, group) => total + group._children.length, 0);
-        return `${count} ${count === 1 ? 'record' : 'records'}`;
+        const count = this.treeRows.reduce(
+            (total, group) => total + group._children.length,
+            0
+        );
+        return `${count} ${count === 1 ? "record" : "records"}`;
     }
 
     get refreshButtonClass() {
-        return this.isLoading ? 'refresh-button is-refreshing' : 'refresh-button';
+        return this.isLoading
+            ? "refresh-button is-refreshing"
+            : "refresh-button";
     }
 
     get hasRows() {
@@ -75,9 +90,12 @@ export default class AsyncBacklog extends LightningElement {
     }
 
     dispatchCountChange() {
-        const count = this.treeRows.reduce((total, group) => total + group._children.length, 0);
+        const count = this.treeRows.reduce(
+            (total, group) => total + group._children.length,
+            0
+        );
         this.dispatchEvent(
-            new CustomEvent('countchange', {
+            new CustomEvent("countchange", {
                 detail: { count }
             })
         );
@@ -85,9 +103,13 @@ export default class AsyncBacklog extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load the async backlog.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load the async backlog."
+        );
     }
 }

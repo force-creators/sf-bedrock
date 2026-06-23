@@ -6,7 +6,7 @@
  */
 
 public with sharing class ThreadRecoveryJob extends Scheduler {
-  public override void execute() {
-    Thread.recover();
-  }
+    public override void execute() {
+        Thread.recover();
+    }
 }

@@ -25,7 +25,10 @@
                             </div>
                             <div class="section-actions">
                                 <template lwc:if={isLoading}>
-                                    <lightning-spinner alternative-text="Loading REST routes" size="small"></lightning-spinner>
+                                    <lightning-spinner
+                                        alternative-text="Loading REST routes"
+                                        size="small"
+                                    ></lightning-spinner>
                                 </template>
                                 <lightning-button
                                     label="New Endpoint"
@@ -55,19 +58,27 @@
                                             <dl class="route-details">
                                                 <div>
                                                     <dt>Apex Class</dt>
-                                                    <dd>{route.mainVersion.apexClass}</dd>
+                                                    <dd>
+                                                        {route.mainVersion.apexClass}
+                                                    </dd>
                                                 </div>
                                                 <div>
                                                     <dt>Endpoint</dt>
-                                                    <dd>{route.mainVersion.endpointUrl}</dd>
+                                                    <dd>
+                                                        {route.mainVersion.endpointUrl}
+                                                    </dd>
                                                 </div>
                                                 <div>
                                                     <dt>Unversioned</dt>
-                                                    <dd>{route.mainVersion.unversionedUrl}</dd>
+                                                    <dd>
+                                                        {route.mainVersion.unversionedUrl}
+                                                    </dd>
                                                 </div>
                                             </dl>
 
-                                            <template lwc:if={route.hasOtherVersions}>
+                                            <template
+                                                lwc:if={route.hasOtherVersions}
+                                            >
                                                 <div class="version-toggle-row">
                                                     <lightning-button-icon
                                                         icon-name={route.versionToggleIconName}
@@ -77,39 +88,80 @@
                                                         data-route-key={route.key}
                                                         onclick={handleToggleVersions}
                                                     ></lightning-button-icon>
-                                                    <span>{route.otherVersionCountLabel}</span>
+                                                    <span
+                                                        >{route.otherVersionCountLabel}</span
+                                                    >
                                                 </div>
                                             </template>
                                         </div>
 
-                                        <template lwc:if={route.showOtherVersions}>
+                                        <template
+                                            lwc:if={route.showOtherVersions}
+                                        >
                                             <div slot="versions">
                                                 <div class="version-list">
-                                                    <template for:each={route.otherVersions} for:item="version">
-                                                        <section key={version.key} class="version-row">
-                                                            <div class="version-row-main">
+                                                    <template
+                                                        for:each={route.otherVersions}
+                                                        for:item="version"
+                                                    >
+                                                        <section
+                                                            key={version.key}
+                                                            class="version-row"
+                                                        >
+                                                            <div
+                                                                class="version-row-main"
+                                                            >
                                                                 <div>
-                                                                    <p class="route-label">{version.label}</p>
-                                                                    <strong>{version.versionLabel}</strong>
+                                                                    <p
+                                                                        class="route-label"
+                                                                    >
+                                                                        {version.label}
+                                                                    </p>
+                                                                    <strong
+                                                                        >{version.versionLabel}</strong
+                                                                    >
                                                                 </div>
-                                                                <div class="badge-row">
-                                                                    <span class={version.statusClass}>{version.activeLabel}</span>
-                                                                    <template lwc:if={version.isDefaultVersion}>
-                                                                        <span class="default-badge">Default</span>
+                                                                <div
+                                                                    class="badge-row"
+                                                                >
+                                                                    <span
+                                                                        class={version.statusClass}
+                                                                        >{version.activeLabel}</span
+                                                                    >
+                                                                    <template
+                                                                        lwc:if={version.isDefaultVersion}
+                                                                    >
+                                                                        <span
+                                                                            class="default-badge"
+                                                                            >Default</span
+                                                                        >
                                                                     </template>
                                                                 </div>
                                                             </div>
-                                                            <dl class="route-details route-details-compact">
+                                                            <dl
+                                                                class="route-details route-details-compact"
+                                                            >
                                                                 <div>
-                                                                    <dt>Apex Class</dt>
-                                                                    <dd>{version.apexClass}</dd>
+                                                                    <dt>
+                                                                        Apex
+                                                                        Class
+                                                                    </dt>
+                                                                    <dd>
+                                                                        {version.apexClass}
+                                                                    </dd>
                                                                 </div>
                                                                 <div>
-                                                                    <dt>Endpoint</dt>
-                                                                    <dd>{version.endpointUrl}</dd>
+                                                                    <dt>
+                                                                        Endpoint
+                                                                    </dt>
+                                                                    <dd>
+                                                                        {version.endpointUrl}
+                                                                    </dd>
                                                                 </div>
                                                             </dl>
-                                                            <div class="version-row-actions">
+                                                            <div
+                                                                class="version-row-actions"
+                                                            >
                                                                 <lightning-button
                                                                     label="Edit Config"
                                                                     icon-name="utility:edit"
@@ -149,9 +201,15 @@
 
                         <template lwc:else>
                             <div class="empty-state">
-                                <lightning-icon icon-name="utility:route" size="medium"></lightning-icon>
+                                <lightning-icon
+                                    icon-name="utility:route"
+                                    size="medium"
+                                ></lightning-icon>
                                 <h3>No REST routes configured</h3>
-                                <p>Create Rest Config custom metadata records to map API roots to Rest subclasses.</p>
+                                <p>
+                                    Create Rest Config custom metadata records
+                                    to map API roots to Rest subclasses.
+                                </p>
                             </div>
                         </template>
                     </div>
@@ -165,7 +223,10 @@
                                 <p>{settingsRecordLabel}</p>
                             </div>
                             <template lwc:if={isSavingSettings}>
-                                <lightning-spinner alternative-text="Saving REST settings" size="small"></lightning-spinner>
+                                <lightning-spinner
+                                    alternative-text="Saving REST settings"
+                                    size="small"
+                                ></lightning-spinner>
                             </template>
                         </div>
 
@@ -193,7 +254,9 @@
                                             ></lightning-input>
                                         </template>
                                         <template lwc:else>
-                                            <strong>{unknownRouteStatusDisplay}</strong>
+                                            <strong
+                                                >{unknownRouteStatusDisplay}</strong
+                                            >
                                         </template>
                                     </div>
                                     <div class="setting-cell">
@@ -212,7 +275,9 @@
                                             ></lightning-input>
                                         </template>
                                         <template lwc:else>
-                                            <strong>{inactiveRouteStatusDisplay}</strong>
+                                            <strong
+                                                >{inactiveRouteStatusDisplay}</strong
+                                            >
                                         </template>
                                     </div>
                                     <div class="setting-cell">
@@ -231,7 +296,9 @@
                                             ></lightning-input>
                                         </template>
                                         <template lwc:else>
-                                            <strong>{unsupportedMethodStatusDisplay}</strong>
+                                            <strong
+                                                >{unsupportedMethodStatusDisplay}</strong
+                                            >
                                         </template>
                                     </div>
                                     <div class="setting-cell">
@@ -250,7 +317,9 @@
                                             ></lightning-input>
                                         </template>
                                         <template lwc:else>
-                                            <strong>{accessDeniedStatusDisplay}</strong>
+                                            <strong
+                                                >{accessDeniedStatusDisplay}</strong
+                                            >
                                         </template>
                                     </div>
                                     <div class="setting-cell">
@@ -324,7 +393,12 @@
                             onclick={handleCloseEndpointModal}
                             disabled={isCreatingEndpoint}
                         ></lightning-button-icon>
-                        <h2 id="endpoint-modal-heading" class="slds-modal__title slds-hyphenate">{endpointModalTitle}</h2>
+                        <h2
+                            id="endpoint-modal-heading"
+                            class="slds-modal__title slds-hyphenate"
+                        >
+                            {endpointModalTitle}
+                        </h2>
                         <p class="modal-subtitle">{endpointModalSubtitle}</p>
                     </header>
 
@@ -390,7 +464,10 @@
                                     data-field="active"
                                     onchange={handleEndpointChange}
                                 ></lightning-input>
-                                <span>Route can resolve immediately if the Apex class is deployed.</span>
+                                <span
+                                    >Route can resolve immediately if the Apex
+                                    class is deployed.</span
+                                >
                             </div>
                             <div class="toggle-cell">
                                 <lightning-input
@@ -400,7 +477,10 @@
                                     data-field="defaultVersion"
                                     onchange={handleEndpointChange}
                                 ></lightning-input>
-                                <span>Unversioned requests resolve to this route version.</span>
+                                <span
+                                    >Unversioned requests resolve to this route
+                                    version.</span
+                                >
                             </div>
                         </div>
                     </div>

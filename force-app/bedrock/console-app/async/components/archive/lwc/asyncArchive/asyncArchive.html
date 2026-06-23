@@ -1,13 +1,19 @@
 <template>
     <template lwc:if={isArchiveRunning}>
-        <div class="slds-notify slds-notify_alert slds-alert_info slds-m-bottom_medium" role="status">
+        <div
+            class="slds-notify slds-notify_alert slds-alert_info slds-m-bottom_medium"
+            role="status"
+        >
             <span class="slds-assistive-text">Info</span>
             Async archive job is running.
         </div>
     </template>
 
     <template lwc:if={hasError}>
-        <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+        <div
+            class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium"
+            role="alert"
+        >
             <span class="slds-assistive-text">Error</span>
             {errorMessage}
         </div>
@@ -31,7 +37,9 @@
         onrefresh={handleRefresh}
         onsort={handleSort}
     >
-        <span slot="actions" class="slds-text-body_small slds-text-color_weak">{lastRefreshedLabel}</span>
+        <span slot="actions" class="slds-text-body_small slds-text-color_weak"
+            >{lastRefreshedLabel}</span
+        >
         <lightning-button
             slot="actions"
             icon-name="utility:play"

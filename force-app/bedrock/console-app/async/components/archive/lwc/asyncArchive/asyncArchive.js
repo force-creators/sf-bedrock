@@ -1,15 +1,26 @@
-import { LightningElement, api } from 'lwc';
-import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import getArchives from '@salesforce/apex/AsyncArchiveController.getArchives';
-import isArchiveRunning from '@salesforce/apex/AsyncArchiveController.isArchiveRunning';
-import runNow from '@salesforce/apex/AsyncArchiveController.runNow';
+import { LightningElement, api } from "lwc";
+import { ShowToastEvent } from "lightning/platformShowToastEvent";
+import getArchives from "@salesforce/apex/AsyncArchiveController.getArchives";
+import isArchiveRunning from "@salesforce/apex/AsyncArchiveController.isArchiveRunning";
+import runNow from "@salesforce/apex/AsyncArchiveController.runNow";
 
 const COLUMNS = [
-    { label: 'Archive', fieldName: 'archiveNumber', sortable: true, initialWidth: 130 },
-    { label: 'Apex Class', fieldName: 'apexClass', sortable: true },
-    { label: 'Record Id', fieldName: 'recordId', sortable: true },
-    { label: 'Thread', fieldName: 'thread', sortable: true },
-    { label: 'Archived Date', fieldName: 'createdDate', type: 'date', sortable: true, initialWidth: 180 }
+    {
+        label: "Archive",
+        fieldName: "archiveNumber",
+        sortable: true,
+        initialWidth: 130
+    },
+    { label: "Apex Class", fieldName: "apexClass", sortable: true },
+    { label: "Record Id", fieldName: "recordId", sortable: true },
+    { label: "Thread", fieldName: "thread", sortable: true },
+    {
+        label: "Archived Date",
+        fieldName: "createdDate",
+        type: "date",
+        sortable: true,
+        initialWidth: 180
+    }
 ];
 
 export default class AsyncArchive extends LightningElement {
@@ -20,9 +31,9 @@ export default class AsyncArchive extends LightningElement {
     isRunningAction = false;
     errorMessage;
     lastRefreshedAt;
-    searchTerm = '';
-    sortBy = 'createdDate';
-    sortDirection = 'desc';
+    searchTerm = "";
+    sortBy = "createdDate";
+    sortDirection = "desc";
     searchRefreshTimer;
 
     connectedCallback() {
@@ -38,12 +49,12 @@ export default class AsyncArchive extends LightningElement {
 
     get recordCountLabel() {
         const count = this.rows.length;
-        return `${count} ${count === 1 ? 'record' : 'records'}`;
+        return `${count} ${count === 1 ? "record" : "records"}`;
     }
 
     get lastRefreshedLabel() {
         if (!this.lastRefreshedAt) {
-            return 'Last refreshed: Not yet';
+            return "Last refreshed: Not yet";
         }
 
         return `Last refreshed: ${this.lastRefreshedAt.toLocaleTimeString()}`;
@@ -85,6 +96,8 @@ export default class AsyncArchive extends LightningElement {
             clearTimeout(this.searchRefreshTimer);
         }
 
+        // Debounce user search input before refreshing the server-backed table.
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
         this.searchRefreshTimer = setTimeout(() => {
             this.loadArchive();
         }, 250);
@@ -105,9 +118,9 @@ export default class AsyncArchive extends LightningElement {
             this.isArchiveRunning = true;
             this.dispatchEvent(
                 new ShowToastEvent({
-                    title: 'Archive job started',
-                    message: 'Async archiving is running.',
-                    variant: 'success'
+                    title: "Archive job started",
+                    message: "Async archiving is running.",
+                    variant: "success"
                 })
             );
         } catch (error) {
@@ -144,7 +157,7 @@ export default class AsyncArchive extends LightningElement {
 
     dispatchCountChange() {
         this.dispatchEvent(
-            new CustomEvent('countchange', {
+            new CustomEvent("countchange", {
                 detail: { count: this.rows.length }
             })
         );
@@ -152,9 +165,13 @@ export default class AsyncArchive extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load archived async jobs.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load archived async jobs."
+        );
     }
 }

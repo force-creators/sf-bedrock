@@ -76,18 +76,18 @@ tool-specific sections live.
 3. **`## Examples`** — progressive, realistic snippets, simple → real, ideally
    ending in a realistic service/unit example.
 
-   - **Tool-specific usage band (optional):** sections that are core to *using*
-     this particular tool slot in right here, after Examples, named per tool —
-     e.g. `## Path Syntax`, `## Type Coercion` (Generic); `## Relationships`,
-     `## Read-Only & System Fields`, `## Mock Ids` (TestData);
-     `## Wiring Into a Trigger`, `## Buffered DML` (TriggerHandler);
-     `## Contexts & Nested Flushes`, `## Reading Staged Records` (RecordBuffer);
-     `## Configuration` (Async); `## Where Flag Values Come From` (FeatureFlag).
-     These are the allowed deviations. They live in this one predictable band.
+    - **Tool-specific usage band (optional):** sections that are core to _using_
+      this particular tool slot in right here, after Examples, named per tool —
+      e.g. `## Path Syntax`, `## Type Coercion` (Generic); `## Relationships`,
+      `## Read-Only & System Fields`, `## Mock Ids` (TestData);
+      `## Wiring Into a Trigger`, `## Buffered DML` (TriggerHandler);
+      `## Contexts & Nested Flushes`, `## Reading Staged Records` (RecordBuffer);
+      `## Configuration` (Async); `## Where Flag Values Come From` (FeatureFlag).
+      These are the allowed deviations. They live in this one predictable band.
 
 4. **`## Testing`** — the mock / test-seam path and the assertion shape. Name the
    mock in prose (e.g. "with `DMLMock`"), **not** in the header. For tools that
-   *are themselves* test utilities (e.g. TestData) and have no separate mock,
+   _are themselves_ test utilities (e.g. TestData) and have no separate mock,
    this section may be folded into Examples and omitted — but say so by making
    the realistic test the last Example, so the spine still reads predictably.
 

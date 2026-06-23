@@ -6,20 +6,20 @@ eyebrow: Start Here
 heading: Bedrock Console
 lede: The Bedrock Console is the optional Lightning app for seeing what Bedrock runtime frameworks are doing after Apex starts the work. Use it to inspect queues, errors, settings, schedules, routes, and shared thread lanes.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Console Areas
-    href: "#console-areas"
-  - label: Async And Thread Work
-    href: "#async-and-thread-work"
-  - label: Event And Schedule Work
-    href: "#event-and-schedule-work"
-  - label: REST Routes
-    href: "#rest-routes"
-  - label: Setup Notes
-    href: "#setup-notes"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Console Areas
+      href: "#console-areas"
+    - label: Async And Thread Work
+      href: "#async-and-thread-work"
+    - label: Event And Schedule Work
+      href: "#event-and-schedule-work"
+    - label: REST Routes
+      href: "#rest-routes"
+    - label: Setup Notes
+      href: "#setup-notes"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ![Bedrock Console Async tab showing backlog, running thread, error, and completed-today metric cards with Backlog, Errors, Completed, Archive, Jobs, and Settings tabs.](/images/bedrock-console-async.png)
@@ -46,13 +46,13 @@ window into Bedrock state, not as a second service layer.
 
 The Bedrock Console app currently exposes five tabs.
 
-| Tab | What it shows |
-| --- | --- |
-| Async | Queued async work, terminal errors, completed jobs, archived jobs, async job metadata, and async archive settings. |
-| Threads | Shared Bedrock thread lanes, running and completed thread lifecycle rows, stale heartbeat candidates, and thread capacity settings. |
-| Events | EventRelay publish routes, backlog, failed publish work, archived work, and publish settings. |
-| Scheduler | Logical scheduler jobs, next run times, last execution times, disabled jobs, and metadata/runtime sync status. |
-| REST | Configured REST roots, active/default versions, generated endpoint URLs, route creation, and REST response settings. |
+| Tab       | What it shows                                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Async     | Queued async work, terminal errors, completed jobs, archived jobs, async job metadata, and async archive settings.                  |
+| Threads   | Shared Bedrock thread lanes, running and completed thread lifecycle rows, stale heartbeat candidates, and thread capacity settings. |
+| Events    | EventRelay publish routes, backlog, failed publish work, archived work, and publish settings.                                       |
+| Scheduler | Logical scheduler jobs, next run times, last execution times, disabled jobs, and metadata/runtime sync status.                      |
+| REST      | Configured REST roots, active/default versions, generated endpoint URLs, route creation, and REST response settings.                |
 
 Each tab starts with metric cards and a refresh action. The cards are meant for
 triage: find the red or stale count first, then open the matching detail tab.
@@ -117,11 +117,11 @@ custom metadata, custom settings, and runtime records without the UI.
 
 The console is most useful when permissions are deliberate:
 
-| User type | Typical access |
-| --- | --- |
-| Read-only operator | View console tabs, runtime records, statuses, routes, schedules, and settings. |
-| Recovery operator | Retry or delete failed Async and EventRelay work where object permissions allow it. |
-| Platform admin | Edit runtime settings, create REST endpoint metadata, and manage scheduled job metadata. |
+| User type          | Typical access                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| Read-only operator | View console tabs, runtime records, statuses, routes, schedules, and settings.           |
+| Recovery operator  | Retry or delete failed Async and EventRelay work where object permissions allow it.      |
+| Platform admin     | Edit runtime settings, create REST endpoint metadata, and manage scheduled job metadata. |
 
 ## Notes & Edge Cases
 

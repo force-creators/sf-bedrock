@@ -1,52 +1,52 @@
 {
-  "name": "salesforce-app",
-  "private": true,
-  "version": "0.1.0+3",
-  "license": "MPL-2.0",
-  "description": "Salesforce App",
-  "scripts": {
-    "deploy": "node scripts/deploy-library.mjs",
-    "validate": "node scripts/validate-library.mjs",
-    "docs": "node scripts/docs.mjs",
-    "lint": "eslint **/{aura,lwc}/**/*.js",
-    "test:unit": "sfdx-lwc-jest",
-    "test:unit:watch": "sfdx-lwc-jest --watch",
-    "test:unit:debug": "sfdx-lwc-jest --debug",
-    "test:unit:coverage": "sfdx-lwc-jest --coverage",
-    "prettier": "prettier --write \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
-    "prettier:verify": "prettier --check \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
-    "prepare": "husky || true",
-    "precommit": "lint-staged"
-  },
-  "devDependencies": {
-    "@lwc/eslint-plugin-lwc": "^3.1.0",
-    "@prettier/plugin-xml": "^3.4.1",
-    "@salesforce/eslint-config-lwc": "^4.0.0",
-    "@salesforce/eslint-plugin-aura": "^3.0.0",
-    "@salesforce/eslint-plugin-lightning": "^2.0.0",
-    "@salesforce/sfdx-lwc-jest": "^7.0.2",
-    "eslint": "^9.29.0",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-jest": "^28.14.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.1.2",
-    "prettier": "^3.5.3",
-    "prettier-plugin-apex": "^2.2.6"
-  },
-  "lint-staged": {
-    "**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}": [
-      "prettier --write"
-    ],
-    "**/{aura,lwc}/**/*.js": [
-      "eslint"
-    ],
-    "**/lwc/**": [
-      "sfdx-lwc-jest -- --bail --findRelatedTests --passWithNoTests"
-    ]
-  },
-  "sfPackage": {
-    "version": "0.1.0.3",
-    "subscriberPackageVersionId": "04tfj000000L19BAAS",
-    "installUrl": "https://login.salesforce.com/packaging/installPackage.apexp?p0=04tfj000000L19BAAS"
-  }
+    "name": "salesforce-app",
+    "private": true,
+    "version": "0.1.0+3",
+    "license": "MPL-2.0",
+    "description": "Salesforce App",
+    "scripts": {
+        "deploy": "node scripts/deploy-library.mjs",
+        "validate": "node scripts/validate-library.mjs",
+        "docs": "node scripts/docs.mjs",
+        "lint": "eslint \"**/lwc/**/*.js\"",
+        "test:unit": "sfdx-lwc-jest",
+        "test:unit:watch": "sfdx-lwc-jest --watch",
+        "test:unit:debug": "sfdx-lwc-jest --debug",
+        "test:unit:coverage": "sfdx-lwc-jest --coverage",
+        "prettier": "prettier --write \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
+        "prettier:verify": "prettier --check \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
+        "prepare": "husky || true",
+        "precommit": "lint-staged"
+    },
+    "devDependencies": {
+        "@lwc/eslint-plugin-lwc": "^3.1.0",
+        "@prettier/plugin-xml": "^3.4.1",
+        "@salesforce/eslint-config-lwc": "^4.0.0",
+        "@salesforce/eslint-plugin-aura": "^3.0.0",
+        "@salesforce/eslint-plugin-lightning": "^2.0.0",
+        "@salesforce/sfdx-lwc-jest": "^7.0.2",
+        "eslint": "^9.29.0",
+        "eslint-plugin-import": "^2.31.0",
+        "eslint-plugin-jest": "^28.14.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.1.2",
+        "prettier": "^3.5.3",
+        "prettier-plugin-apex": "^2.2.6"
+    },
+    "lint-staged": {
+        "**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}": [
+            "prettier --write"
+        ],
+        "**/{aura,lwc}/**/*.js": [
+            "eslint"
+        ],
+        "**/lwc/**": [
+            "sfdx-lwc-jest -- --bail --findRelatedTests --passWithNoTests"
+        ]
+    },
+    "sfPackage": {
+        "version": "0.1.0.3",
+        "subscriberPackageVersionId": "04tfj000000L19BAAS",
+        "installUrl": "https://login.salesforce.com/packaging/installPackage.apexp?p0=04tfj000000L19BAAS"
+    }
 }

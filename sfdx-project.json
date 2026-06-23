@@ -1,19 +1,19 @@
 {
-  "packageDirectories": [
-    {
-      "versionName": "ver 0.1",
-      "versionNumber": "0.1.0.NEXT",
-      "path": "force-app/bedrock/lib",
-      "default": true,
-      "package": "sf-bedrock",
-      "versionDescription": ""
+    "packageDirectories": [
+        {
+            "versionName": "ver 0.1",
+            "versionNumber": "0.1.0.NEXT",
+            "path": "force-app/bedrock/lib",
+            "default": true,
+            "package": "sf-bedrock",
+            "versionDescription": ""
+        }
+    ],
+    "name": "sf-bedrock",
+    "namespace": "",
+    "sfdcLoginUrl": "https://login.salesforce.com",
+    "sourceApiVersion": "66.0",
+    "packageAliases": {
+        "sf-bedrock": "0Hofj00000021KzCAI"
     }
-  ],
-  "name": "sf-bedrock",
-  "namespace": "",
-  "sfdcLoginUrl": "https://login.salesforce.com",
-  "sourceApiVersion": "66.0",
-  "packageAliases": {
-    "sf-bedrock": "0Hofj00000021KzCAI"
-  }
 }

@@ -1,6 +1,9 @@
 <template>
     <template lwc:if={hasError}>
-        <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+        <div
+            class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium"
+            role="alert"
+        >
             <span class="slds-assistive-text">Error</span>
             {errorMessage}
         </div>

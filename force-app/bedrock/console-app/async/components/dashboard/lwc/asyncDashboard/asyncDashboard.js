@@ -1,10 +1,10 @@
-import { LightningElement } from 'lwc';
-import getMetrics from '@salesforce/apex/AsyncDashboardController.getMetrics';
+import { LightningElement } from "lwc";
+import getMetrics from "@salesforce/apex/AsyncDashboardController.getMetrics";
 
 const METRICS = [
-    { id: 'jobsCompletedToday', label: 'Jobs Completed Today', value: '0' },
-    { id: 'backlogCount', label: 'Backlog Count', value: '0' },
-    { id: 'errors', label: 'Errors', value: '0' }
+    { id: "jobsCompletedToday", label: "Jobs Completed Today", value: "0" },
+    { id: "backlogCount", label: "Backlog Count", value: "0" },
+    { id: "errors", label: "Errors", value: "0" }
 ];
 
 export default class AsyncDashboard extends LightningElement {
@@ -43,9 +43,13 @@ export default class AsyncDashboard extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load dashboard metrics.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load dashboard metrics."
+        );
     }
 }

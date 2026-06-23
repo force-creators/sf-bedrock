@@ -1,4 +1,4 @@
-import { api, LightningElement } from 'lwc';
+import { api, LightningElement } from "lwc";
 
 export default class BedrockConsoleLayout extends LightningElement {
     @api eyebrow;

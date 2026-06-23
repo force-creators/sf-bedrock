@@ -6,20 +6,20 @@ eyebrow: Tools
 heading: DML
 lede: DML lets production code commit records normally while tests capture the intended inserts, updates, upserts, deletes, and undeletes in memory.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -52,7 +52,7 @@ public inherited sharing class AccountService {
         for (Account a : accounts) {
             a.Type = 'Customer';
         }
-        DML.insertRecords(accounts);   // instead of: insert accounts;
+        DML.insertRecords(accounts); // instead of: insert accounts;
     }
 }
 ```
@@ -130,7 +130,7 @@ static DMLMock setupDmlMock() {
 ### Asserting on captured calls
 
 `DMLMock` stores one entry per call, and each entry is the list of records that
-was passed in. So `dmlMock.inserts.size()` is the number of insert *calls*, and
+was passed in. So `dmlMock.inserts.size()` is the number of insert _calls_, and
 `dmlMock.inserts[0].size()` is the number of records in the first call.
 
 ```apex
@@ -236,10 +236,10 @@ method to it:
 
 ```apex
 public virtual inherited sharing class DML extends Service {
-    static Service instance = new Service();   // the live delegate
+    static Service instance = new Service(); // the live delegate
 
     public static void insertRecords(List<SObject> records) {
-        instance.insertRecords(records);       // forward to the instance
+        instance.insertRecords(records); // forward to the instance
     }
     // ... the other five verbs forward the same way
 }
@@ -290,14 +290,14 @@ production code should call. `setMock` exists but is test-only.
 
 ### Static methods (the facade)
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| `insertRecords` | `insertRecords(List<SObject> records)` | `void` | Inserts the records. In production runs `insert records;`. |
-| `updateRecords` | `updateRecords(List<SObject> records)` | `void` | Updates the records. In production runs `update records;`. |
-| `upsertRecords` | `upsertRecords(List<SObject> records)` | `void` | Upserts the records by Id. In production runs `upsert records;`. |
-| `upsertRecords` | `upsertRecords(List<SObject> records, SObjectField externalIdField)` | `void` | Upserts using an external-Id field. In production runs `Database.upsert(records, externalIdField, true)` (all-or-none). |
-| `deleteRecords` | `deleteRecords(List<SObject> records)` | `void` | Deletes the records. In production runs `delete records;`. |
-| `undeleteRecords` | `undeleteRecords(List<SObject> records)` | `void` | Undeletes (recovers from the Recycle Bin) the records. In production runs `undelete records;`. |
+| Member            | Signature                                                            | Returns | Description                                                                                                             |
+| ----------------- | -------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `insertRecords`   | `insertRecords(List<SObject> records)`                               | `void`  | Inserts the records. In production runs `insert records;`.                                                              |
+| `updateRecords`   | `updateRecords(List<SObject> records)`                               | `void`  | Updates the records. In production runs `update records;`.                                                              |
+| `upsertRecords`   | `upsertRecords(List<SObject> records)`                               | `void`  | Upserts the records by Id. In production runs `upsert records;`.                                                        |
+| `upsertRecords`   | `upsertRecords(List<SObject> records, SObjectField externalIdField)` | `void`  | Upserts using an external-Id field. In production runs `Database.upsert(records, externalIdField, true)` (all-or-none). |
+| `deleteRecords`   | `deleteRecords(List<SObject> records)`                               | `void`  | Deletes the records. In production runs `delete records;`.                                                              |
+| `undeleteRecords` | `undeleteRecords(List<SObject> records)`                             | `void`  | Undeletes (recovers from the Recycle Bin) the records. In production runs `undelete records;`.                          |
 
 Every method returns `void`. None of them surfaces `Database.SaveResult[]` or
 similar — they either succeed or throw a `DmlException`, exactly like the
@@ -305,16 +305,16 @@ underlying DML statements.
 
 ### Test-only method
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| `setMock` | `setMock(DML.Service mock)` | `void` | `@TestVisible`. Replaces the static delegate for the rest of the test transaction. Pass a `DMLMock` (or any `DML.Service` subclass) to intercept DML. |
+| Member    | Signature                   | Returns | Description                                                                                                                                           |
+| --------- | --------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setMock` | `setMock(DML.Service mock)` | `void`  | `@TestVisible`. Replaces the static delegate for the rest of the test transaction. Pass a `DMLMock` (or any `DML.Service` subclass) to intercept DML. |
 
 ### Inner types
 
-| Type | Kind | Description |
-| --- | --- | --- |
-| `DML.Service` | `public virtual inherited sharing class` | The default delegate. Each method runs the real DML statement. All six methods are `virtual`, so subclasses (like `DMLMock`) can override them. Extend this to build a custom delegate. |
-| `DML.Contract` | `public interface` | Declares the six operations. Implemented by `Service`; the formal description of the facade's surface. |
+| Type           | Kind                                     | Description                                                                                                                                                                             |
+| -------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DML.Service`  | `public virtual inherited sharing class` | The default delegate. Each method runs the real DML statement. All six methods are `virtual`, so subclasses (like `DMLMock`) can override them. Extend this to build a custom delegate. |
+| `DML.Contract` | `public interface`                       | Declares the six operations. Implemented by `Service`; the formal description of the facade's surface.                                                                                  |
 
 ### `DMLMock` (test double)
 
@@ -322,13 +322,13 @@ underlying DML statements.
 running DML, it records the records it was handed. Its captured-call lists
 are public:
 
-| Member | Type | Description |
-| --- | --- | --- |
-| `inserts` | `List<List<SObject>>` | One entry per `insertRecords` call, holding that call's records. |
-| `updates` | `List<List<SObject>>` | One entry per `updateRecords` call. |
-| `upserts` | `List<List<SObject>>` | One entry per upsert call. **Both** `upsertRecords` overloads append here; the external-Id field itself is not captured. |
-| `deletes` | `List<List<SObject>>` | One entry per `deleteRecords` call. |
-| `undeletes` | `List<List<SObject>>` | One entry per `undeleteRecords` call. |
+| Member      | Type                  | Description                                                                                                              |
+| ----------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `inserts`   | `List<List<SObject>>` | One entry per `insertRecords` call, holding that call's records.                                                         |
+| `updates`   | `List<List<SObject>>` | One entry per `updateRecords` call.                                                                                      |
+| `upserts`   | `List<List<SObject>>` | One entry per upsert call. **Both** `upsertRecords` overloads append here; the external-Id field itself is not captured. |
+| `deletes`   | `List<List<SObject>>` | One entry per `deleteRecords` call.                                                                                      |
+| `undeletes` | `List<List<SObject>>` | One entry per `undeleteRecords` call.                                                                                    |
 
 Each list is a list of calls, and each call is the list of records passed to
 it. So `dmlMock.inserts.size()` is the number of insert calls, and

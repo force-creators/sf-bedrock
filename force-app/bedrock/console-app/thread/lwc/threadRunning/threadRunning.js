@@ -1,29 +1,52 @@
-import { LightningElement, api } from 'lwc';
-import { NavigationMixin } from 'lightning/navigation';
-import getRunning from '@salesforce/apex/ThreadMonitorController.getRunning';
+import { LightningElement, api } from "lwc";
+import { NavigationMixin } from "lightning/navigation";
+import getRunning from "@salesforce/apex/ThreadMonitorController.getRunning";
 
 const COLUMNS = [
     {
-        label: 'Open',
-        type: 'button',
+        label: "Open",
+        type: "button",
         initialWidth: 90,
         typeAttributes: {
-            label: 'Open',
-            name: 'open',
-            title: 'Open thread record',
-            variant: 'base'
+            label: "Open",
+            name: "open",
+            title: "Open thread record",
+            variant: "base"
         }
     },
-    { label: 'Thread', fieldName: 'threadNumber', sortable: true, initialWidth: 120 },
-    { label: 'Health', fieldName: 'health', initialWidth: 150 },
-    { label: 'Status', fieldName: 'status', sortable: true, initialWidth: 120 },
-    { label: 'Pool', fieldName: 'pool', sortable: true, initialWidth: 140 },
-    { label: 'Thread Key', fieldName: 'threadKey', sortable: true },
-    { label: 'Heartbeat', fieldName: 'heartbeatAt', type: 'date', sortable: true, initialWidth: 180 },
-    { label: 'Started', fieldName: 'startedAt', type: 'date', sortable: true, initialWidth: 180 },
-    { label: 'Run Key', fieldName: 'runKey', initialWidth: 150 },
-    { label: 'Created By', fieldName: 'createdBy', initialWidth: 160 },
-    { label: 'Created Date', fieldName: 'createdDate', type: 'date', sortable: true, initialWidth: 180 }
+    {
+        label: "Thread",
+        fieldName: "threadNumber",
+        sortable: true,
+        initialWidth: 120
+    },
+    { label: "Health", fieldName: "health", initialWidth: 150 },
+    { label: "Status", fieldName: "status", sortable: true, initialWidth: 120 },
+    { label: "Pool", fieldName: "pool", sortable: true, initialWidth: 140 },
+    { label: "Thread Key", fieldName: "threadKey", sortable: true },
+    {
+        label: "Heartbeat",
+        fieldName: "heartbeatAt",
+        type: "date",
+        sortable: true,
+        initialWidth: 180
+    },
+    {
+        label: "Started",
+        fieldName: "startedAt",
+        type: "date",
+        sortable: true,
+        initialWidth: 180
+    },
+    { label: "Run Key", fieldName: "runKey", initialWidth: 150 },
+    { label: "Created By", fieldName: "createdBy", initialWidth: 160 },
+    {
+        label: "Created Date",
+        fieldName: "createdDate",
+        type: "date",
+        sortable: true,
+        initialWidth: 180
+    }
 ];
 
 export default class ThreadRunning extends NavigationMixin(LightningElement) {
@@ -31,9 +54,9 @@ export default class ThreadRunning extends NavigationMixin(LightningElement) {
     rows = [];
     isLoading = false;
     errorMessage;
-    searchTerm = '';
-    sortBy = 'heartbeatAt';
-    sortDirection = 'asc';
+    searchTerm = "";
+    sortBy = "heartbeatAt";
+    sortDirection = "asc";
     searchRefreshTimer;
 
     connectedCallback() {
@@ -46,11 +69,13 @@ export default class ThreadRunning extends NavigationMixin(LightningElement) {
 
     get recordCountLabel() {
         const count = this.rows.length;
-        return `${count} ${count === 1 ? 'record' : 'records'}`;
+        return `${count} ${count === 1 ? "record" : "records"}`;
     }
 
     get refreshButtonClass() {
-        return this.isLoading ? 'refresh-button is-refreshing' : 'refresh-button';
+        return this.isLoading
+            ? "refresh-button is-refreshing"
+            : "refresh-button";
     }
 
     get hasRows() {
@@ -82,6 +107,8 @@ export default class ThreadRunning extends NavigationMixin(LightningElement) {
 
     queueSearchRefresh() {
         this.clearSearchRefreshTimer();
+        // Debounce user search input before refreshing the server-backed table.
+        // eslint-disable-next-line @lwc/lwc/no-async-operation
         this.searchRefreshTimer = setTimeout(() => {
             this.loadRows();
         }, 250);
@@ -96,16 +123,16 @@ export default class ThreadRunning extends NavigationMixin(LightningElement) {
     handleRowAction(event) {
         const { action, row } = event.detail;
 
-        if (action.name === 'open' && row.id) {
+        if (action.name === "open" && row.id) {
             this[NavigationMixin.GenerateUrl]({
-                type: 'standard__recordPage',
+                type: "standard__recordPage",
                 attributes: {
                     recordId: row.id,
-                    objectApiName: 'Thread__c',
-                    actionName: 'view'
+                    objectApiName: "Thread__c",
+                    actionName: "view"
                 }
             }).then((url) => {
-                window.open(url, '_blank', 'noopener');
+                window.open(url, "_blank", "noopener");
             });
         }
     }
@@ -131,7 +158,7 @@ export default class ThreadRunning extends NavigationMixin(LightningElement) {
 
     dispatchCountChange() {
         this.dispatchEvent(
-            new CustomEvent('countchange', {
+            new CustomEvent("countchange", {
                 detail: { count: this.rows.length }
             })
         );
@@ -146,9 +173,13 @@ export default class ThreadRunning extends NavigationMixin(LightningElement) {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load running threads.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load running threads."
+        );
     }
 }

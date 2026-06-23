@@ -6,26 +6,26 @@ eyebrow: Tools
 heading: Selector
 lede: Selector turns repeated Id-based queries into reusable classes. It builds SOQL from a field set, optional where clauses, and a shared contract key so services can reuse records inside one transaction or through Platform Cache.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Query Contracts
-    href: "#query-contracts"
-  - label: Transaction Caching
-    href: "#transaction-caching"
-  - label: Platform Cache
-    href: "#platform-cache"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Query Contracts
+      href: "#query-contracts"
+    - label: Transaction Caching
+      href: "#transaction-caching"
+    - label: Platform Cache
+      href: "#platform-cache"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -64,7 +64,8 @@ public inherited sharing class AccountSelector extends Selector.Once {
     }
 
     public static List<Account> records(Set<Id> ids) {
-        return (List<Account>) Selector.instance(new AccountSelector()).records(ids);
+        return (List<Account>) Selector.instance(new AccountSelector())
+            .records(ids);
     }
 }
 ```
@@ -96,7 +97,8 @@ public inherited sharing class ActiveAccountSelector extends Selector.Once {
     }
 
     public static List<Account> records(Set<Id> ids) {
-        return (List<Account>) Selector.instance(new ActiveAccountSelector()).records(ids);
+        return (List<Account>) Selector.instance(new ActiveAccountSelector())
+            .records(ids);
     }
 }
 ```
@@ -146,7 +148,8 @@ public inherited sharing class CachedAccountSelector extends Selector.Cached {
     }
 
     public static List<Account> records(Set<Id> ids) {
-        return (List<Account>) Selector.instance(new CachedAccountSelector()).records(ids);
+        return (List<Account>) Selector.instance(new CachedAccountSelector())
+            .records(ids);
     }
 }
 ```
@@ -344,20 +347,20 @@ The selector API lives in one `public virtual inherited sharing` class,
 
 ### `Selector`
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| Constructor | `Selector(String sObjectName, Set<String> fields)` | `Selector` | Creates a selector for an object and selected fields. Adds `Id` automatically. |
-| Constructor | `Selector(String sObjectName, Set<String> fields, Set<String> whereClauses)` | `Selector` | Creates a selector with additional where clauses. Blank where clauses are ignored. |
-| `instance` | `instance(Selector selector)` | `Selector` | Static transaction registry. Returns the existing selector for `selector.key()`, or stores and returns the provided selector. |
-| `records` | `records(Set<Id> ids)` | `List<SObject>` | Returns an empty list for null or empty Id sets. Otherwise calls `query(ids)`. |
-| `record` | `record(Id id)` | `SObject` | Calls `records(...)` for one Id and returns the first record, or `null`. |
-| `recordsById` | `recordsById(Set<Id> ids)` | `Map<Id, SObject>` | Builds a map from the records returned by `records(ids)`. |
-| `query` | `query(Set<Id> ids)` | `List<SObject>` | Runs `Database.query(queryText(ids))` through `Query.records(...)`. |
-| `key` | `key()` | `String` | Returns `className() + ':' + contractHashCode()`. |
-| `cacheKey` | `cacheKey(Id id)` | `String` | Returns `key() + ':' + id`. Used by `Selector.Cached`. |
-| `contractHashCode` | `contractHashCode()` | `Integer` | Returns `contract().hashCode()`. |
-| `contract` | `contract()` | `Set<String>` | Returns the object, selected fields, and where clauses as contract strings. |
-| `className` | `className()` | `String` | Returns `String.valueOf(this).substringBefore(':')`. |
+| Member             | Signature                                                                    | Returns            | Description                                                                                                                   |
+| ------------------ | ---------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Constructor        | `Selector(String sObjectName, Set<String> fields)`                           | `Selector`         | Creates a selector for an object and selected fields. Adds `Id` automatically.                                                |
+| Constructor        | `Selector(String sObjectName, Set<String> fields, Set<String> whereClauses)` | `Selector`         | Creates a selector with additional where clauses. Blank where clauses are ignored.                                            |
+| `instance`         | `instance(Selector selector)`                                                | `Selector`         | Static transaction registry. Returns the existing selector for `selector.key()`, or stores and returns the provided selector. |
+| `records`          | `records(Set<Id> ids)`                                                       | `List<SObject>`    | Returns an empty list for null or empty Id sets. Otherwise calls `query(ids)`.                                                |
+| `record`           | `record(Id id)`                                                              | `SObject`          | Calls `records(...)` for one Id and returns the first record, or `null`.                                                      |
+| `recordsById`      | `recordsById(Set<Id> ids)`                                                   | `Map<Id, SObject>` | Builds a map from the records returned by `records(ids)`.                                                                     |
+| `query`            | `query(Set<Id> ids)`                                                         | `List<SObject>`    | Runs `Database.query(queryText(ids))` through `Query.records(...)`.                                                           |
+| `key`              | `key()`                                                                      | `String`           | Returns `className() + ':' + contractHashCode()`.                                                                             |
+| `cacheKey`         | `cacheKey(Id id)`                                                            | `String`           | Returns `key() + ':' + id`. Used by `Selector.Cached`.                                                                        |
+| `contractHashCode` | `contractHashCode()`                                                         | `Integer`          | Returns `contract().hashCode()`.                                                                                              |
+| `contract`         | `contract()`                                                                 | `Set<String>`      | Returns the object, selected fields, and where clauses as contract strings.                                                   |
+| `className`        | `className()`                                                                | `String`           | Returns `String.valueOf(this).substringBefore(':')`.                                                                          |
 
 > `clearInstances()` and `queryText(Set<Id> ids)` are `@TestVisible`, not
 > production API. `clearInstances()` resets the static registry. `queryText(...)`
@@ -365,21 +368,21 @@ The selector API lives in one `public virtual inherited sharing` class,
 
 ### `Selector.Once` (inner class, extends `Selector`)
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| Constructor | `Once(String sObjectName, Set<String> fields)` | `Once` | Creates a transaction-cached selector. |
-| Constructor | `Once(String sObjectName, Set<String> fields, Set<String> whereClauses)` | `Once` | Creates a transaction-cached selector with extra where clauses. |
-| `records` | `records(Set<Id> ids)` | `List<SObject>` | `override virtual`. Queries only Ids not already loaded into the instance map, then returns loaded records in requested Id iteration order. |
+| Member      | Signature                                                                | Returns         | Description                                                                                                                                 |
+| ----------- | ------------------------------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Constructor | `Once(String sObjectName, Set<String> fields)`                           | `Once`          | Creates a transaction-cached selector.                                                                                                      |
+| Constructor | `Once(String sObjectName, Set<String> fields, Set<String> whereClauses)` | `Once`          | Creates a transaction-cached selector with extra where clauses.                                                                             |
+| `records`   | `records(Set<Id> ids)`                                                   | `List<SObject>` | `override virtual`. Queries only Ids not already loaded into the instance map, then returns loaded records in requested Id iteration order. |
 
 ### `Selector.Cached` (inner class, extends `Selector.Once`)
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| Constructor | `Cached(String sObjectName, Set<String> fields, PlatformCache cache)` | `Cached` | Creates a cached selector with a provided cache adapter. |
-| Constructor | `Cached(String sObjectName, Set<String> fields, String partitionName)` | `Cached` | Creates a cached selector backed by `new PlatformCache.Org(partitionName)`. |
-| Constructor | `Cached(String sObjectName, Set<String> fields, Set<String> whereClauses, PlatformCache cache)` | `Cached` | Creates a cached selector with where clauses and a provided cache adapter. |
-| Constructor | `Cached(String sObjectName, Set<String> fields, Set<String> whereClauses, String partitionName)` | `Cached` | Creates a cached selector with where clauses backed by org cache. |
-| `records` | `records(Set<Id> ids)` | `List<SObject>` | `override`. Reads transaction cache, then Platform Cache, then SOQL. Writes queried records back to Platform Cache. |
+| Member      | Signature                                                                                        | Returns         | Description                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Constructor | `Cached(String sObjectName, Set<String> fields, PlatformCache cache)`                            | `Cached`        | Creates a cached selector with a provided cache adapter.                                                            |
+| Constructor | `Cached(String sObjectName, Set<String> fields, String partitionName)`                           | `Cached`        | Creates a cached selector backed by `new PlatformCache.Org(partitionName)`.                                         |
+| Constructor | `Cached(String sObjectName, Set<String> fields, Set<String> whereClauses, PlatformCache cache)`  | `Cached`        | Creates a cached selector with where clauses and a provided cache adapter.                                          |
+| Constructor | `Cached(String sObjectName, Set<String> fields, Set<String> whereClauses, String partitionName)` | `Cached`        | Creates a cached selector with where clauses backed by org cache.                                                   |
+| `records`   | `records(Set<Id> ids)`                                                                           | `List<SObject>` | `override`. Reads transaction cache, then Platform Cache, then SOQL. Writes queried records back to Platform Cache. |
 
 ### `Selector.SelectorException` (inner class, extends `Exception`)
 

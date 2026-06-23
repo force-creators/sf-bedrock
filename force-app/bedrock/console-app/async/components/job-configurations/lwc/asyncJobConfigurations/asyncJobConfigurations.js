@@ -1,22 +1,27 @@
-import { LightningElement } from 'lwc';
-import getJobConfigurations from '@salesforce/apex/AsyncJobConfigurationsController.getJobConfigurations';
+import { LightningElement } from "lwc";
+import getJobConfigurations from "@salesforce/apex/AsyncJobConfigurationsController.getJobConfigurations";
 
 const COLUMNS = [
     {
-        label: 'Open',
-        type: 'button',
+        label: "Open",
+        type: "button",
         initialWidth: 90,
         typeAttributes: {
-            label: 'Open',
-            name: 'open',
-            title: 'Open async job metadata',
-            variant: 'base'
+            label: "Open",
+            name: "open",
+            title: "Open async job metadata",
+            variant: "base"
         }
     },
-    { label: 'Developer Name', fieldName: 'developerName' },
-    { label: 'Label', fieldName: 'label' },
-    { label: 'Apex Class', fieldName: 'apexClass' },
-    { label: 'Batch Size', fieldName: 'batchSize', type: 'number', initialWidth: 130 }
+    { label: "Developer Name", fieldName: "developerName" },
+    { label: "Label", fieldName: "label" },
+    { label: "Apex Class", fieldName: "apexClass" },
+    {
+        label: "Batch Size",
+        fieldName: "batchSize",
+        type: "number",
+        initialWidth: 130
+    }
 ];
 
 export default class AsyncJobConfigurations extends LightningElement {
@@ -31,7 +36,7 @@ export default class AsyncJobConfigurations extends LightningElement {
 
     get recordCountLabel() {
         const count = this.rows.length;
-        return `${count} ${count === 1 ? 'record' : 'records'}`;
+        return `${count} ${count === 1 ? "record" : "records"}`;
     }
 
     get hasRows() {
@@ -45,11 +50,11 @@ export default class AsyncJobConfigurations extends LightningElement {
     handleRowAction(event) {
         const { action, row } = event.detail;
 
-        if (action.name === 'open') {
+        if (action.name === "open") {
             window.open(
                 `/lightning/setup/CustomMetadata/page?address=%2f${row.id}`,
-                '_blank',
-                'noopener'
+                "_blank",
+                "noopener"
             );
         }
     }
@@ -70,9 +75,13 @@ export default class AsyncJobConfigurations extends LightningElement {
 
     reduceErrors(error) {
         if (Array.isArray(error?.body)) {
-            return error.body.map((entry) => entry.message).join(', ');
+            return error.body.map((entry) => entry.message).join(", ");
         }
 
-        return error?.body?.message || error?.message || 'Unable to load async jobs.';
+        return (
+            error?.body?.message ||
+            error?.message ||
+            "Unable to load async jobs."
+        );
     }
 }

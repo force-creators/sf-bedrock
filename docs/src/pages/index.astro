@@ -1,6 +1,9 @@
 ---
 import DocsLayout from '../layouts/DocsLayout.astro';
 
+const packageInstallUrl = 'https://login.salesforce.com/packaging/installPackage.apexp?p0=04tfj000000L19BAAS';
+const repositoryUrl = 'https://github.com/force-creators/sf-bedrock';
+
 const sections = [
   { label: 'Why Bedrock', href: '#why-bedrock' },
   { label: 'The Headliners', href: '#the-headliners' },
@@ -35,7 +38,8 @@ const sections = [
       </div>
       <div class="pill-row" style="margin-top: 1.5rem; gap: 0.6rem;">
         <a class="button button-primary" href="/getting-started">Get Started</a>
-        <a class="button button-secondary" href="/async">Explore Async</a>
+        <a class="button button-secondary" href={packageInstallUrl}>Install Package</a>
+        <a class="button button-secondary" href={repositoryUrl}>Clone Repository</a>
       </div>
     </div>
   </Fragment>
@@ -71,10 +75,10 @@ const sections = [
         </p>
       </article>
       <article class="doc-card">
-        <h3>Apex humans can maintain</h3>
+        <h3>Open source by design</h3>
         <p>
-          Bedrock favors linear, low-ceremony code. The seams are explicit, the
-          names are plain, and each layer has a job.
+          Bedrock is MPL-2.0 licensed, so teams can inspect, adopt, and improve
+          the source without treating the foundation as a black box.
         </p>
       </article>
     </div>

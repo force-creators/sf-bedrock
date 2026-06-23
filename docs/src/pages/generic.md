@@ -6,24 +6,24 @@ eyebrow: Tools
 heading: Generic
 lede: A dynamic, schema-less data container that reads and writes nested values by dotted/bracketed path, coerces them to the type you ask for, and converts cleanly to JSON or to a strongly-typed SObject — ideal for taming untyped JSON and integration payloads.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Path Syntax
-    href: "#path-syntax"
-  - label: Type Coercion
-    href: "#type-coercion"
-  - label: Subclassing & transform()
-    href: "#subclassing-and-transform"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Path Syntax
+      href: "#path-syntax"
+    - label: Type Coercion
+      href: "#type-coercion"
+    - label: Subclassing & transform()
+      href: "#subclassing-and-transform"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -204,7 +204,9 @@ public inherited sharing class WebhookService {
         process(eventType, accountId, retryCount != null ? retryCount : 0);
     }
 
-    void process(String eventType, String accountId, Integer retryCount) { /* ... */ }
+    void process(String eventType, String accountId, Integer retryCount) {
+        /* ... */
+    }
 }
 ```
 
@@ -231,10 +233,10 @@ A path is a `String` that names a location in the nested structure. Before
 walking, `Generic` normalizes it: `[` becomes `.`, `]` is removed, and the
 result is split on `.`. So all of these describe the same traversal:
 
-| Path | Normalized segments | Walks |
-| --- | --- | --- |
-| `user.name` | `user`, `name` | map → map key |
-| `user.tags[0]` | `user`, `tags`, `0` | map → map → list index 0 |
+| Path            | Normalized segments  | Walks                        |
+| --------------- | -------------------- | ---------------------------- |
+| `user.name`     | `user`, `name`       | map → map key                |
+| `user.tags[0]`  | `user`, `tags`, `0`  | map → map → list index 0     |
 | `items[1].name` | `items`, `1`, `name` | map → list index 1 → map key |
 
 Rules to keep in mind:
@@ -244,7 +246,7 @@ Rules to keep in mind:
 - **Missing keys and out-of-range indices return `null`** from `get` — the walk
   stops safely rather than throwing.
 - **`put` only descends through maps.** It creates intermediate `Map<String,
-  Object>` nodes as it goes; it does **not** create or grow lists. Writing into
+Object>` nodes as it goes; it does **not** create or grow lists. Writing into
   an existing list element by index is not supported by `put`.
 
 ## Type Coercion
@@ -292,19 +294,19 @@ Assert.areEqual('B', items[1].get('name'), 'Each item is a usable map.');
 
 ### Supported targets
 
-| `target` | Conversion |
-| --- | --- |
-| `null` or `Object.class` | Returns the raw value unchanged. |
-| `String.class` | `String.valueOf(value)` |
-| `Integer.class` | `Integer.valueOf(String.valueOf(value))` |
-| `Decimal.class` | `Decimal.valueOf(String.valueOf(value))` |
-| `Boolean.class` | `Boolean.valueOf(String.valueOf(value))` |
-| `Date.class` | `Date.valueOf(String.valueOf(value))` |
-| `Datetime.class` | `Datetime.valueOf(String.valueOf(value))` |
-| `List<Object>.class` | Direct cast to `List<Object>`. |
-| `Map<String, Object>.class` | Direct cast to `Map<String, Object>`. |
-| `List<Map<String, Object>>.class` | Rebuilds each element as a `Map<String, Object>`. |
-| Any other `Type` | JSON round-trip: `JSON.deserialize(JSON.serialize(value), target)`. |
+| `target`                          | Conversion                                                          |
+| --------------------------------- | ------------------------------------------------------------------- |
+| `null` or `Object.class`          | Returns the raw value unchanged.                                    |
+| `String.class`                    | `String.valueOf(value)`                                             |
+| `Integer.class`                   | `Integer.valueOf(String.valueOf(value))`                            |
+| `Decimal.class`                   | `Decimal.valueOf(String.valueOf(value))`                            |
+| `Boolean.class`                   | `Boolean.valueOf(String.valueOf(value))`                            |
+| `Date.class`                      | `Date.valueOf(String.valueOf(value))`                               |
+| `Datetime.class`                  | `Datetime.valueOf(String.valueOf(value))`                           |
+| `List<Object>.class`              | Direct cast to `List<Object>`.                                      |
+| `Map<String, Object>.class`       | Direct cast to `Map<String, Object>`.                               |
+| `List<Map<String, Object>>.class` | Rebuilds each element as a `Map<String, Object>`.                   |
+| Any other `Type`                  | JSON round-trip: `JSON.deserialize(JSON.serialize(value), target)`. |
 
 > **A `null` value short-circuits.** If the value at the path is `null`,
 > coercion returns `null` regardless of `target` — it never tries to convert
@@ -331,29 +333,29 @@ downstream code expects:
 
 ```apex
 public class StatusReport extends Generic {
-  public String status;
-  public Integer version;
-  public String source;
+    public String status;
+    public Integer version;
+    public String source;
 
-  public StatusReport(String genericString) {
-    // Example inbound payload:
-    // {"payload":{"state":"ready","rev":"1"},"meta":{"source":"sync"}}
-    super(genericString);
-    this.status = (String) this.get('payload.state');
-    this.version = (Integer) this.get('payload.rev', Integer.class);
-    this.source = (String) this.get('meta.source');
-  }
+    public StatusReport(String genericString) {
+        // Example inbound payload:
+        // {"payload":{"state":"ready","rev":"1"},"meta":{"source":"sync"}}
+        super(genericString);
+        this.status = (String) this.get('payload.state');
+        this.version = (Integer) this.get('payload.rev', Integer.class);
+        this.source = (String) this.get('meta.source');
+    }
 
-  // Calling transform().json() on a StatusReport hydrated from the example payload returns:
-  // {"report.status":"ready","report.version":1,"report.audit.source":"sync"}
-  public override Map<String, Object> mapping() {
-    return new Map<String, Object>{
-      'report.status' => this.status,
-      'report.version' => this.version,
-      // Nested audit field in the outbound structure.
-      'report.audit.source' => this.source
-    };
-  }
+    // Calling transform().json() on a StatusReport hydrated from the example payload returns:
+    // {"report.status":"ready","report.version":1,"report.audit.source":"sync"}
+    public override Map<String, Object> mapping() {
+        return new Map<String, Object>{
+            'report.status' => this.status,
+            'report.version' => this.version,
+            // Nested audit field in the outbound structure.
+            'report.audit.source' => this.source
+        };
+    }
 }
 ```
 
@@ -421,22 +423,22 @@ extension methods.
 > normalization. They are not part of the public surface; use the string path
 > methods below.
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| Constructor | `Generic()` | `Generic` | Creates an empty container backed by a new `Map<String, Object>`. |
-| Constructor | `Generic(String unknown)` | `Generic` | Hydrates the container from a JSON string via `JSON.deserializeUntyped`. The JSON's top level must be an object. |
-| Constructor | `Generic(Map<String, Object> unknown)` | `Generic` | Copies the entries of an existing map into a new backing map (defensive copy). |
-| `get` | `get(String path)` | `Object` | Returns the raw value at `path`, or `null` if a map segment is missing or a positive list index is out of bounds. |
-| `get` | `get(String path, Type target)` | `Object` | Returns the value at `path` coerced to `target`. If `target` is `null`, behaves like `get(path)`. See [Type Coercion](#type-coercion). |
-| `get` | `get(Object current, List<String> parts, Integer index)` | `Object` | Recursive walker used internally by the two `get` overloads. Public, but you normally call the string overloads. |
-| `put` | `put(String key, Object value)` | `void` | Writes `value` at the dotted/bracketed path `key`, creating intermediate maps as needed. |
-| `put` | `put(Map<String, Object> paths)` | `void` | Convenience: applies every entry of the map as a `put(path, value)` call. |
-| `put` | `put(Object current, List<String> parts, Integer index, Object value)` | `void` | Recursive writer used internally by the other `put` overloads. |
-| `json` | `json()` | `String` | Serializes the backing map to a JSON string via `JSON.serialize`. |
-| `sObject` | `sObject(Type target)` | `SObject` | Serializes the container and deserializes it into the given `SObject` type. |
-| `generic` | `generic()` | `Map<String, Object>` | Returns the backing map directly (live reference, not a copy). |
-| `mapping` | `mapping()` (`virtual`) | `Map<String, Object>` | Extension hook. Returns an empty map by default; override in a subclass to declare a shape. |
-| `transform` | `transform()` (`virtual`) | `Map<String, Object>` | Builds a new `Generic` from `mapping()` and returns its backing map. See [Subclassing & transform()](#subclassing-and-transform). |
+| Member      | Signature                                                              | Returns               | Description                                                                                                                            |
+| ----------- | ---------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Constructor | `Generic()`                                                            | `Generic`             | Creates an empty container backed by a new `Map<String, Object>`.                                                                      |
+| Constructor | `Generic(String unknown)`                                              | `Generic`             | Hydrates the container from a JSON string via `JSON.deserializeUntyped`. The JSON's top level must be an object.                       |
+| Constructor | `Generic(Map<String, Object> unknown)`                                 | `Generic`             | Copies the entries of an existing map into a new backing map (defensive copy).                                                         |
+| `get`       | `get(String path)`                                                     | `Object`              | Returns the raw value at `path`, or `null` if a map segment is missing or a positive list index is out of bounds.                      |
+| `get`       | `get(String path, Type target)`                                        | `Object`              | Returns the value at `path` coerced to `target`. If `target` is `null`, behaves like `get(path)`. See [Type Coercion](#type-coercion). |
+| `get`       | `get(Object current, List<String> parts, Integer index)`               | `Object`              | Recursive walker used internally by the two `get` overloads. Public, but you normally call the string overloads.                       |
+| `put`       | `put(String key, Object value)`                                        | `void`                | Writes `value` at the dotted/bracketed path `key`, creating intermediate maps as needed.                                               |
+| `put`       | `put(Map<String, Object> paths)`                                       | `void`                | Convenience: applies every entry of the map as a `put(path, value)` call.                                                              |
+| `put`       | `put(Object current, List<String> parts, Integer index, Object value)` | `void`                | Recursive writer used internally by the other `put` overloads.                                                                         |
+| `json`      | `json()`                                                               | `String`              | Serializes the backing map to a JSON string via `JSON.serialize`.                                                                      |
+| `sObject`   | `sObject(Type target)`                                                 | `SObject`             | Serializes the container and deserializes it into the given `SObject` type.                                                            |
+| `generic`   | `generic()`                                                            | `Map<String, Object>` | Returns the backing map directly (live reference, not a copy).                                                                         |
+| `mapping`   | `mapping()` (`virtual`)                                                | `Map<String, Object>` | Extension hook. Returns an empty map by default; override in a subclass to declare a shape.                                            |
+| `transform` | `transform()` (`virtual`)                                              | `Map<String, Object>` | Builds a new `Generic` from `mapping()` and returns its backing map. See [Subclassing & transform()](#subclassing-and-transform).      |
 
 > **About the recursive overloads.** `get(Object, List<String>, Integer)` and
 > `put(Object, List<String>, Integer, Object)` are public in the current class,
@@ -460,14 +462,14 @@ extension methods.
   list, build the list yourself and `put` it as a whole value.
 - **`generic()` returns a live reference.** It hands back the actual backing map,
   not a copy — mutating the returned map mutates the container. The `Map`
-  *constructor*, by contrast, copies its input, so later changes to the source
+  _constructor_, by contrast, copies its input, so later changes to the source
   map do **not** leak in:
-  ```apex
-  Map<String, Object> source = new Map<String, Object>{ 'status' => 'initial' };
-  Generic g = new Generic(source);
-  source.put('status', 'changed');           // mutates source only
-  Assert.areEqual('initial', g.get('status'), 'Constructor took a defensive copy.');
-  ```
+    ```apex
+    Map<String, Object> source = new Map<String, Object>{ 'status' => 'initial' };
+    Generic g = new Generic(source);
+    source.put('status', 'changed');           // mutates source only
+    Assert.areEqual('initial', g.get('status'), 'Constructor took a defensive copy.');
+    ```
 - **`sObject()` is only as valid as your keys.** Deserialization into an SObject
   succeeds only when keys map to real field API names of the correct types.
   Mismatches throw during deserialization. It's a great way to fabricate records
@@ -481,7 +483,7 @@ extension methods.
   copy. It does not change what's stored in the container. The backing map keeps
   the original raw value.
 - **Don't reach for the recursive overloads.** `get(Object, List<String>,
-  Integer)` and the four-argument `put` exist for internal recursion. Use the
+Integer)` and the four-argument `put` exist for internal recursion. Use the
   string-path overloads. The recursive ones expect already-normalized segment
   lists and a starting index.
 - **There is no mock for `Generic`.** `Generic` is a pure in-memory value

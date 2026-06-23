@@ -4,7 +4,11 @@
 
 .console-shell {
     background:
-        radial-gradient(circle at top left, rgba(1, 118, 211, 0.14), transparent 22rem),
+        radial-gradient(
+            circle at top left,
+            rgba(1, 118, 211, 0.14),
+            transparent 22rem
+        ),
         linear-gradient(180deg, #f8fbff 0%, #ffffff 22rem);
     min-height: 100%;
     padding: var(--lwc-spacingLarge, 1.5rem);
@@ -205,7 +209,10 @@ h1 {
 .route-details {
     display: grid;
     gap: var(--lwc-spacingMedium, 1rem);
-    grid-template-columns: minmax(9rem, 0.8fr) minmax(12rem, 1.2fr) minmax(7rem, 0.6fr);
+    grid-template-columns: minmax(9rem, 0.8fr) minmax(12rem, 1.2fr) minmax(
+            7rem,
+            0.6fr
+        );
     margin: var(--lwc-spacingMedium, 1rem) 0 0;
 }
 

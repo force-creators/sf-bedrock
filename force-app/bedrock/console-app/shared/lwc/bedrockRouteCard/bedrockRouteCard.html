@@ -12,7 +12,11 @@
                     ></lightning-button-icon>
                 </template>
                 <template lwc:else>
-                    <lightning-icon icon-name={iconName} size="x-small" alternative-text=""></lightning-icon>
+                    <lightning-icon
+                        icon-name={iconName}
+                        size="x-small"
+                        alternative-text=""
+                    ></lightning-icon>
                 </template>
                 <div>
                     <p class="route-label">{label}</p>
@@ -21,7 +25,9 @@
             </div>
             <div class="badge-row">
                 <template for:each={badges} for:item="badge">
-                    <span key={badge.label} class={badge.className}>{badge.label}</span>
+                    <span key={badge.label} class={badge.className}
+                        >{badge.label}</span
+                    >
                 </template>
             </div>
         </div>

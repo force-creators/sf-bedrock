@@ -6,20 +6,20 @@ eyebrow: Tools
 heading: PlatformCache
 lede: PlatformCache gives org and session cache the same get, put, and remove API, plus an in-memory mock for cache-backed unit tests.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -329,30 +329,30 @@ classes you instantiate or subclass. The test double ships separately as
 
 ### Static members on `PlatformCache`
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
+| Member      | Signature                                   | Returns             | Description                                                                                                        |
+| ----------- | ------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `partition` | `public static PartitionRegistry partition` | `PartitionRegistry` | Shared resolver for registered mocks and real partitions. Application code should not need to touch this directly. |
-| `consts` | `public static final Constants consts` | `Constants` | Holder for the scope string constants `ORG_SCOPE` and `SESSION_SCOPE`. |
+| `consts`    | `public static final Constants consts`      | `Constants`         | Holder for the scope string constants `ORG_SCOPE` and `SESSION_SCOPE`.                                             |
 
 ### Abstract instance methods (the cache interface)
 
 Implemented by `Partition`, `Org`, `Session`, and `PlatformCacheMock`.
 
-| Member | Signature | Returns | Description |
-| --- | --- | --- | --- |
-| `get` | `get(String key)` | `Object` | Reads the value stored under `key`. Returns `null` on a cache miss. Cast the result to the type you stored. |
-| `put` | `put(String key, Object value)` | `void` | Stores `value` under `key` in the partition. |
-| `remove` | `remove(String key)` | `void` | Deletes the entry stored under `key`. |
+| Member   | Signature                       | Returns  | Description                                                                                                 |
+| -------- | ------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `get`    | `get(String key)`               | `Object` | Reads the value stored under `key`. Returns `null` on a cache miss. Cast the result to the type you stored. |
+| `put`    | `put(String key, Object value)` | `void`   | Stores `value` under `key` in the partition.                                                                |
+| `remove` | `remove(String key)`            | `void`   | Deletes the entry stored under `key`.                                                                       |
 
 ### Public inner classes
 
-| Class | Constructors | Description |
-| --- | --- | --- |
-| `PlatformCache.Org` | `Org(String partitionName)` | Org-scoped cache for the named partition. Routes through `Cache.Org` via the registry. The type you use most. `virtual` — extend it to create a typed subclass. |
-| `PlatformCache.Session` | `Session(String partitionName)` | Session-scoped cache for the named partition. Routes through `Cache.Session` via the registry. `virtual` — extend it for typed session-cache subclasses. |
-| `PlatformCache.Partition` | `Partition(String partitionName)` / `Partition(String partitionName, String scope)` | The base partition. `Org` and `Session` extend it; `PlatformCacheMock` also extends it. Has one public field, `partitionName`. Defaults to org scope. |
-| `PlatformCache.Constants` | (instance is `PlatformCache.consts`) | Exposes the public final strings `ORG_SCOPE` (`'ORG'`) and `SESSION_SCOPE` (`'SESSION'`). |
-| `PlatformCache.PartitionRegistry` | — | Resolver behind `PlatformCache.partition`. Public class, but its methods are private; application code should use `Org`, `Session`, or a typed subclass. |
+| Class                             | Constructors                                                                        | Description                                                                                                                                                     |
+| --------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PlatformCache.Org`               | `Org(String partitionName)`                                                         | Org-scoped cache for the named partition. Routes through `Cache.Org` via the registry. The type you use most. `virtual` — extend it to create a typed subclass. |
+| `PlatformCache.Session`           | `Session(String partitionName)`                                                     | Session-scoped cache for the named partition. Routes through `Cache.Session` via the registry. `virtual` — extend it for typed session-cache subclasses.        |
+| `PlatformCache.Partition`         | `Partition(String partitionName)` / `Partition(String partitionName, String scope)` | The base partition. `Org` and `Session` extend it; `PlatformCacheMock` also extends it. Has one public field, `partitionName`. Defaults to org scope.           |
+| `PlatformCache.Constants`         | (instance is `PlatformCache.consts`)                                                | Exposes the public final strings `ORG_SCOPE` (`'ORG'`) and `SESSION_SCOPE` (`'SESSION'`).                                                                       |
+| `PlatformCache.PartitionRegistry` | —                                                                                   | Resolver behind `PlatformCache.partition`. Public class, but its methods are private; application code should use `Org`, `Session`, or a typed subclass.        |
 
 > **There are no public properties you set directly to configure a cache.**
 > Apart from the static `partition` and `consts` holders and the `partitionName`
@@ -364,13 +364,13 @@ Implemented by `Partition`, `Org`, `Session`, and `PlatformCacheMock`.
 `PlatformCacheMock extends PlatformCache.Partition` and is your test double. It
 records every interaction and stores values in a plain in-memory `Map`.
 
-| Member | Type | Description |
-| --- | --- | --- |
-| Constructor | `PlatformCacheMock(String partitionName)` | Creates a mock for the named partition. |
-| `valuesByKey` | `public Map<String, Object>` | The backing store. Seed it to simulate cache hits; read it to assert what was written. |
-| `gets` | `public List<String>` | Keys passed to `get`, in call order. |
-| `puts` | `public List<String>` | Keys passed to `put`, in call order. |
-| `removes` | `public List<String>` | Keys passed to `remove`, in call order. |
+| Member        | Type                                      | Description                                                                            |
+| ------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| Constructor   | `PlatformCacheMock(String partitionName)` | Creates a mock for the named partition.                                                |
+| `valuesByKey` | `public Map<String, Object>`              | The backing store. Seed it to simulate cache hits; read it to assert what was written. |
+| `gets`        | `public List<String>`                     | Keys passed to `get`, in call order.                                                   |
+| `puts`        | `public List<String>`                     | Keys passed to `put`, in call order.                                                   |
+| `removes`     | `public List<String>`                     | Keys passed to `remove`, in call order.                                                |
 
 ## Notes & Edge Cases
 

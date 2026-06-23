@@ -6,26 +6,26 @@ eyebrow: Frameworks
 heading: Async
 lede: Async turns record-driven background work into a tracked, configurable pipeline. You write one execute method, enqueue record Ids, and Bedrock drains the work in safe batches with visible success, retry, and error state.
 sections:
-  - label: Overview
-    href: "#overview"
-  - label: Quickstart
-    href: "#quickstart"
-  - label: Examples
-    href: "#examples"
-  - label: Enqueueing Work
-    href: "#enqueueing-work"
-  - label: Staging Work
-    href: "#staging-work"
-  - label: Configuration
-    href: "#configuration"
-  - label: Testing
-    href: "#testing"
-  - label: How It Works
-    href: "#how-it-works"
-  - label: Public API
-    href: "#public-api"
-  - label: Notes & Edge Cases
-    href: "#notes--edge-cases"
+    - label: Overview
+      href: "#overview"
+    - label: Quickstart
+      href: "#quickstart"
+    - label: Examples
+      href: "#examples"
+    - label: Enqueueing Work
+      href: "#enqueueing-work"
+    - label: Staging Work
+      href: "#staging-work"
+    - label: Configuration
+      href: "#configuration"
+    - label: Testing
+      href: "#testing"
+    - label: How It Works
+      href: "#how-it-works"
+    - label: Public API
+      href: "#public-api"
+    - label: Notes & Edge Cases
+      href: "#notes--edge-cases"
 ---
 
 ## Overview
@@ -78,11 +78,13 @@ Bedrock seams like `Query` and `DML` so the job stays testable.
 ```apex
 public with sharing class RollupContactCountAsync extends Async {
     public override void execute(Set<Id> ids) {
-        List<Account> accounts = (List<Account>) Query.records([
-            SELECT Id, (SELECT Id FROM Contacts)
-            FROM Account
-            WHERE Id IN :ids
-        ]);
+        List<Account> accounts = (List<Account>) Query.records(
+            [
+                SELECT Id, (SELECT Id FROM Contacts)
+                FROM Account
+                WHERE Id IN :ids
+            ]
+        );
 
         for (Account account : accounts) {
             account.Number_of_Contacts__c = account.Contacts.size();
@@ -121,11 +123,13 @@ the field, and save the mutation.
 ```apex
 public with sharing class RefreshAccountHealthAsync extends Async {
     public override void execute(Set<Id> ids) {
-        List<Account> accounts = (List<Account>) Query.records([
-            SELECT Id, AnnualRevenue, NumberOfEmployees, Health_Score__c
-            FROM Account
-            WHERE Id IN :ids
-        ]);
+        List<Account> accounts = (List<Account>) Query.records(
+            [
+                SELECT Id, AnnualRevenue, NumberOfEmployees, Health_Score__c
+                FROM Account
+                WHERE Id IN :ids
+            ]
+        );
 
         for (Account account : accounts) {
             account.Health_Score__c = calculateHealth(account);
@@ -135,8 +139,12 @@ public with sharing class RefreshAccountHealthAsync extends Async {
     }
 
     static Decimal calculateHealth(Account account) {
-        Decimal revenue = account.AnnualRevenue == null ? 0 : account.AnnualRevenue;
-        Decimal employees = account.NumberOfEmployees == null ? 0 : account.NumberOfEmployees;
+        Decimal revenue = account.AnnualRevenue == null
+            ? 0
+            : account.AnnualRevenue;
+        Decimal employees = account.NumberOfEmployees == null
+            ? 0
+            : account.NumberOfEmployees;
         return revenue > 1000000 && employees > 50 ? 100 : 50;
     }
 }
@@ -260,12 +268,12 @@ subscriber class.
 By default, the framework processes **5 work items per batch**. Change that per
 subscriber using `Async_Job__mdt`.
 
-| Field | Meaning |
-| --- | --- |
-| `Apex__c` | Exact name of the `Async` subclass, e.g. `RefreshAccountHealthAsync`. |
-| `Batch_Size__c` | How many work items one `execute` call receives. |
-| `Max_Retries__c` | How many times the framework auto-retries a failed item before it stays in `Error`. Blank or `0` means auto-retry is off. |
-| `Priority__c` | Assigned priorities run from lowest to highest within the same framework thread. Blank values mean no priority is assigned and sort last. |
+| Field            | Meaning                                                                                                                                   |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `Apex__c`        | Exact name of the `Async` subclass, e.g. `RefreshAccountHealthAsync`.                                                                     |
+| `Batch_Size__c`  | How many work items one `execute` call receives.                                                                                          |
+| `Max_Retries__c` | How many times the framework auto-retries a failed item before it stays in `Error`. Blank or `0` means auto-retry is off.                 |
+| `Priority__c`    | Assigned priorities run from lowest to highest within the same framework thread. Blank values mean no priority is assigned and sort last. |
 
 For example, a record with `Apex__c = RefreshAccountHealthAsync` and
 `Batch_Size__c = 50` makes each `execute` call receive up to 50 record Ids
@@ -317,11 +325,11 @@ drain in parallel up to the configured soft cap.
 `Async_Settings__c` controls archival cleanup for completed work. These settings
 matter operationally; subscriber classes do not read them directly.
 
-| Field | Meaning |
-| --- | --- |
+| Field                        | Meaning                                                                                                         |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `Archive_Threshold_Hours__c` | How old completed work must be before the archive batch moves it out of `Async__c`. Blank defaults to 24 hours. |
-| `Enable_Archive_Cleanup__c` | Enables cleanup of old `Async_Archive__c` rows after archival runs. |
-| `Max_Archive_Age__c` | How many days archived rows are retained when cleanup is enabled. Blank defaults to 30 days. |
+| `Enable_Archive_Cleanup__c`  | Enables cleanup of old `Async_Archive__c` rows after archival runs.                                             |
+| `Max_Archive_Age__c`         | How many days archived rows are retained when cleanup is enabled. Blank defaults to 30 days.                    |
 
 ## Testing
 
@@ -332,8 +340,11 @@ your job uses, then assert the business mutation.
 ```apex
 @istest
 public with sharing class RefreshAccountHealthAsyncTest {
-    @istest static void testExecute_updatesHealthScores() {
-        List<Account> accounts = (List<Account>) new TestData(Account.sObjectType)
+    @istest
+    static void testExecute_updatesHealthScores() {
+        List<Account> accounts = (List<Account>) new TestData(
+                Account.sObjectType
+            )
             .put(Account.Name, 'Test Account')
             .put(Account.AnnualRevenue, 2000000)
             .put(Account.NumberOfEmployees, 75)
@@ -347,8 +358,16 @@ public with sharing class RefreshAccountHealthAsyncTest {
 
         new RefreshAccountHealthAsync().execute(Pluck.ids(accounts));
 
-        Assert.areEqual(1, dmlMock.updates.size(), 'Expected one account update batch.');
-        Assert.areEqual(3, dmlMock.updates[0].size(), 'Expected every queried account to be updated.');
+        Assert.areEqual(
+            1,
+            dmlMock.updates.size(),
+            'Expected one account update batch.'
+        );
+        Assert.areEqual(
+            3,
+            dmlMock.updates[0].size(),
+            'Expected every queried account to be updated.'
+        );
 
         for (Account account : (List<Account>) dmlMock.updates[0]) {
             Assert.areEqual(
@@ -395,32 +414,32 @@ business code.
 
 ### Job contract
 
-| Member | Signature | Description |
-| --- | --- | --- |
+| Member    | Signature                                  | Description                                                                                                                                     |
+| --------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `execute` | `public virtual void execute(Set<Id> ids)` | Override this in every subscriber. Receives the current batch of record Ids. The base implementation throws if a subclass does not override it. |
 
 ### Static entry points
 
-| Member | Signature | Description |
-| --- | --- | --- |
-| `enqueue` | `public static void enqueue(Type jobType, List<SObject> records)` | Creates tracked work for each record Id plucked from the list. |
-| `enqueue` | `public static void enqueue(Type jobType, Set<Id> recordIds)` | Creates tracked work for each Id. |
-| `stage` | `public static void stage(Type jobType, List<SObject> records)` | Adds record Ids to the current transaction's async work buffer. |
-| `stage` | `public static void stage(Type jobType, Set<Id> recordIds)` | Adds Ids to the current transaction's async work buffer. Duplicate Ids are merged by job type. |
-| `flush` | `public static void flush()` | Creates all buffered work items in one operation, or saves them after the current job finishes when called from inside an `Async` job. |
+| Member    | Signature                                                         | Description                                                                                                                            |
+| --------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `enqueue` | `public static void enqueue(Type jobType, List<SObject> records)` | Creates tracked work for each record Id plucked from the list.                                                                         |
+| `enqueue` | `public static void enqueue(Type jobType, Set<Id> recordIds)`     | Creates tracked work for each Id.                                                                                                      |
+| `stage`   | `public static void stage(Type jobType, List<SObject> records)`   | Adds record Ids to the current transaction's async work buffer.                                                                        |
+| `stage`   | `public static void stage(Type jobType, Set<Id> recordIds)`       | Adds Ids to the current transaction's async work buffer. Duplicate Ids are merged by job type.                                         |
+| `flush`   | `public static void flush()`                                      | Creates all buffered work items in one operation, or saves them after the current job finishes when called from inside an `Async` job. |
 
 ### Metadata and settings
 
-| Artifact | Field | Purpose |
-| --- | --- | --- |
-| `Async_Job__mdt` | `Apex__c` | Exact API name of the `Async` subclass. |
-| `Async_Job__mdt` | `Batch_Size__c` | Number of work items per `execute` call. Defaults to 5 when no record exists. |
-| `Async_Job__mdt` | `Max_Retries__c` | Cap on framework auto-retries. Blank or `0` means auto-retry is off. |
-| `Async_Job__mdt` | `Priority__c` | Assigned priorities run lowest to highest within the same backlog. Blank values leave work unprioritized and sort last. |
-| `Thread_Settings__c` | `Max_Threads__c` | Maximum concurrent framework-managed thread chains. Blank or non-positive values default to 1. |
-| `Async_Settings__c` | `Archive_Threshold_Hours__c` | Age threshold for archiving completed `Async__c` work. Blank defaults to 24. |
-| `Async_Settings__c` | `Enable_Archive_Cleanup__c` | Enables cleanup of old archive rows after archival runs. |
-| `Async_Settings__c` | `Max_Archive_Age__c` | Archive retention in days when cleanup is enabled. Blank defaults to 30. |
+| Artifact             | Field                        | Purpose                                                                                                                 |
+| -------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `Async_Job__mdt`     | `Apex__c`                    | Exact API name of the `Async` subclass.                                                                                 |
+| `Async_Job__mdt`     | `Batch_Size__c`              | Number of work items per `execute` call. Defaults to 5 when no record exists.                                           |
+| `Async_Job__mdt`     | `Max_Retries__c`             | Cap on framework auto-retries. Blank or `0` means auto-retry is off.                                                    |
+| `Async_Job__mdt`     | `Priority__c`                | Assigned priorities run lowest to highest within the same backlog. Blank values leave work unprioritized and sort last. |
+| `Thread_Settings__c` | `Max_Threads__c`             | Maximum concurrent framework-managed thread chains. Blank or non-positive values default to 1.                          |
+| `Async_Settings__c`  | `Archive_Threshold_Hours__c` | Age threshold for archiving completed `Async__c` work. Blank defaults to 24.                                            |
+| `Async_Settings__c`  | `Enable_Archive_Cleanup__c`  | Enables cleanup of old archive rows after archival runs.                                                                |
+| `Async_Settings__c`  | `Max_Archive_Age__c`         | Archive retention in days when cleanup is enabled. Blank defaults to 30.                                                |
 
 ## Notes & Edge Cases
 

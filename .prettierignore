@@ -9,3 +9,5 @@
 .vscode
 
 coverage/
+docs/.astro/
+docs/dist/
