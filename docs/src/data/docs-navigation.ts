@@ -20,22 +20,6 @@ export const navGroups: NavGroup[] = [
     items: [
       { label: 'Overview', href: '/' },
       { label: 'Getting Started', href: '/getting-started' },
-      { label: 'Threading Model', href: '/threading-model' }
-    ]
-  },
-  {
-    label: 'Adoption',
-    items: [
-      { label: 'Why Bedrock', href: '/why-bedrock' },
-      { label: 'Adoption Playbook', href: '/adoption-playbook' },
-      { label: 'Enterprise Readiness', href: '/enterprise-readiness' },
-      { label: 'Common Apex Patterns', href: '/compare-architecture-patterns' }
-    ]
-  },
-  {
-    label: 'Operations',
-    items: [
-      { label: 'Admin Setup & Operations', href: '/admin-setup-operations' },
       { label: 'Bedrock Console', href: '/console' }
     ]
   },
@@ -58,7 +42,6 @@ export const navGroups: NavGroup[] = [
       { label: 'Selector', href: '/selector' },
       { label: 'TriggerHandler', href: '/trigger-handler' },
       { label: 'RecordBuffer', href: '/record-buffer' },
-      { label: 'Thread', href: '/thread' },
       { label: 'Generic', href: '/generic' },
       { label: 'FeatureFlag', href: '/feature-flag' },
       { label: 'PlatformCache', href: '/platform-cache' },
