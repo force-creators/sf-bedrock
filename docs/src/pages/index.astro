@@ -2,197 +2,120 @@
 import DocsLayout from '../layouts/DocsLayout.astro';
 
 const sections = [
-  { label: 'The Problem', href: '#the-problem' },
-  { label: 'Built From Scale Pressure', href: '#proven-at-scale' },
+  { label: 'Why Bedrock', href: '#why-bedrock' },
   { label: 'The Headliners', href: '#the-headliners' },
-  { label: 'Durable Events', href: '#durable-events' },
   { label: 'The Full Toolkit', href: '#the-full-toolkit' },
-  { label: 'Designed in Layers', href: '#designed-in-layers' },
+  { label: 'How It Fits', href: '#how-it-fits' },
   { label: 'Built to Grow', href: '#built-to-grow' },
   { label: 'Start Building', href: '#start-building' }
 ];
 ---
 
 <DocsLayout
-  title="sf-bedrock — enterprise Apex that stays readable"
-  description="sf-bedrock is a Salesforce architecture toolkit: multithreaded Async Apex, untyped-JSON handling, database-free tests, and dependency injection for enterprise automation."
+  title="sf-bedrock - enterprise Apex that stays readable"
+  description="sf-bedrock is a Salesforce architecture toolkit: framework-level Async, EventRelay, Scheduler, and REST patterns backed by small testable Apex tools."
   eyebrow="Salesforce Architecture Toolkit"
   sections={sections}
 >
   <Fragment slot="header">
-    <h1>Apex that scales without the ceremony.</h1>
+    <h1>Enterprise Apex frameworks, without framework fog.</h1>
     <p class="lede">
-      sf-bedrock is a foundation for enterprise Apex: multithreaded background
-      work, durable event publication and processing, setup-object-safe async
-      chaining, database-free unit tests, and dependency injection that keeps
-      production code direct. It protects high-volume orgs without making
-      everyday work heavy.
+      sf-bedrock gives Salesforce teams a small set of readable frameworks for
+      background work, durable events, recurring jobs, and routed REST APIs.
+      Around them is a practical toolkit for fast tests, clean data seams, and
+      platform-safe automation.
     </p>
     <div class="pill-row" style="margin-top: 1.25rem;">
-      <span class="pill">Multithreaded Async Apex</span>
-      <span class="pill">Durable Events</span>
-      <span class="pill">Setup-Object Safe</span>
-      <span class="pill">Tame Untyped JSON</span>
+      <span class="pill">Async</span>
+      <span class="pill">EventRelay</span>
+      <span class="pill">Scheduler</span>
+      <span class="pill">REST</span>
+      <span class="pill">Database-Free Tests</span>
       <span class="pill">Dependency Injection</span>
-      <span class="pill">Human-Maintainable</span>
     </div>
     <div class="pill-row" style="margin-top: 1.5rem; gap: 0.6rem;">
       <a class="button button-primary" href="/getting-started">Get Started</a>
-      <a class="button button-secondary" href="/async">Explore Reference</a>
+      <a class="button button-secondary" href="/async">Explore Async</a>
     </div>
   </Fragment>
 
-  <section class="doc-section" id="the-problem">
-    <h2>The Problem</h2>
+  <section class="doc-section" id="why-bedrock">
+    <h2>Why Bedrock</h2>
     <p>
-      Enterprise Salesforce usually forces a trade. On one side, heavy frameworks
-      make code testable but obscure. On the other, lean code reads well until the
-      test suite grinds against the database, or the first big data volume breaks
-      a trigger. Bedrock takes neither side. It is a small set of focused tools and
-      dependency-injection seams that keep production code direct, keep tests
-      fast, and keep automation inside platform limits. It does all of that
-      without rewriting how your team already works.
+      Enterprise Salesforce code needs structure, but structure should not bury
+      the business logic. Bedrock separates the big repeatable platform problems
+      into frameworks, then keeps the day-to-day helpers small enough to adopt
+      one at a time.
     </p>
     <div class="doc-grid">
       <article class="doc-card">
-        <h3>Tests without a database</h3>
+        <h3>Frameworks for platform pressure</h3>
         <p>
-          Mock DML, consumed query results, and cache so unit tests avoid
-          database setup. Suites that took minutes finish in seconds.
+          Use shared patterns for async work, events, schedules, and APIs
+          instead of rebuilding platform edge-case handling in every service.
         </p>
       </article>
       <article class="doc-card">
-        <h3>Designed for volume</h3>
+        <h3>Tools for everyday code</h3>
         <p>
-          Tracked background work, configurable batches, grouped writes, and
-          recursion-minded triggers for orgs that live close to platform limits.
+          Keep records, queries, DML, cache, flags, and trigger flow testable
+          without dragging heavy ceremony into production classes.
         </p>
       </article>
       <article class="doc-card">
-        <h3>Readable by humans</h3>
+        <h3>Tests that stay fast</h3>
         <p>
-          Minimalist, low-ceremony Apex. The seams live in your tests, not
-          tangled through your business logic.
+          Mock reads, writes, cache, limits, and scheduled or async boundaries
+          so unit tests prove behavior without slow database setup.
         </p>
       </article>
       <article class="doc-card">
-        <h3>Composable, not monolithic</h3>
+        <h3>Apex humans can maintain</h3>
         <p>
-          Adopt one tool or all of them. Each stands on its own and composes with
-          the rest — none takes over your architecture.
+          Bedrock favors linear, low-ceremony code. The seams are explicit, the
+          names are plain, and each layer has a job.
         </p>
       </article>
     </div>
-  </section>
-
-  <section class="doc-section" id="proven-at-scale">
-    <h2>Built From Scale Pressure</h2>
-    <p>
-      These patterns come from real enterprise Salesforce pressure: large data
-      volume, busy automation, strict deploy windows, and teams that need tests
-      they can trust. Recursive triggers, Queueables colliding inside trigger
-      paths, and tests that depend on org data are not rare problems in that
-      world. Bedrock packages the parts that proved useful under that pressure.
-    </p>
-    <div class="callout">
-      <strong>Developer-first, by design</strong>
-      <p>
-        The goal is automation that protects the org and still makes sense to the
-        people who own it. Every abstraction earns its place — if it makes
-        everyday work heavier, it does not ship.
-      </p>
-    </div>
-    <ul class="token-list">
-      <li>
-        <strong>Shaped by scale</strong>
-        <span>Designed around large data volume, unforgiving automation, and platform limits.</span>
-      </li>
-      <li>
-        <strong>Tests that mean something</strong>
-        <span>Assertions prove real behavior and mutations, not just coverage.</span>
-      </li>
-      <li>
-        <strong>Org-protective</strong>
-        <span>Designed to stay inside platform limits, not race against them.</span>
-      </li>
-    </ul>
   </section>
 
   <section class="doc-section" id="the-headliners">
     <h2>The Headliners</h2>
     <p>
-      Four tools carry most of Bedrock's day-to-day value. Start here — each is
-      documented with the contract, real examples, and the testing path.
+      These are Bedrock's framework-level entry points. Start here when you are
+      solving a whole platform shape, not just cleaning up a single line of Apex.
     </p>
     <div class="doc-grid">
       <article class="doc-card">
         <h3><a href="/async">Async</a></h3>
         <p>
-          Hand the framework record Ids and it drains them in tracked,
-          governor-safe batches with visible success, retry, and error state.
-          Per-job metadata tunes batch size, bounded auto-retry, and priority,
-          while hierarchical thread settings unlock multithreaded throughput
-          when one straight-line chain is not enough.
+          Record-driven background work with tracked status, tuned batches,
+          bounded retry, priority, staging, and multithreaded throughput when a
+          straight Queueable chain is not enough.
         </p>
       </article>
       <article class="doc-card">
-        <h3><a href="/generic">Generic</a></h3>
+        <h3><a href="/event-relay">EventRelay</a></h3>
         <p>
-          Tame untyped JSON and integration payloads: read and write deeply
-          nested values by path, coerce them to the Apex type you ask for, and
-          convert cleanly to a typed SObject. No tree of manual casts and
-          <code>containsKey</code> checks.
+          Durable Platform Event publication and ingestion. Payloads become
+          tracked work items, lanes preserve order, and handlers or publishers
+          can retry without hiding failures in trigger transactions.
         </p>
       </article>
       <article class="doc-card">
-        <h3><a href="/test-data">TestData</a></h3>
+        <h3><a href="/scheduler">Scheduler</a></h3>
         <p>
-          A fluent builder for in-memory records — including fields the normal
-          constructor rejects, like formula, audit, and Id fields. Realistic test
-          data with mock Ids and parent relationships, with zero DML or setup
-          bloat.
+          One fixed heartbeat drives metadata-configured logical jobs, keeping
+          recurring Apex work visible without spending scheduled-job slots on
+          every task.
         </p>
       </article>
       <article class="doc-card">
-        <h3><a href="/dml">Dependency Injection</a></h3>
+        <h3><a href="/rest">REST</a></h3>
         <p>
-          Route every write through <a href="/dml">DML</a> and every read through
-          <a href="/query">Query</a>. Production runs the real thing. Tests swap
-          in a mock and assert exactly what would have been written or read — no
-          database, no <code>SeeAllData</code>.
-        </p>
-      </article>
-    </div>
-  </section>
-
-  <section class="doc-section" id="durable-events">
-    <h2>Durable Events</h2>
-    <p>
-      Events are now first-class in Bedrock. <a href="/event-relay">EventRelay</a>
-      makes Platform Event publication and inbound processing durable: every
-      payload becomes a tracked <code>Event__c</code> work item that drains
-      through ordered lanes, with the same visible status, bounded auto-retry,
-      and background safety as Async — instead of fire-and-forget
-      <code>EventBus.publish</code> calls and silent trigger failures.
-    </p>
-    <div class="doc-grid">
-      <article class="doc-card">
-        <h3>Durable publication</h3>
-        <p>
-          Publish Platform Events or generic payloads through the relay. Each
-          payload is stored, placed on an ordered lane, and delivered in the
-          background — with custom publishers, <code>stage</code>/<code>flush</code>
-          coordination across services, and intake-level idempotency when you
-          need it.
-        </p>
-      </article>
-      <article class="doc-card">
-        <h3>Reliable ingestion</h3>
-        <p>
-          Turn an inbound Platform Event trigger into one line. EventRelay
-          persists the payload and runs your <code>EventRelay.Handler</code>
-          later, preserving FIFO lane order with item-level success or failure
-          and route-configured automatic retry.
+          A versioned Apex REST gateway that routes metadata-configured endpoint
+          roots into focused classes, with request context parsing and a testable
+          endpoint surface.
         </p>
       </article>
     </div>
@@ -201,104 +124,139 @@ const sections = [
   <section class="doc-section" id="the-full-toolkit">
     <h2>The Full Toolkit</h2>
     <p>
-      Around the headliners sits a focused supporting cast — each one small,
-      single-purpose, and testable.
+      The rest of Bedrock supports those frameworks and improves normal Apex
+      service code. Each tool is deliberately narrow, mockable, and useful on
+      its own.
     </p>
     <ul class="token-list">
       <li>
+        <strong><a href="/test-data">TestData</a></strong>
+        <span>Build realistic in-memory SObjects, including Ids, formulas, audit fields, and parent relationships.</span>
+      </li>
+      <li>
+        <strong><a href="/dml">DML</a> / <a href="/query">Query</a></strong>
+        <span>Route writes and reads through small seams so tests can assert behavior without touching the database.</span>
+      </li>
+      <li>
         <strong><a href="/selector">Selector</a></strong>
-        <span>Reusable Id-based query classes with transaction caching and contract-versioned Platform Cache keys.</span>
-      </li>
-      <li>
-        <strong><a href="/platform-cache">PlatformCache</a></strong>
-        <span>Org and session Platform Cache behind a mockable seam — the part of the platform that is notoriously hard to test, finally testable.</span>
-      </li>
-      <li>
-        <strong><a href="/record-buffer">RecordBuffer</a></strong>
-        <span>Stage inserts and updates across a transaction, then flush grouped, deduplicated upserts at a controlled point.</span>
+        <span>Reusable Id-based data access with transaction caching and cache-key discipline.</span>
       </li>
       <li>
         <strong><a href="/trigger-handler">TriggerHandler</a></strong>
-        <span>Context detection and dispatch handled; you override only the before/after hooks that matter.</span>
+        <span>Centralize trigger context dispatch so domain hooks stay focused on lifecycle behavior.</span>
+      </li>
+      <li>
+        <strong><a href="/record-buffer">RecordBuffer</a></strong>
+        <span>Stage records across a transaction, then flush grouped inserts and updates at a controlled point.</span>
+      </li>
+      <li>
+        <strong><a href="/generic">Generic</a></strong>
+        <span>Read, write, coerce, and map deeply nested untyped JSON without a maze of casts and key checks.</span>
       </li>
       <li>
         <strong><a href="/feature-flag">FeatureFlag</a></strong>
-        <span>Metadata-driven toggles that fail closed, with one-line overrides for tests.</span>
+        <span>Metadata-driven toggles that fail closed and remain easy to override in tests.</span>
+      </li>
+      <li>
+        <strong><a href="/platform-cache">PlatformCache</a></strong>
+        <span>Use org and session cache through a mockable wrapper instead of binding tests to platform cache behavior.</span>
+      </li>
+      <li>
+        <strong><a href="/limiter">Limiter</a></strong>
+        <span>Guard work with named limits and a mockable contract for tests that need to prove throttling behavior.</span>
       </li>
       <li>
         <strong><a href="/pluck">Pluck</a></strong>
-        <span>Turn a list of records into a deduped <code>Set&lt;Id&gt;</code> in one call — the small helper that feeds list-driven APIs like Async.</span>
+        <span>Turn record lists into deduped Id sets that feed list-driven services and framework APIs.</span>
       </li>
     </ul>
   </section>
 
-  <section class="doc-section" id="designed-in-layers">
-    <h2>Designed in Layers</h2>
+  <section class="doc-section" id="how-it-fits">
+    <h2>How It Fits</h2>
     <p>
-      Separation of concerns is the organizing principle. Bedrock gives each
-      layer a home so logic stops leaking across boundaries — and so the next
-      engineer can find it where they expect.
+      Bedrock works best when each layer owns a clear kind of responsibility.
+      The frameworks coordinate platform behavior. The tools keep the code
+      inside those layers readable, replaceable, and easy to test.
     </p>
-    <ul class="token-list">
-      <li>
-        <strong>Schema</strong>
-        <span>SObjects, metadata, and settings that define the system's shape.</span>
-      </li>
-      <li>
-        <strong>Domain</strong>
-        <span>Triggers and record lifecycle behavior, coordinated by small handlers.</span>
-      </li>
-      <li>
-        <strong><a href="/selector">Selector</a></strong>
-        <span>Reusable query boundaries for Id-based reads, with transaction and Platform Cache reuse.</span>
-      </li>
-      <li>
-        <strong>Service</strong>
-        <span>Cross-record orchestration and the business behavior that matters.</span>
-      </li>
-      <li>
-        <strong>UI Layer</strong>
-        <span>Components and thin controllers that adapt to the glass and delegate complexity to services.</span>
-      </li>
-    </ul>
+    <div class="doc-grid">
+      <article class="doc-card">
+        <h3>Domain</h3>
+        <p>
+          Triggers and record lifecycle automation stay thin with
+          <a href="/trigger-handler">TriggerHandler</a>,
+          <a href="/record-buffer">RecordBuffer</a>, and list helpers such as
+          <a href="/pluck">Pluck</a>.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3>Service</h3>
+        <p>
+          Business services coordinate work through <a href="/dml">DML</a>,
+          <a href="/query">Query</a>, feature flags, cache, and the framework
+          that matches the platform problem.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3>Operations</h3>
+        <p>
+          <a href="/async">Async</a>, <a href="/event-relay">EventRelay</a>,
+          and <a href="/scheduler">Scheduler</a> make background work visible
+          enough to tune, retry, and support.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3>Interface</h3>
+        <p>
+          <a href="/rest">REST</a> keeps API routing in one gateway, while UI
+          controllers and endpoint classes stay focused on adapting requests to
+          services.
+        </p>
+      </article>
+    </div>
   </section>
 
   <section class="doc-section" id="built-to-grow">
     <h2>Built to Grow</h2>
     <p>
-      The foundation ships today. The roadmap extends the same approach into
-      REST patterns, data services, and shared async
-      services - delivered one deliberate, inspectable piece at a time.
+      Bedrock grows by turning proven repeatable patterns into small,
+      inspectable libraries. The current framework set covers background work,
+      events, scheduled jobs, and REST APIs. The roadmap extends the same
+      approach into data services only when the source and metadata are ready.
     </p>
-    <div class="pill-row">
-      <span class="pill">REST</span>
-      <span class="pill">Data</span>
+    <div class="callout">
+      <strong>Adopt by pressure, not by checklist</strong>
+      <p>
+        Pick the framework or tool that matches the problem in front of you.
+        Bedrock is a toolkit, not a mandate to replace every pattern at once.
+      </p>
     </div>
-    <p style="margin-top: 1rem;">
-      The direction is simple: keep work linear, make limits visible, and add
-      shared services only when they make daily development safer.
-    </p>
+    <div class="pill-row">
+      <span class="pill">Implemented Frameworks</span>
+      <span class="pill">Composable Tools</span>
+      <span class="pill">Data Roadmap</span>
+    </div>
   </section>
 
   <section class="doc-section" id="start-building">
     <h2>Start Building</h2>
     <p>
-      Stand up the docs locally, then start with the testing foundation —
-      <code>TestData</code>, <code>DML</code>, and <code>Query</code> — and feel
-      how fast a Bedrock test suite runs. When you are ready to move real volume,
-      reach for multithreaded <code>Async</code>.
+      If you are evaluating Bedrock, begin with the testing foundation:
+      <code>TestData</code>, <code>DML</code>, and <code>Query</code>. Once
+      those seams feel natural, reach for the framework that matches your next
+      platform problem.
     </p>
     <div class="utility-panel">
       <div>
         <h3>Ready in minutes</h3>
         <p>
-          Begin with the getting-started guide, or jump straight into the API
-          that anchors every Bedrock test.
+          Start with the onboarding guide, then jump into Async when you want to
+          see the full framework shape.
         </p>
       </div>
       <div class="pill-row" style="gap: 0.6rem;">
         <a class="button button-primary" href="/getting-started">Getting Started</a>
-        <a class="button button-secondary" href="/test-data">TestData API</a>
+        <a class="button button-secondary" href="/async">Async Framework</a>
       </div>
     </div>
   </section>
