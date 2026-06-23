@@ -7,10 +7,6 @@
       "default": true,
       "package": "sf-bedrock",
       "versionDescription": ""
-    },
-    {
-      "path": "force-app/main/default",
-      "default": false
     }
   ],
   "name": "sf-bedrock",
