@@ -2,45 +2,76 @@
 import DocsLayout from '../layouts/DocsLayout.astro';
 import { Code } from 'astro:components';
 
+const packageInstallUrl = 'https://login.salesforce.com/packaging/installPackage.apexp?p0=04tfj000000L117AAC';
+const repositoryUrl = 'https://github.com/force-creators/sf-bedrock';
+
 const installSource = `force-app/bedrock/lib`;
 
 const installConsole = `force-app/bedrock/console-app`;
 
+const cloneCommand = `git clone https://github.com/force-creators/sf-bedrock.git`;
+
 const sections = [
+  { label: 'Choose a Path', href: '#choose-a-path' },
   { label: 'Start Small', href: '#start-small' },
-  { label: 'First Tools', href: '#first-three-tools' },
-  { label: 'Move Work Safely', href: '#move-work-safely' },
-  { label: 'Operational Visibility', href: '#operational-visibility' },
-  { label: 'Validation', href: '#validation' }
+  { label: 'First Tools', href: '#first-tools' },
+  { label: 'Explore Frameworks', href: '#explore-frameworks' },
+  { label: 'Operations', href: '#operations' }
 ];
 ---
 
 <DocsLayout
   title="Getting Started | sf-bedrock docs"
-  description="Start building with sf-bedrock by adopting the testing foundation first, then adding async and scheduler patterns where they solve real platform problems."
+  description="Start building with sf-bedrock by installing the unlocked package or cloning the source, then adopting the smallest useful tools before the larger frameworks."
   eyebrow="Start"
   sections={sections}
 >
   <Fragment slot="header">
-    <h1>Start with the seams your tests need.</h1>
-    <p class="lede">
-      Bedrock works best when it disappears into ordinary Apex. Add the small
-      pieces first, prove the pattern in tests, then bring in the heavier tools
-      when volume or operations demand them.
-    </p>
+    <div class="home-hero">
+      <h1>Bring Bedrock into Salesforce, then take one small bite.</h1>
+      <p class="lede">
+        Install the unlocked package when you want the fastest path into an org.
+        Clone the source when you want to inspect, extend, or contribute. Either
+        way, start with the tiny tools that make ordinary Apex easier to test.
+      </p>
+    </div>
   </Fragment>
+
+  <section class="doc-section" id="choose-a-path">
+    <h2>Choose a Path</h2>
+    <div class="doc-grid">
+      <article class="doc-card">
+        <h3><a href={packageInstallUrl}>Install the unlocked package</a></h3>
+        <p>
+          Use this path when you want Bedrock available in a Salesforce org
+          without cloning or deploying source yourself.
+        </p>
+      </article>
+      <article class="doc-card">
+        <h3><a href={repositoryUrl}>Clone the repository</a></h3>
+        <p>
+          Use this path when you want the source locally for review,
+          customization, contribution, or source-driven deployment.
+        </p>
+      </article>
+    </div>
+    <p>
+      If you clone the repository, the implemented Apex library source lives in:
+    </p>
+    <Code code={installSource} lang="text" />
+    <p>
+      A fresh checkout starts with:
+    </p>
+    <Code code={cloneCommand} lang="bash" />
+  </section>
 
   <section class="doc-section" id="start-small">
     <h2>Start Small</h2>
     <p>
-      The framework source lives here:
-    </p>
-    <Code code={installSource} lang="text" />
-    <p>
-      You do not need to adopt every library at once. Most teams start by routing
-      service-layer reads and writes through <code>Query</code> and
-      <code>DML</code>, then use <code>TestData</code> to build realistic records
-      without setup bloat.
+      You do not need to adopt the whole toolkit at once. Pick one service, one
+      test, and one small seam. Most teams begin by routing service-layer reads
+      and writes through <code>Query</code> and <code>DML</code>, then use
+      <code>TestData</code> to build records without setup bloat.
     </p>
     <div class="callout">
       <strong>The goal is boring production code</strong>
@@ -52,7 +83,7 @@ const sections = [
     </div>
   </section>
 
-  <section class="doc-section" id="first-three-tools">
+  <section class="doc-section" id="first-tools">
     <h2>First Tools</h2>
     <div class="doc-grid">
       <article class="doc-card">
@@ -77,10 +108,10 @@ const sections = [
         </p>
       </article>
       <article class="doc-card">
-        <h3><a href="/platform-cache">PlatformCache</a></h3>
+        <h3><a href="/pluck">Pluck</a></h3>
         <p>
-          Put org and session cache behind a mockable seam when cache-backed code
-          needs real assertions.
+          Turn record lists into deduped Id sets for list-driven services and
+          framework APIs.
         </p>
       </article>
     </div>
@@ -96,11 +127,12 @@ const sections = [
     </div>
   </section>
 
-  <section class="doc-section" id="move-work-safely">
-    <h2>Move Work Safely</h2>
+  <section class="doc-section" id="explore-frameworks">
+    <h2>Explore Frameworks</h2>
     <p>
-      Once your service layer has clean seams, use the automation tools where the
-      platform starts pushing back.
+      Once the small seams feel natural, reach for a framework when the platform
+      problem itself needs structure. These tools are heavier because they own
+      lifecycle, coordination, or operational behavior.
     </p>
     <ul class="token-list">
       <li>
@@ -116,14 +148,22 @@ const sections = [
         <span>Process record Ids in tracked background batches instead of burning Queueable slots.</span>
       </li>
       <li>
+        <strong><a href="/event-relay">EventRelay</a></strong>
+        <span>Publish and consume Platform Events as durable, tracked work.</span>
+      </li>
+      <li>
         <strong><a href="/scheduler">Scheduler</a></strong>
         <span>Run recurring jobs from metadata without consuming one scheduled Apex slot per logical job.</span>
+      </li>
+      <li>
+        <strong><a href="/rest">REST</a></strong>
+        <span>Route versioned Apex REST endpoints through focused, testable handlers.</span>
       </li>
     </ul>
   </section>
 
-  <section class="doc-section" id="operational-visibility">
-    <h2>Operational Visibility</h2>
+  <section class="doc-section" id="operations">
+    <h2>Operations</h2>
     <p>
       The optional Bedrock Console lives here:
     </p>
@@ -137,18 +177,9 @@ const sections = [
       Read the short <a href="/console">Bedrock Console</a> page when you are
       ready to give admins and developers an operations window.
     </p>
-  </section>
-
-  <section class="doc-section" id="validation">
-    <h2>Validation</h2>
     <p>
-      Deploy the library source you use, then run the smallest tests that prove
-      the behavior you changed. For new code, prefer focused tests that assert
-      mutations, DML calls, query results, or async work records.
-    </p>
-    <p>
-      Keep the first adoption boring: one service, one test, one clear win. Then
-      repeat.
+      For source-driven adoption, deploy only the library source you use first,
+      then add the console when your team wants Salesforce-facing visibility.
     </p>
   </section>
 </DocsLayout>
