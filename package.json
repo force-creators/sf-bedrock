@@ -1,7 +1,7 @@
 {
   "name": "salesforce-app",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0+3",
   "license": "MPL-2.0",
   "description": "Salesforce App",
   "scripts": {
@@ -41,7 +41,12 @@
       "eslint"
     ],
     "**/lwc/**": [
-        "sfdx-lwc-jest -- --bail --findRelatedTests --passWithNoTests"
+      "sfdx-lwc-jest -- --bail --findRelatedTests --passWithNoTests"
     ]
+  },
+  "sfPackage": {
+    "version": "0.1.0.3",
+    "subscriberPackageVersionId": "04tfj000000L19BAAS",
+    "installUrl": "https://login.salesforce.com/packaging/installPackage.apexp?p0=04tfj000000L19BAAS"
   }
 }
