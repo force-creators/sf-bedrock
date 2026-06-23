@@ -7,8 +7,6 @@ on:
     paths:
       - "force-app/**"
       - "sfdx-project.json"
-      - "package.json"
-      - "package-lock.json"
       - ".github/workflows/package.yml"
   workflow_dispatch:
     inputs:
@@ -29,7 +27,7 @@ jobs:
     environment: main
 
     permissions:
-      contents: read
+      contents: write
 
     env:
       SF_PACKAGE: ${{ vars.SF_PACKAGE_ID || 'sf-bedrock' }}
@@ -79,18 +77,25 @@ jobs:
           fi
 
           subscriber_package_version_id="$(jq -r '.result.SubscriberPackageVersionId' package-version.json)"
-          package_version_id="$(jq -r '.result.PackageVersionId' package-version.json)"
+          package_version_id="$(jq -r '.result.Package2VersionId // .result.PackageVersionId' package-version.json)"
+          version_number="$(jq -r '.result.VersionNumber' package-version.json)"
+          package_json_version="$(node -e "const version = process.argv[1]; const parts = version.split('.'); console.log(parts.length === 4 ? parts.slice(0, 3).join('.') + '+' + parts[3] : version);" "$version_number")"
           install_url="https://login.salesforce.com/packaging/installPackage.apexp?p0=$subscriber_package_version_id"
 
           echo "subscriber-package-version-id=$subscriber_package_version_id" >> "$GITHUB_OUTPUT"
           echo "package-version-id=$package_version_id" >> "$GITHUB_OUTPUT"
+          echo "version-number=$version_number" >> "$GITHUB_OUTPUT"
+          echo "package-json-version=$package_json_version" >> "$GITHUB_OUTPUT"
           echo "install-url=$install_url" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Package Install URL::$install_url"
 
           {
             echo "## Package version"
             echo
             echo "[Install sf-bedrock package]($install_url)"
             echo
+            echo "- Version: \`$version_number\`"
+            echo "- package.json Version: \`$package_json_version\`"
             echo "- Subscriber Package Version Id: \`$subscriber_package_version_id\`"
             echo "- Package Version Id: \`$package_version_id\`"
             echo "- Install URL: $install_url"
@@ -98,7 +103,65 @@ jobs:
             echo "\`\`\`bash"
             echo "sf package install --package $subscriber_package_version_id --target-org sf-bedrock --security-type AdminsOnly --apex-compile package --publish-wait 10 --wait 10 --no-prompt"
             echo "\`\`\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Sync package.json version
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          npm pkg set version="${{ steps.package.outputs.package-json-version }}"
+          npm pkg set sfPackage.version="${{ steps.package.outputs.version-number }}"
+          npm pkg set sfPackage.subscriberPackageVersionId="${{ steps.package.outputs.subscriber-package-version-id }}"
+          npm pkg set sfPackage.installUrl="${{ steps.package.outputs.install-url }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json
+
+          if git diff --cached --quiet; then
+            echo "package.json already matches ${{ steps.package.outputs.version-number }}"
+            exit 0
+          fi
+
+          git commit -m "chore: release ${{ steps.package.outputs.version-number }} [skip ci]"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag_name="v${{ steps.package.outputs.version-number }}"
+          install_url="${{ steps.package.outputs.install-url }}"
+          subscriber_package_version_id="${{ steps.package.outputs.subscriber-package-version-id }}"
+          package_version_id="${{ steps.package.outputs.package-version-id }}"
+          version_number="${{ steps.package.outputs.version-number }}"
+          package_json_version="${{ steps.package.outputs.package-json-version }}"
+
+          cat > release-notes.md <<EOF
+          ## Package version
+
+          [Install sf-bedrock package]($install_url)
+
+          - Version: \`$version_number\`
+          - package.json Version: \`$package_json_version\`
+          - Subscriber Package Version Id: \`$subscriber_package_version_id\`
+          - Package Version Id: \`$package_version_id\`
+          - Install URL: $install_url
+
+          \`\`\`bash
+          sf package install --package $subscriber_package_version_id --target-org sf-bedrock --security-type AdminsOnly --apex-compile package --publish-wait 10 --wait 10 --no-prompt
+          \`\`\`
+          EOF
+
+          if gh release view "$tag_name" >/dev/null 2>&1; then
+            gh release edit "$tag_name" \
+              --title "sf-bedrock $version_number" \
+              --notes-file release-notes.md
+          else
+            gh release create "$tag_name" \
+              --target "$(git rev-parse HEAD)" \
+              --title "sf-bedrock $version_number" \
+              --notes-file release-notes.md
+          fi
 
       - name: Promote package version
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.promote }}

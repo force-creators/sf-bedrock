@@ -1,651 +1,799 @@
+/*
+ * sf-bedrock: https://sfbedrock.com
+ * Copyright 2026 Matthew Swing-McKenzie and Force Creators
+ * SPDX-License-Identifier: MPL-2.0
+ * License: https://mozilla.org/MPL/2.0/
+ */
+
 public virtual with sharing class Async implements Queueable, Database.AllowsCallouts {
-    public static Constants consts = new Constants();
-    public static JobService jobs = new JobService();
-    public static WorkService work = new WorkService();
-    public static QueryService queries = new QueryService();
-    public static MetadataService metadata = new MetadataService();
-    public static SettingsService settings = new SettingsService();
+  public static Constants consts = new Constants();
+  public static JobService jobs = new JobService();
+  public static WorkService work = new WorkService();
+  public static QueryService queries = new QueryService();
+  public static MetadataService metadata = new MetadataService();
+  public static SettingsService settings = new SettingsService();
 
-    @testVisible static void setMock(AsyncMock mock) {
-        jobs = mock.jobs;
-        work = mock.work;
-        queries = mock.queries;
-        metadata = mock.metadata;
-        settings = mock.settings;
-        Thread.setMock(mock.threads);
+  @testVisible
+  static void setMock(AsyncMock mock) {
+    jobs = mock.jobs;
+    work = mock.work;
+    queries = mock.queries;
+    metadata = mock.metadata;
+    settings = mock.settings;
+    Thread.setMock(mock.threads);
+  }
+
+  public static void enqueue(Type jobType, List<SObject> records) {
+    enqueue(jobType, Pluck.ids(records));
+  }
+  public static void enqueue(Type jobType, Set<Id> recordIds) {
+    work.create(jobType, recordIds);
+  }
+  public static void stage(Type jobType, List<SObject> records) {
+    stage(jobType, Pluck.ids(records));
+  }
+  public static void stage(Type jobType, Set<Id> recordIds) {
+    work.stage(jobType, recordIds);
+  }
+  public static void flush() {
+    work.flush();
+  }
+
+  public Id threadId;
+  public Integer failures = 0;
+  public Set<Id> recordIds = new Set<Id>();
+  public Set<Id> workItemIds = new Set<Id>();
+  public String runKey;
+
+  public void setWork(Id threadId, Set<Id> workItemIds) {
+    this.setWork(threadId, workItemIds, 0);
+  }
+
+  public void setWork(Id threadId, Set<Id> workItemIds, Integer failures) {
+    this.setWork(
+      threadId,
+      workItemIds,
+      failures,
+      Thread.service.currentRunKey(threadId)
+    );
+  }
+
+  public void setWork(
+    Id threadId,
+    Set<Id> workItemIds,
+    Integer failures,
+    String runKey
+  ) {
+    this.threadId = threadId;
+    this.workItemIds = workItemIds;
+    this.failures = failures == null ? 0 : failures;
+    this.runKey = runKey;
+  }
+
+  public void enqueue() {
+    System.enqueueJob(this);
+  }
+
+  public virtual void execute(Set<Id> ids) {
+    throw new AsyncException(
+      'Async subclasses must override execute(Set<Id>).'
+    );
+  }
+
+  public void complete(Id recordId) {
+    if (jobs.watcher == null) {
+      throw new AsyncException(
+        'Async.complete can only be called while async work is running.'
+      );
+    }
+    jobs.watcher.complete(recordId);
+  }
+
+  public void fail(Id recordId, String message) {
+    if (jobs.watcher == null) {
+      throw new AsyncException(
+        'Async.fail can only be called while async work is running.'
+      );
+    }
+    jobs.watcher.fail(recordId, message);
+  }
+
+  public void execute(QueueableContext context) {
+    Thread.setCurrent(this.threadId);
+    JobWatcher watcher = jobs.watch(
+      this.threadId,
+      this.workItemIds,
+      this.failures,
+      this.runKey
+    );
+    jobs.attachFinalizer(watcher);
+
+    this.execute(this.getRecordIds());
+  }
+
+  Set<Id> getRecordIds() {
+    List<Async__c> workItems = queries.getWorkItemsById(this.workItemIds);
+    if (jobs.watcher != null)
+      jobs.watcher.track(workItems);
+    for (Async__c workItem : workItems) {
+      this.recordIds.add(workItem.Record_Id__c);
+    }
+    return this.recordIds;
+  }
+
+  public virtual with sharing class JobService {
+    public boolean hasEnqueued = false;
+    @testVisible
+    JobWatcher watcher;
+    @testVisible
+    Boolean isFinalizer = false;
+    @testVisible
+    Integer restartLimit = 4;
+
+    public virtual void enqueue() {
+      Thread.enqueue();
+      this.hasEnqueued = true;
     }
 
-    public static void enqueue(Type jobType, List<SObject> records) { 
-        enqueue(jobType, Pluck.ids(records));
-    }
-    public static void enqueue(Type jobType, Set<Id> recordIds) { 
-        work.create(jobType, recordIds);
-    }
-    public static void stage(Type jobType, List<SObject> records) {
-        stage(jobType, Pluck.ids(records));
-    }
-    public static void stage(Type jobType, Set<Id> recordIds) {
-        work.stage(jobType, recordIds);
-    }
-    public static void flush() {
-        work.flush();
+    public virtual void enqueue(List<Async__c> workItems) {
+      if (
+        Thread.currentId() == null &&
+        workItems != null &&
+        !workItems.isEmpty()
+      ) {
+        Thread.setCurrent((Id) workItems[0].get('Thread__c'));
+      }
+      this.enqueue();
     }
 
-    public Id threadId;
-    public Integer failures = 0;
-    public Set<Id> recordIds = new Set<Id>();
-    public Set<Id> workItemIds = new Set<Id>();
-    public String runKey;
-
-    public void setWork(Id threadId, Set<Id> workItemIds) {
-        this.setWork(threadId, workItemIds, 0);
+    public virtual JobWatcher watch(Id threadId, Set<Id> workItemIds) {
+      return this.watch(threadId, workItemIds, 0);
     }
 
-    public void setWork(Id threadId, Set<Id> workItemIds, Integer failures) {
-        this.setWork(threadId, workItemIds, failures, Thread.service.currentRunKey(threadId));
+    public virtual JobWatcher watch(
+      Id threadId,
+      Set<Id> workItemIds,
+      Integer failures
+    ) {
+      return this.watch(
+        threadId,
+        workItemIds,
+        failures,
+        Thread.service.currentRunKey(threadId)
+      );
     }
 
-    public void setWork(Id threadId, Set<Id> workItemIds, Integer failures, String runKey) {
-        this.threadId = threadId;
-        this.workItemIds = workItemIds;
-        this.failures = failures == null ? 0 : failures;
-        this.runKey = runKey;
+    public virtual JobWatcher watch(
+      Id threadId,
+      Set<Id> workItemIds,
+      Integer failures,
+      String runKey
+    ) {
+      this.watcher = new JobWatcher(threadId, workItemIds, failures, runKey);
+      return this.watcher;
     }
 
-    public void enqueue() {
-        System.enqueueJob(this);
+    public virtual Boolean isRunningThread() {
+      return Thread.currentId() != null;
     }
 
-    public virtual void execute(Set<Id> ids) {
-        throw new AsyncException('Async subclasses must override execute(Set<Id>).');
+    public virtual void startThread() {
+      this.startThread(0);
+    }
+
+    public virtual void startThread(Integer failures) {
+      Thread.service.start(Thread.currentId(), failures);
+    }
+
+    public virtual void attachFinalizer(Finalizer finalizer) {
+      System.attachFinalizer(finalizer);
+    }
+
+    public virtual void enqueueNextJob() {
+      this.enqueueNextJob(0);
+    }
+
+    public virtual void enqueueNextJob(Integer failures) {
+      this.enqueueNextJob(Thread.currentId(), failures);
+    }
+
+    public virtual void enqueueNextJob(Id threadId, Integer failures) {
+      this.enqueueNextJob(
+        threadId,
+        failures,
+        Thread.service.currentRunKey(threadId)
+      );
+    }
+
+    public virtual void enqueueNextJob(
+      Id threadId,
+      Integer failures,
+      String runKey
+    ) {
+      Async__c nextWorkItem = queries.getNextWorkItem(threadId);
+      if (nextWorkItem == null)
+        return;
+      Async_Job__mdt config = queries.getJobConfig(nextWorkItem.Apex__c);
+      List<Async__c> workItems = Async.queries.getMatchingWorkItems(
+        threadId,
+        nextWorkItem.Apex__c,
+        Integer.valueOf(config.Batch_Size__c)
+      );
+      Set<Id> workItemIds = Pluck.ids(workItems);
+      if (!Thread.service.canStartQueueableWork()) {
+        Thread.pause(threadId, Thread.service.queueablePauseReason(), runKey);
+        return;
+      }
+
+      //dynamically instantiate the async job
+      Async asyncJob = (Async) Type.forName(nextWorkItem.Apex__c).newInstance();
+      asyncJob.setWork(threadId, workItemIds, failures, runKey);
+      Thread.service.heartbeat(threadId);
+      work.running(workItemIds);
+      asyncJob.enqueue();
+    }
+
+    public virtual Boolean shouldRestartThread(Integer failures) {
+      Integer safeFailures = failures == null ? 0 : failures;
+      return safeFailures >= this.restartLimit;
+    }
+
+    public void retry(Set<Id> workItemIds) {
+      work.retry(workItemIds);
+    }
+
+    public virtual void handleFailure(
+      Set<Id> workItemIds,
+      String message,
+      String stackTrace
+    ) {
+      List<Async__c> toRetry = new List<Async__c>();
+      Set<Id> toFail = new Set<Id>();
+
+      for (Async__c workItem : queries.getWorkItemsById(workItemIds)) {
+        if (this.shouldAutoRetry(workItem)) {
+          toRetry.add(workItem);
+        } else {
+          toFail.add(workItem.Id);
+        }
+      }
+
+      work.fail(toFail, message, stackTrace);
+      work.autoRetry(toRetry);
+    }
+
+    public virtual Boolean shouldAutoRetry(Async__c workItem) {
+      Decimal maxRetries = Async.metadata.getConfig(workItem.Apex__c)
+        .Max_Retries__c;
+      if (maxRetries == null || maxRetries <= 0)
+        return false;
+
+      Decimal retryCount = workItem.Retry_Count__c == null
+        ? 0
+        : workItem.Retry_Count__c;
+      return retryCount < maxRetries;
+    }
+
+    public virtual Boolean canEnqueue() {
+      return !Test.isRunningTest();
+    }
+  }
+
+  public virtual with sharing class ThreadDispatcher extends ThreadRunner.Dispatcher {
+    public override void dispatch(Id threadId, Integer failures) {
+      Async.jobs.enqueueNextJob(threadId, failures);
+    }
+
+    public override void dispatch(
+      Id threadId,
+      Integer failures,
+      String runKey
+    ) {
+      Async.jobs.enqueueNextJob(threadId, failures, runKey);
+    }
+
+    public override Boolean hasPendingWork(Id threadId) {
+      return Async.queries.hasPendingWork(threadId);
+    }
+
+    public override Boolean hasRecoverableWork(Id threadId) {
+      return Async.queries.hasRecoverableWork(threadId);
+    }
+
+    public override void prepareRecovery(Id threadId) {
+      Async.work.prepareRecovery(threadId);
+    }
+  }
+
+  public virtual with sharing class WorkService {
+    @testVisible
+    Map<String, Set<Id>> buffer = new Map<String, Set<Id>>();
+
+    public virtual void stage(Type apexClass, Set<Id> recordIds) {
+      addWork(this.buffer, String.valueOf(apexClass), recordIds);
+    }
+
+    public virtual void flush() {
+      if (this.buffer.isEmpty())
+        return;
+
+      Map<String, Set<Id>> workToCreate = new Map<String, Set<Id>>(this.buffer);
+
+      if (this.shouldDefer()) {
+        this.defer(workToCreate);
+        this.buffer.clear();
+        return;
+      }
+
+      this.create(workToCreate);
+      this.buffer.clear();
+    }
+
+    public virtual List<Id> create(Type apexClass, Set<Id> recordIds) {
+      return create(String.valueOf(apexClass), recordIds);
+    }
+
+    public virtual List<Id> create(String apexClass, Set<Id> recordIds) {
+      Map<String, Set<Id>> workByApex = new Map<String, Set<Id>>();
+      workByApex.put(apexClass, recordIds);
+      return create(workByApex);
+    }
+
+    public virtual List<Id> create(Map<String, Set<Id>> workByApex) {
+      if (this.shouldDefer()) {
+        this.defer(workByApex);
+        return new List<Id>();
+      }
+
+      return insertWork(workByApex);
+    }
+
+    List<Id> insertWork(Map<String, Set<Id>> workByApex) {
+      List<Async__c> workItems = new List<Async__c>();
+
+      if (workByApex == null || workByApex.isEmpty())
+        return new List<Id>();
+      for (String apexClass : workByApex.keySet()) {
+        workItems.addAll(newWorkItems(apexClass, workByApex.get(apexClass)));
+      }
+
+      if (workItems.isEmpty())
+        return new List<Id>();
+      DML.insertRecords(workItems);
+      return idsFrom(workItems);
+    }
+
+    List<Async__c> newWorkItems(String apexClass, Set<Id> recordIds) {
+      List<Async__c> workItems = new List<Async__c>();
+      Decimal priority = this.getPriority(apexClass);
+
+      if (String.isBlank(apexClass) || recordIds == null || recordIds.isEmpty())
+        return workItems;
+      for (Id recordId : recordIds) {
+        Async__c workItem = new Async__c(
+          Record_Id__c = String.valueOf(recordId),
+          Status__c = consts.PENDING,
+          Apex__c = apexClass,
+          Priority__c = priority
+        );
+        workItem.put('Thread__c', Thread.currentOrCreate());
+        workItems.add(workItem);
+      }
+
+      return workItems;
+    }
+
+    Decimal getPriority(String apexClass) {
+      return Async.metadata.getConfig(apexClass).Priority__c;
+    }
+
+    Boolean shouldDefer() {
+      return jobs.watcher != null;
+    }
+
+    void defer(Map<String, Set<Id>> workByApex) {
+      if (workByApex == null || workByApex.isEmpty())
+        return;
+
+      for (String apexClass : workByApex.keySet()) {
+        this.defer(apexClass, workByApex.get(apexClass));
+      }
+    }
+
+    void defer(String apexClass, Set<Id> recordIds) {
+      if (!this.shouldDefer())
+        return;
+      addWork(jobs.watcher.deferredWork, apexClass, recordIds);
+    }
+
+    void addWork(
+      Map<String, Set<Id>> workByApex,
+      String apexClass,
+      Set<Id> recordIds
+    ) {
+      if (String.isBlank(apexClass) || recordIds == null || recordIds.isEmpty())
+        return;
+
+      if (!workByApex.containsKey(apexClass)) {
+        workByApex.put(apexClass, new Set<Id>());
+      }
+      workByApex.get(apexClass).addAll(recordIds);
+    }
+
+    public virtual void complete(Set<Id> workItemIds) {
+      updateStatus(workItemIds, new Async__c(Status__c = consts.DONE));
+    }
+
+    public virtual void fail(
+      Set<Id> workItemIds,
+      String message,
+      String stackTrace
+    ) {
+      updateStatus(
+        workItemIds,
+        new Async__c(
+          Status__c = consts.ERROR,
+          Error_Message__c = truncate(message),
+          Error_Stack_Trace__c = truncate(stackTrace)
+        )
+      );
+    }
+
+    public virtual void retry(Set<Id> workItemIds) {
+      Async__c values = new Async__c(Status__c = consts.PENDING);
+      values.put('Thread__c', Thread.currentOrCreate());
+      updateStatus(workItemIds, values);
+    }
+
+    public virtual void autoRetry(List<Async__c> workItems) {
+      if (workItems == null || workItems.isEmpty())
+        return;
+
+      List<SObject> updates = new List<SObject>();
+      for (Async__c workItem : workItems) {
+        Decimal retryCount = workItem.Retry_Count__c == null
+          ? 0
+          : workItem.Retry_Count__c;
+        Async__c updateRecord = new Async__c(
+          Id = workItem.Id,
+          Status__c = consts.PENDING,
+          Retry_Count__c = retryCount + 1
+        );
+        updateRecord.put('Thread__c', Thread.currentOrCreate());
+        updates.add(updateRecord);
+      }
+
+      DML.updateRecords(updates);
+    }
+
+    public virtual void running(Set<Id> workItemIds) {
+      updateStatus(workItemIds, new Async__c(Status__c = consts.RUNNING));
+    }
+
+    public virtual void prepareRecovery(Id threadId) {
+      updateStatus(
+        Async.queries.getRunningWorkItemIds(threadId),
+        new Async__c(Status__c = consts.PENDING)
+      );
+    }
+
+    List<Id> idsFrom(List<Async__c> workItems) {
+      List<Id> ids = new List<Id>();
+
+      for (Async__c workItem : workItems) {
+        if (workItem.Id != null) {
+          ids.add(workItem.Id);
+        }
+      }
+
+      return ids;
+    }
+
+    void updateStatus(Set<Id> workItemIds, Async__c values) {
+      if (workItemIds == null || workItemIds.isEmpty()) {
+        return;
+      }
+
+      List<SObject> updates = new List<SObject>();
+
+      for (Id workItemId : workItemIds) {
+        Async__c updateRecord = new Async__c(Id = workItemId);
+        if (values.Status__c != null)
+          updateRecord.Status__c = values.Status__c;
+        if (values.Error_Message__c != null)
+          updateRecord.Error_Message__c = values.Error_Message__c;
+        if (values.Error_Stack_Trace__c != null)
+          updateRecord.Error_Stack_Trace__c = values.Error_Stack_Trace__c;
+        if (values.get('Thread__c') != null)
+          updateRecord.put('Thread__c', values.get('Thread__c'));
+        updates.add(updateRecord);
+      }
+
+      DML.updateRecords(updates);
+    }
+
+    String truncate(String value) {
+      if (value == null || value.length() <= 32768) {
+        return value;
+      }
+
+      return value.substring(0, 32768);
+    }
+  }
+
+  public virtual with sharing class QueryService {
+    public virtual Async__c getNextWorkItem(Id threadId) {
+      String pendingStatus = consts.PENDING;
+      List<Async__c> workItems = (List<Async__c>) Query.records(
+        Database.query(
+          'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
+            'FROM Async__c ' +
+            'WHERE Thread__c = :threadId ' +
+            'AND Status__c = :pendingStatus ' +
+            'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
+            'LIMIT 1'
+        )
+      );
+      return workItems.isEmpty() ? null : workItems[0];
+    }
+
+    public virtual List<Async__c> getMatchingWorkItems(
+      Id threadId,
+      String apexClass,
+      Integer batchSize
+    ) {
+      String pendingStatus = consts.PENDING;
+      return (List<Async__c>) Query.records(
+        Database.query(
+          'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
+            'FROM Async__c ' +
+            'WHERE Thread__c = :threadId ' +
+            'AND Apex__c = :apexClass ' +
+            'AND Status__c = :pendingStatus ' +
+            'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
+            'LIMIT :batchSize'
+        )
+      );
+    }
+
+    public virtual Boolean hasPendingWork(Id threadId) {
+      return this.getNextWorkItem(threadId) != null;
+    }
+
+    public virtual Boolean hasRecoverableWork(Id threadId) {
+      return this.hasPendingWork(threadId) ||
+        !this.getRunningWorkItemIds(threadId).isEmpty();
+    }
+
+    public virtual Set<Id> getRunningWorkItemIds(Id threadId) {
+      Set<Id> workItemIds = new Set<Id>();
+      String runningStatus = consts.RUNNING;
+      for (
+        Async__c workItem : (List<Async__c>) Query.records(
+          [
+            SELECT Id
+            FROM Async__c
+            WHERE Thread__c = :threadId AND Status__c = :runningStatus
+          ]
+        )
+      ) {
+        workItemIds.add(workItem.Id);
+      }
+      return workItemIds;
+    }
+
+    public virtual List<Async__c> getWorkItemsById(Set<Id> workItemIds) {
+      List<Async__c> workItems = (List<Async__c>) Query.records(
+        Database.query(
+          'SELECT Id, Apex__c, Thread__c, Record_Id__c, Priority__c, Retry_Count__c ' +
+            'FROM Async__c ' +
+            'WHERE Id IN :workItemIds'
+        )
+      );
+      return workItems;
+    }
+
+    public virtual Async_Job__mdt getJobConfig(String apexClass) {
+      return Async.metadata.getConfig(apexClass);
+    }
+  }
+
+  public virtual with sharing class Constants {
+    public String PENDING = 'Pending';
+    public String RUNNING = 'Running';
+    public String DONE = 'Done';
+    public String ERROR = 'Error';
+  }
+
+  public virtual with sharing class MetadataService {
+    @testVisible
+    Map<String, Async_Job__mdt> configByApex = new Map<String, Async_Job__mdt>();
+
+    public virtual Async_Job__mdt getConfig(String apexClass) {
+      if (!this.configByApex.containsKey(apexClass)) {
+        this.configByApex.put(apexClass, this.loadConfig(apexClass));
+      }
+      return this.configByApex.get(apexClass);
+    }
+
+    protected virtual Async_Job__mdt loadConfig(String apexClass) {
+      List<Async_Job__mdt> configs = (List<Async_Job__mdt>) Query.records(
+        [
+          SELECT Apex__c, Batch_Size__c, Max_Retries__c, Priority__c
+          FROM Async_Job__mdt
+          WHERE Apex__c = :apexClass
+          LIMIT 1
+        ]
+      );
+      return !configs.isEmpty()
+        ? configs[0]
+        : new Async_Job__mdt(Batch_Size__c = 5);
+    }
+  }
+
+  public virtual with sharing class SettingsService {
+    @testVisible
+    Async_Settings__c values;
+
+    public virtual Integer maxThreads() {
+      Decimal maxThreads = this.getSettings().Max_Threads__c;
+      return maxThreads == null || maxThreads < 1 ? 1 : maxThreads.intValue();
+    }
+
+    public virtual Integer archiveThresholdHours() {
+      Decimal threshold = this.getSettings().Archive_Threshold_Hours__c;
+      return threshold == null || threshold < 0 ? 24 : threshold.intValue();
+    }
+
+    public virtual Boolean archiveCleanupEnabled() {
+      return this.getSettings().Enable_Archive_Cleanup__c == true;
+    }
+
+    public virtual Integer maxArchiveAgeDays() {
+      Decimal maxArchiveAge = this.getSettings().Max_Archive_Age__c;
+      return maxArchiveAge == null ||
+        maxArchiveAge < 0
+        ? 30
+        : maxArchiveAge.intValue();
+    }
+
+    public virtual Async_Settings__c getSettings() {
+      if (this.values == null) {
+        this.values = this.loadSettings();
+      }
+      return this.values;
+    }
+
+    public virtual void setSettings(Async_Settings__c values) {
+      this.values = values;
+    }
+
+    protected virtual Async_Settings__c loadSettings() {
+      Async_Settings__c settings = Async_Settings__c.getInstance();
+      return settings == null ? new Async_Settings__c() : settings;
+    }
+  }
+
+  public with sharing class JobWatcher implements Finalizer {
+    Set<Id> workItemIds;
+    Id threadId;
+    Integer failures;
+    String runKey;
+    Map<Id, Id> workItemIdByRecordId = new Map<Id, Id>();
+    Map<Id, String> failureMessageByRecordId = new Map<Id, String>();
+    Map<String, Set<Id>> deferredWork = new Map<String, Set<Id>>();
+
+    public JobWatcher(Id threadId, Set<Id> workItemIds, Integer failures) {
+      this(
+        threadId,
+        workItemIds,
+        failures,
+        Thread.service.currentRunKey(threadId)
+      );
+    }
+
+    public JobWatcher(
+      Id threadId,
+      Set<Id> workItemIds,
+      Integer failures,
+      String runKey
+    ) {
+      this.workItemIds = workItemIds;
+      this.threadId = threadId;
+      this.failures = failures == null ? 0 : failures;
+      this.runKey = runKey;
+    }
+
+    public void execute(FinalizerContext context) {
+      Thread.setCurrent(this.threadId);
+      Async.jobs.isFinalizer = true;
+      Thread.service.isFinalizer = true;
+      try {
+        if (context.getResult() == ParentJobResult.SUCCESS) {
+          this.applyResults();
+          this.createDeferredWork();
+          Thread.continueCurrent(this.runKey);
+          return;
+        }
+
+        Exception error = context.getException();
+        jobs.handleFailure(
+          this.workItemIds,
+          error == null
+            ? String.valueOf(context.getResult())
+            : error.getMessage(),
+          error == null ? null : error.getStackTraceString()
+        );
+        Thread.continueCurrent(this.failures + 1, this.runKey);
+      } finally {
+        Async.jobs.isFinalizer = false;
+        Thread.service.isFinalizer = false;
+      }
     }
 
     public void complete(Id recordId) {
-        if (jobs.watcher == null) {
-            throw new AsyncException('Async.complete can only be called while async work is running.');
-        }
-        jobs.watcher.complete(recordId);
+      this.workItemIdFor(recordId);
+      this.failureMessageByRecordId.remove(recordId);
     }
 
     public void fail(Id recordId, String message) {
-        if (jobs.watcher == null) {
-            throw new AsyncException('Async.fail can only be called while async work is running.');
-        }
-        jobs.watcher.fail(recordId, message);
+      this.workItemIdFor(recordId);
+      this.failureMessageByRecordId.put(recordId, message);
     }
 
-    public void execute(QueueableContext context) {
-        Thread.setCurrent(this.threadId);
-        JobWatcher watcher = jobs.watch(this.threadId, this.workItemIds, this.failures, this.runKey);
-        jobs.attachFinalizer(watcher);
-
-        this.execute(this.getRecordIds());
+    @testVisible
+    void continueAfterFailure() {
+      Integer nextFailures = this.failures + 1;
+      Thread.continueCurrent(nextFailures, this.runKey);
     }
 
-    Set<Id> getRecordIds() {
-        List<Async__c> workItems = queries.getWorkItemsById(this.workItemIds);
-        if (jobs.watcher != null) jobs.watcher.track(workItems);
-        for(Async__c workItem : workItems) {
-            this.recordIds.add(workItem.Record_Id__c);
-        }
-        return this.recordIds;
+    void track(List<Async__c> workItems) {
+      if (workItems == null)
+        return;
+      for (Async__c workItem : workItems) {
+        if (workItem.Record_Id__c == null || workItem.Id == null)
+          continue;
+        this.workItemIdByRecordId.put((Id) workItem.Record_Id__c, workItem.Id);
+      }
     }
 
-    public virtual with sharing class JobService {
-        public boolean hasEnqueued = false;
-        @testVisible JobWatcher watcher;
-        @testVisible Boolean isFinalizer = false;
-        @testVisible Integer restartLimit = 4;
+    void applyResults() {
+      Set<Id> failedWorkItemIds = new Set<Id>();
+      for (Id recordId : this.failureMessageByRecordId.keySet()) {
+        failedWorkItemIds.add(this.workItemIdFor(recordId));
+      }
 
-        public virtual void enqueue() {
-            Thread.enqueue();
-            this.hasEnqueued = true;
-        }
+      Set<Id> completedWorkItemIds = new Set<Id>(this.workItemIds);
+      completedWorkItemIds.removeAll(failedWorkItemIds);
+      work.complete(completedWorkItemIds);
 
-        public virtual void enqueue(List<Async__c> workItems) {
-            if (Thread.currentId() == null && workItems != null && !workItems.isEmpty()) {
-                Thread.setCurrent((Id) workItems[0].get('Thread__c'));
-            }
-            this.enqueue();
-        }
-
-        public virtual JobWatcher watch(Id threadId, Set<Id> workItemIds) {
-            return this.watch(threadId, workItemIds, 0);
-        }
-
-        public virtual JobWatcher watch(Id threadId, Set<Id> workItemIds, Integer failures) {
-            return this.watch(threadId, workItemIds, failures, Thread.service.currentRunKey(threadId));
-        }
-
-        public virtual JobWatcher watch(Id threadId, Set<Id> workItemIds, Integer failures, String runKey) {
-            this.watcher = new JobWatcher(threadId, workItemIds, failures, runKey);
-            return this.watcher;
-        }
-
-        public virtual Boolean isRunningThread() {
-            return Thread.currentId() != null;
-        }
-
-        public virtual void startThread() {
-            this.startThread(0);
-        }
-
-        public virtual void startThread(Integer failures) {
-            Thread.service.start(Thread.currentId(), failures);
-        }
-
-        public virtual void attachFinalizer(Finalizer finalizer) {
-            System.attachFinalizer(finalizer);
-        }
-
-        public virtual void enqueueNextJob() {
-            this.enqueueNextJob(0);
-        }
-
-        public virtual void enqueueNextJob(Integer failures) {
-            this.enqueueNextJob(Thread.currentId(), failures);
-        }
-
-        public virtual void enqueueNextJob(Id threadId, Integer failures) {
-            this.enqueueNextJob(threadId, failures, Thread.service.currentRunKey(threadId));
-        }
-
-        public virtual void enqueueNextJob(Id threadId, Integer failures, String runKey) {
-            Async__c nextWorkItem = queries.getNextWorkItem(threadId);
-            if (nextWorkItem == null) return;
-            Async_Job__mdt config = queries.getJobConfig(nextWorkItem.Apex__c);
-            List<Async__c> workItems = Async.queries.getMatchingWorkItems(
-                threadId, nextWorkItem.Apex__c, Integer.valueOf(config.Batch_Size__c));
-            Set<Id> workItemIds = Pluck.ids(workItems);
-            if (!Thread.service.canStartQueueableWork()) {
-                Thread.pause(threadId, Thread.service.queueablePauseReason(), runKey);
-                return;
-            }
-            
-            //dynamically instantiate the async job
-            Async asyncJob = (Async) Type.forName(nextWorkItem.Apex__c).newInstance();
-            asyncJob.setWork(threadId, workItemIds, failures, runKey);
-            Thread.service.heartbeat(threadId);
-            work.running(workItemIds);
-            asyncJob.enqueue();
-        }
-
-        public virtual Boolean shouldRestartThread(Integer failures) {
-            Integer safeFailures = failures == null ? 0 : failures;
-            return safeFailures >= this.restartLimit;
-        }
-
-        public void retry(Set<Id> workItemIds) {
-            work.retry(workItemIds);
-        }
-
-        public virtual void handleFailure(Set<Id> workItemIds, String message, String stackTrace) {
-            List<Async__c> toRetry = new List<Async__c>();
-            Set<Id> toFail = new Set<Id>();
-
-            for (Async__c workItem : queries.getWorkItemsById(workItemIds)) {
-                if (this.shouldAutoRetry(workItem)) {
-                    toRetry.add(workItem);
-                } else {
-                    toFail.add(workItem.Id);
-                }
-            }
-
-            work.fail(toFail, message, stackTrace);
-            work.autoRetry(toRetry);
-        }
-
-        public virtual Boolean shouldAutoRetry(Async__c workItem) {
-            Decimal maxRetries = Async.metadata.getConfig(workItem.Apex__c).Max_Retries__c;
-            if (maxRetries == null || maxRetries <= 0) return false;
-
-            Decimal retryCount = workItem.Retry_Count__c == null ? 0 : workItem.Retry_Count__c;
-            return retryCount < maxRetries;
-        }
-
-        public virtual Boolean canEnqueue() {
-            return !Test.isRunningTest();
-        }
+      for (Id recordId : this.failureMessageByRecordId.keySet()) {
+        jobs.handleFailure(
+          new Set<Id>{ this.workItemIdFor(recordId) },
+          this.failureMessageByRecordId.get(recordId),
+          null
+        );
+      }
     }
 
-    public virtual with sharing class ThreadDispatcher extends ThreadRunner.Dispatcher {
-        public override void dispatch(Id threadId, Integer failures) {
-            Async.jobs.enqueueNextJob(threadId, failures);
-        }
-
-        public override void dispatch(Id threadId, Integer failures, String runKey) {
-            Async.jobs.enqueueNextJob(threadId, failures, runKey);
-        }
-
-        public override Boolean hasPendingWork(Id threadId) {
-            return Async.queries.hasPendingWork(threadId);
-        }
-
-        public override Boolean hasRecoverableWork(Id threadId) {
-            return Async.queries.hasRecoverableWork(threadId);
-        }
-
-        public override void prepareRecovery(Id threadId) {
-            Async.work.prepareRecovery(threadId);
-        }
+    Id workItemIdFor(Id recordId) {
+      if (
+        recordId == null || !this.workItemIdByRecordId.containsKey(recordId)
+      ) {
+        throw new AsyncException(
+          'Async result item is not part of the current batch.'
+        );
+      }
+      return this.workItemIdByRecordId.get(recordId);
     }
 
-    public virtual with sharing class WorkService {
-        @testVisible Map<String, Set<Id>> buffer = new Map<String, Set<Id>>();
-
-        public virtual void stage(Type apexClass, Set<Id> recordIds) {
-            addWork(this.buffer, String.valueOf(apexClass), recordIds);
-        }
-
-        public virtual void flush() {
-            if (this.buffer.isEmpty()) return;
-
-            Map<String, Set<Id>> workToCreate = new Map<String, Set<Id>>(this.buffer);
-
-            if (this.shouldDefer()) {
-                this.defer(workToCreate);
-                this.buffer.clear();
-                return;
-            }
-
-            this.create(workToCreate);
-            this.buffer.clear();
-        }
-
-        public virtual List<Id> create(Type apexClass, Set<Id> recordIds) {
-            return create(String.valueOf(apexClass), recordIds);
-        }
-
-        public virtual List<Id> create(String apexClass, Set<Id> recordIds) {
-            Map<String, Set<Id>> workByApex = new Map<String, Set<Id>>();
-            workByApex.put(apexClass, recordIds);
-            return create(workByApex);
-        }
-
-        public virtual List<Id> create(Map<String, Set<Id>> workByApex) {
-            if (this.shouldDefer()) {
-                this.defer(workByApex);
-                return new List<Id>();
-            }
-
-            return insertWork(workByApex);
-        }
-
-        List<Id> insertWork(Map<String, Set<Id>> workByApex) {
-            List<Async__c> workItems = new List<Async__c>();
-
-            if (workByApex == null || workByApex.isEmpty()) return new List<Id>();
-            for (String apexClass : workByApex.keySet()) {
-                workItems.addAll(newWorkItems(apexClass, workByApex.get(apexClass)));
-            }
-
-            if (workItems.isEmpty()) return new List<Id>();
-            DML.insertRecords(workItems);
-            return idsFrom(workItems);
-        }
-
-        List<Async__c> newWorkItems(String apexClass, Set<Id> recordIds) {
-            List<Async__c> workItems = new List<Async__c>();
-            Decimal priority = this.getPriority(apexClass);
-
-            if (String.isBlank(apexClass) || recordIds == null || recordIds.isEmpty()) return workItems;
-            for (Id recordId : recordIds) {
-                Async__c workItem = new Async__c(
-                    Record_Id__c = String.valueOf(recordId),
-                    Status__c = consts.PENDING,
-                    Apex__c = apexClass,
-                    Priority__c = priority
-                );
-                workItem.put('Thread__c', Thread.currentOrCreate());
-                workItems.add(workItem);
-            }
-
-            return workItems;
-        }
-
-        Decimal getPriority(String apexClass) {
-            return Async.metadata.getConfig(apexClass).Priority__c;
-        }
-
-        Boolean shouldDefer() {
-            return jobs.watcher != null;
-        }
-
-        void defer(Map<String, Set<Id>> workByApex) {
-            if (workByApex == null || workByApex.isEmpty()) return;
-
-            for (String apexClass : workByApex.keySet()) {
-                this.defer(apexClass, workByApex.get(apexClass));
-            }
-        }
-
-        void defer(String apexClass, Set<Id> recordIds) {
-            if (!this.shouldDefer()) return;
-            addWork(jobs.watcher.deferredWork, apexClass, recordIds);
-        }
-
-        void addWork(Map<String, Set<Id>> workByApex, String apexClass, Set<Id> recordIds) {
-            if (String.isBlank(apexClass) || recordIds == null || recordIds.isEmpty()) return;
-
-            if (!workByApex.containsKey(apexClass)) {
-                workByApex.put(apexClass, new Set<Id>());
-            }
-            workByApex.get(apexClass).addAll(recordIds);
-        }
-
-        public virtual void complete(Set<Id> workItemIds) {
-            updateStatus(workItemIds, new Async__c(Status__c = consts.DONE));
-        }
-
-        public virtual void fail(Set<Id> workItemIds, String message, String stackTrace) {
-            updateStatus(workItemIds, new Async__c(
-                Status__c = consts.ERROR,
-                Error_Message__c = truncate(message),
-                Error_Stack_Trace__c = truncate(stackTrace)
-            ));
-        }
-
-        public virtual void retry(Set<Id> workItemIds) {
-            Async__c values = new Async__c(Status__c = consts.PENDING);
-            values.put('Thread__c', Thread.currentOrCreate());
-            updateStatus(workItemIds, values);
-        }
-
-        public virtual void autoRetry(List<Async__c> workItems) {
-            if (workItems == null || workItems.isEmpty()) return;
-
-            List<SObject> updates = new List<SObject>();
-            for (Async__c workItem : workItems) {
-                Decimal retryCount = workItem.Retry_Count__c == null ? 0 : workItem.Retry_Count__c;
-                Async__c updateRecord = new Async__c(
-                    Id = workItem.Id,
-                    Status__c = consts.PENDING,
-                    Retry_Count__c = retryCount + 1
-                );
-                updateRecord.put('Thread__c', Thread.currentOrCreate());
-                updates.add(updateRecord);
-            }
-
-            DML.updateRecords(updates);
-        }
-
-        public virtual void running(Set<Id> workItemIds) {
-            updateStatus(workItemIds, new Async__c(Status__c = consts.RUNNING));
-        }
-
-        public virtual void prepareRecovery(Id threadId) {
-            updateStatus(Async.queries.getRunningWorkItemIds(threadId), new Async__c(Status__c = consts.PENDING));
-        }
-
-        List<Id> idsFrom(List<Async__c> workItems) {
-            List<Id> ids = new List<Id>();
-
-            for (Async__c workItem : workItems) {
-                if (workItem.Id != null) {
-                    ids.add(workItem.Id);
-                }
-            }
-
-            return ids;
-        }
-
-        void updateStatus(Set<Id> workItemIds, Async__c values) {
-            if (workItemIds == null || workItemIds.isEmpty()) {
-                return;
-            }
-
-            List<SObject> updates = new List<SObject>();
-
-            for (Id workItemId : workItemIds) {
-                Async__c updateRecord = new Async__c(Id = workItemId);
-                if (values.Status__c != null) updateRecord.Status__c = values.Status__c;
-                if (values.Error_Message__c != null) updateRecord.Error_Message__c = values.Error_Message__c;
-                if (values.Error_Stack_Trace__c != null) updateRecord.Error_Stack_Trace__c = values.Error_Stack_Trace__c;
-                if (values.get('Thread__c') != null) updateRecord.put('Thread__c', values.get('Thread__c'));
-                updates.add(updateRecord);
-            }
-                    
-            DML.updateRecords(updates);
-        }
-
-        String truncate(String value) {
-            if (value == null || value.length() <= 32768) {
-                return value;
-            }
-
-            return value.substring(0, 32768);
-        }
+    void createDeferredWork() {
+      if (this.deferredWork.isEmpty())
+        return;
+      work.insertWork(this.deferredWork);
     }
+  }
 
-    public virtual with sharing class QueryService {
-        public virtual Async__c getNextWorkItem(Id threadId) {
-            String pendingStatus = consts.PENDING;
-            List<Async__c> workItems = (List<Async__c>) Query.records(Database.query(
-                'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
-                'FROM Async__c ' +
-                'WHERE Thread__c = :threadId ' +
-                    'AND Status__c = :pendingStatus ' +
-                'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
-                'LIMIT 1'
-            ));
-            return workItems.isEmpty() ? null : workItems[0];
-        }
-
-        public virtual List<Async__c> getMatchingWorkItems(Id threadId, String apexClass, Integer batchSize) {
-            String pendingStatus = consts.PENDING;
-            return (List<Async__c>) Query.records(Database.query(
-                'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
-                'FROM Async__c ' +
-                'WHERE Thread__c = :threadId ' +
-                    'AND Apex__c = :apexClass ' +
-                    'AND Status__c = :pendingStatus ' +
-                'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
-                'LIMIT :batchSize'
-            ));
-        }
-
-        public virtual Boolean hasPendingWork(Id threadId) {
-            return this.getNextWorkItem(threadId) != null;
-        }
-
-        public virtual Boolean hasRecoverableWork(Id threadId) {
-            return this.hasPendingWork(threadId) || !this.getRunningWorkItemIds(threadId).isEmpty();
-        }
-
-        public virtual Set<Id> getRunningWorkItemIds(Id threadId) {
-            Set<Id> workItemIds = new Set<Id>();
-            String runningStatus = consts.RUNNING;
-            for (Async__c workItem : (List<Async__c>) Query.records([
-                SELECT Id
-                FROM Async__c
-                WHERE Thread__c = :threadId
-                    AND Status__c = :runningStatus
-            ])) {
-                workItemIds.add(workItem.Id);
-            }
-            return workItemIds;
-        }
-
-        public virtual List<Async__c> getWorkItemsById(Set<Id> workItemIds) {
-            List<Async__c> workItems = (List<Async__c>) Query.records(Database.query(
-                'SELECT Id, Apex__c, Thread__c, Record_Id__c, Priority__c, Retry_Count__c ' +
-                'FROM Async__c ' +
-                'WHERE Id IN :workItemIds'
-            ));
-            return workItems;
-        }
-
-        public virtual Async_Job__mdt getJobConfig(String apexClass) {
-            return Async.metadata.getConfig(apexClass);
-        }
-    }
-
-    public virtual with sharing class Constants {
-        public String PENDING = 'Pending';
-        public String RUNNING = 'Running';
-        public String DONE = 'Done';
-        public String ERROR = 'Error';
-    }
-
-    public virtual with sharing class MetadataService {
-        @testVisible Map<String, Async_Job__mdt> configByApex = new Map<String, Async_Job__mdt>();
-
-        public virtual Async_Job__mdt getConfig(String apexClass) {
-            if (!this.configByApex.containsKey(apexClass)) {
-                this.configByApex.put(apexClass, this.loadConfig(apexClass));
-            }
-            return this.configByApex.get(apexClass);
-        }
-
-        protected virtual Async_Job__mdt loadConfig(String apexClass) {
-            List<Async_Job__mdt> configs = (List<Async_Job__mdt>) Query.records([
-                SELECT Apex__c, Batch_Size__c, Max_Retries__c, Priority__c
-                FROM Async_Job__mdt
-                WHERE Apex__c = :apexClass
-                LIMIT 1
-            ]);
-            return !configs.isEmpty() ? configs[0] : new Async_Job__mdt(Batch_Size__c = 5);
-        }
-    }
-
-    public virtual with sharing class SettingsService {
-        @testVisible Async_Settings__c values;
-
-        public virtual Integer maxThreads() {
-            Decimal maxThreads = this.getSettings().Max_Threads__c;
-            return maxThreads == null || maxThreads < 1 ? 1 : maxThreads.intValue();
-        }
-
-        public virtual Integer archiveThresholdHours() {
-            Decimal threshold = this.getSettings().Archive_Threshold_Hours__c;
-            return threshold == null || threshold < 0 ? 24 : threshold.intValue();
-        }
-
-        public virtual Boolean archiveCleanupEnabled() {
-            return this.getSettings().Enable_Archive_Cleanup__c == true;
-        }
-
-        public virtual Integer maxArchiveAgeDays() {
-            Decimal maxArchiveAge = this.getSettings().Max_Archive_Age__c;
-            return maxArchiveAge == null || maxArchiveAge < 0 ? 30 : maxArchiveAge.intValue();
-        }
-
-        public virtual Async_Settings__c getSettings() {
-            if (this.values == null) {
-                this.values = this.loadSettings();
-            }
-            return this.values;
-        }
-
-        public virtual void setSettings(Async_Settings__c values) {
-            this.values = values;
-        }
-
-        protected virtual Async_Settings__c loadSettings() {
-            Async_Settings__c settings = Async_Settings__c.getInstance();
-            return settings == null ? new Async_Settings__c() : settings;
-        }
-    }
-
-    public with sharing class JobWatcher implements Finalizer {
-        Set<Id> workItemIds;
-        Id threadId;
-        Integer failures;
-        String runKey;
-        Map<Id, Id> workItemIdByRecordId = new Map<Id, Id>();
-        Map<Id, String> failureMessageByRecordId = new Map<Id, String>();
-        Map<String, Set<Id>> deferredWork = new Map<String, Set<Id>>();
-
-        public JobWatcher(Id threadId, Set<Id> workItemIds, Integer failures) {
-            this(threadId, workItemIds, failures, Thread.service.currentRunKey(threadId));
-        }
-
-        public JobWatcher(Id threadId, Set<Id> workItemIds, Integer failures, String runKey) {
-            this.workItemIds = workItemIds;
-            this.threadId = threadId;
-            this.failures = failures == null ? 0 : failures;
-            this.runKey = runKey;
-        }
-
-        public void execute(FinalizerContext context) {
-            Thread.setCurrent(this.threadId);
-            Async.jobs.isFinalizer = true;
-            Thread.service.isFinalizer = true;
-            try {
-                if (context.getResult() == ParentJobResult.SUCCESS) {
-                    this.applyResults();
-                    this.createDeferredWork();
-                    Thread.continueCurrent(this.runKey);
-                    return;
-                }
-
-                Exception error = context.getException();
-                jobs.handleFailure(
-                    this.workItemIds,
-                    error == null ? String.valueOf(context.getResult()) : error.getMessage(),
-                    error == null ? null : error.getStackTraceString()
-                );
-                Thread.continueCurrent(this.failures + 1, this.runKey);
-            } finally {
-                Async.jobs.isFinalizer = false;
-                Thread.service.isFinalizer = false;
-            }
-        }
-
-        public void complete(Id recordId) {
-            this.workItemIdFor(recordId);
-            this.failureMessageByRecordId.remove(recordId);
-        }
-
-        public void fail(Id recordId, String message) {
-            this.workItemIdFor(recordId);
-            this.failureMessageByRecordId.put(recordId, message);
-        }
-
-        @testVisible void continueAfterFailure() {
-            Integer nextFailures = this.failures + 1;
-            Thread.continueCurrent(nextFailures, this.runKey);
-        }
-
-        void track(List<Async__c> workItems) {
-            if (workItems == null) return;
-            for (Async__c workItem : workItems) {
-                if (workItem.Record_Id__c == null || workItem.Id == null) continue;
-                this.workItemIdByRecordId.put((Id) workItem.Record_Id__c, workItem.Id);
-            }
-        }
-
-        void applyResults() {
-            Set<Id> failedWorkItemIds = new Set<Id>();
-            for (Id recordId : this.failureMessageByRecordId.keySet()) {
-                failedWorkItemIds.add(this.workItemIdFor(recordId));
-            }
-
-            Set<Id> completedWorkItemIds = new Set<Id>(this.workItemIds);
-            completedWorkItemIds.removeAll(failedWorkItemIds);
-            work.complete(completedWorkItemIds);
-
-            for (Id recordId : this.failureMessageByRecordId.keySet()) {
-                jobs.handleFailure(
-                    new Set<Id> { this.workItemIdFor(recordId) },
-                    this.failureMessageByRecordId.get(recordId),
-                    null
-                );
-            }
-        }
-
-        Id workItemIdFor(Id recordId) {
-            if (recordId == null || !this.workItemIdByRecordId.containsKey(recordId)) {
-                throw new AsyncException('Async result item is not part of the current batch.');
-            }
-            return this.workItemIdByRecordId.get(recordId);
-        }
-
-        void createDeferredWork() {
-            if (this.deferredWork.isEmpty()) return;
-            work.insertWork(this.deferredWork);
-        }
-    }
-
-    public class AsyncException extends Exception {}
+  public class AsyncException extends Exception {
+  }
 }
