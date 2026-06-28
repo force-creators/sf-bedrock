@@ -189,21 +189,19 @@ public with sharing class SchedulerConsoleController {
 
     public virtual with sharing class QueryService {
         public virtual List<Scheduler__c> getJobs() {
-            return (List<Scheduler__c>) Query.records(
-                [
-                    SELECT
-                        Id,
-                        Apex__c,
-                        Enabled__c,
-                        Frequency__c,
-                        Interval__c,
-                        Next_Run__c,
-                        Last_Executed__c,
-                        Error_Message__c
-                    FROM Scheduler__c
-                    ORDER BY Next_Run__c ASC NULLS LAST, Apex__c ASC
-                ]
-            );
+            return [
+                SELECT
+                    Id,
+                    Apex__c,
+                    Enabled__c,
+                    Frequency__c,
+                    Interval__c,
+                    Next_Run__c,
+                    Last_Executed__c,
+                    Error_Message__c
+                FROM Scheduler__c
+                ORDER BY Next_Run__c ASC NULLS LAST, Apex__c ASC
+            ];
         }
 
         public virtual List<Scheduler_Job__mdt> getJobConfigurations() {

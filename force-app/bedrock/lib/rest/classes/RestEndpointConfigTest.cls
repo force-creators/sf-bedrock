@@ -80,27 +80,6 @@ private class RestEndpointConfigTest {
     @istest
     static void testCatalogEndpoint_returnsConfiguredRoutes() {
         seedRoutes();
-        Query.setMock(
-            new QueryMock(
-                new List<SObject>{
-                    config(
-                        'health-v1',
-                        true,
-                        'health',
-                        1,
-                        'RestHealthEndpoint'
-                    ),
-                    config('echo-v1', true, 'echo', 1, 'RestEchoEndpoint'),
-                    config(
-                        'catalog-v1',
-                        true,
-                        'catalog',
-                        1,
-                        'RestCatalogEndpoint'
-                    )
-                }
-            )
-        );
         request('GET', '/services/apexrest/api/v1/catalog', null, null);
 
         RestGateway.doGet();

@@ -74,9 +74,9 @@ public virtual with sharing class EventRelayWorkService {
             return new List<Id>();
 
         markStaleWork(workItems);
-        DML.insertRecords(workItems);
+        insertRecords(workItems);
         List<Event__c> runnableWorkItems = runnableWorkItems(workItems);
-        Thread.reopen(threadIdsFrom(runnableWorkItems));
+        reopenThreads(threadIdsFrom(runnableWorkItems));
         EventRelay.jobs.enqueue(runnableWorkItems);
         return idsFrom(workItems);
     }
@@ -378,10 +378,37 @@ public virtual with sharing class EventRelayWorkService {
             updateRecord.Error_Stack_Trace__c = null;
             updates.add(updateRecord);
         }
-        DML.updateRecords(updates);
-        Thread.reopen(threadIdsFrom(workItems));
+        updateRecords(updates);
+        reopenThreads(threadIdsFrom(workItems));
         EventRelay.jobs.enqueue(workItems);
         return idsFrom(workItems);
+    }
+
+    public virtual void reopenDrainedThreadsWithPendingWork(
+        String pool,
+        String jobType
+    ) {
+        reopenThreads(
+            EventRelay.queries.getDrainedThreadIdsWithPendingWork(pool, jobType)
+        );
+    }
+
+    void reopenThreads(Set<Id> threadIds) {
+        if (threadIds == null || threadIds.isEmpty())
+            return;
+
+        try {
+            Thread.reopen(threadIds);
+        } catch (Exception error) {
+            if (!isRecordCurrentlyUnavailable(error))
+                throw error;
+        }
+    }
+
+    Boolean isRecordCurrentlyUnavailable(Exception error) {
+        return error != null &&
+            error.getMessage() != null &&
+            error.getMessage().contains('Record Currently Unavailable');
     }
 
     public virtual void fail(
@@ -422,7 +449,7 @@ public virtual with sharing class EventRelayWorkService {
                     : failureUpdate(workItems[i], result, null)
             );
         }
-        DML.updateRecords(updates);
+        updateRecords(updates);
     }
 
     public virtual void applyProcessResults(
@@ -447,7 +474,7 @@ public virtual with sharing class EventRelayWorkService {
 
             updates.add(processUpdate(workItems[i], result));
         }
-        DML.updateRecords(updates);
+        updateRecords(updates);
     }
 
     void applyFailure(
@@ -462,7 +489,7 @@ public virtual with sharing class EventRelayWorkService {
         for (Event__c workItem : workItems) {
             updates.add(failureUpdate(workItem, result, stackTrace));
         }
-        DML.updateRecords(updates);
+        updateRecords(updates);
     }
 
     Event__c successUpdate(Event__c workItem) {
@@ -539,7 +566,15 @@ public virtual with sharing class EventRelayWorkService {
                 updateRecord.Error_Stack_Trace__c = values.Error_Stack_Trace__c;
             updates.add(updateRecord);
         }
-        DML.updateRecords(updates);
+        updateRecords(updates);
+    }
+
+    protected virtual void insertRecords(List<SObject> records) {
+        insert records;
+    }
+
+    protected virtual void updateRecords(List<SObject> records) {
+        update records;
     }
 
     List<Id> idsFrom(List<Event__c> workItems) {

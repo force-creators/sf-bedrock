@@ -125,7 +125,11 @@ public virtual with sharing class Thread {
                 threadIdsByUniqueKey.put(
                     uniqueKey,
                     existingThread == null
-                        ? create(normalizedPool, normalizedThreadKey, uniqueKey)
+                        ? createIfAbsent(
+                              normalizedPool,
+                              normalizedThreadKey,
+                              uniqueKey
+                          )
                         : existingThread.Id
                 );
             }
@@ -155,8 +159,31 @@ public virtual with sharing class Thread {
                 Unique_Key__c = uniqueKey,
                 Heartbeat__c = System.now()
             );
-            DML.insertRecords(new List<SObject>{ thread });
+            insert thread;
             return thread.Id;
+        }
+
+        Id createIfAbsent(String pool, String threadKey, String uniqueKey) {
+            try {
+                return create(pool, threadKey, uniqueKey);
+            } catch (DmlException error) {
+                if (!isDuplicateUniqueKey(error))
+                    throw error;
+
+                Thread__c existingThread = queries.getThreadByUniqueKey(
+                    uniqueKey
+                );
+                if (existingThread == null)
+                    throw error;
+
+                return existingThread.Id;
+            }
+        }
+
+        Boolean isDuplicateUniqueKey(DmlException error) {
+            String message = error == null ? '' : error.getMessage();
+            return message.contains('DUPLICATE_VALUE') &&
+                message.contains('Unique_Key__c');
         }
 
         public virtual void setCurrent(Id threadId) {
@@ -206,13 +233,15 @@ public virtual with sharing class Thread {
         }
 
         void fillAvailableSlots(String pool, Integer spawnCount) {
-            for (Integer i = 0; i < spawnCount; i++) {
-                Id nextThreadId = claimNext(pool);
-                if (nextThreadId == null)
-                    return;
-
-                setCurrent(nextThreadId);
-                start(nextThreadId, 0);
+            for (
+                Thread__c thread : queries.getNextPendingThreads(
+                    pool,
+                    spawnCount
+                )
+            ) {
+                running(thread.Id);
+                setCurrent(thread.Id);
+                start(thread.Id, 0);
                 hasEnqueued = true;
             }
         }
@@ -246,8 +275,15 @@ public virtual with sharing class Thread {
                 return;
             }
 
+            Id drainedThreadId = currentId();
             String drainedPool = currentPool();
-            complete(currentId());
+            complete(drainedThreadId, runKey);
+            if (ThreadRunner.service.hasPendingWork(drainedThreadId)) {
+                start(drainedThreadId, 0);
+                return;
+            }
+
+            ThreadRunner.service.afterComplete(drainedThreadId, drainedPool);
             Id nextThreadId = ThreadRunner.service.claimNextAfterDrain(
                 drainedPool
             );
@@ -383,7 +419,7 @@ public virtual with sharing class Thread {
                 updates.add(updateRecord);
             }
             if (!updates.isEmpty())
-                DML.updateRecords(updates);
+                update updates;
         }
 
         public virtual void heartbeat(Id threadId) {
@@ -530,11 +566,10 @@ public virtual with sharing class Thread {
 
             List<SObject> updates = new List<SObject>();
             for (
-                Thread__c threadRecord : queries.getThreadsForUpdate(threadIds)
+                Thread__c threadRecord : queries.getDoneThreadsForUpdate(
+                    threadIds
+                )
             ) {
-                if (threadRecord.Status__c != consts.DONE)
-                    continue;
-
                 updates.add(
                     new Thread__c(
                         Id = threadRecord.Id,
@@ -546,7 +581,7 @@ public virtual with sharing class Thread {
                 );
             }
             if (!updates.isEmpty())
-                DML.updateRecords(updates);
+                update updates;
         }
 
         public virtual Boolean canStartQueueableWork() {
@@ -621,7 +656,7 @@ public virtual with sharing class Thread {
                 threads.add(new Thread__c(Id = threadId));
             }
 
-            DML.deleteRecords(threads);
+            delete threads;
         }
 
         void updateStatus(Id threadId, String status) {
@@ -635,7 +670,7 @@ public virtual with sharing class Thread {
             if (threadRecord == null || threadRecord.Id == null)
                 return;
 
-            DML.updateRecords(new List<SObject>{ threadRecord });
+            update threadRecord;
         }
 
         String generateRunKey() {
@@ -702,22 +737,20 @@ public virtual with sharing class Thread {
             if (threadId == null)
                 return null;
 
-            List<Thread__c> threads = (List<Thread__c>) Query.records(
-                [
-                    SELECT
-                        Id,
-                        Pool__c,
-                        Thread_Key__c,
-                        Unique_Key__c,
-                        Status__c,
-                        Run_Key__c,
-                        Heartbeat__c,
-                        Pause_Reason__c
-                    FROM Thread__c
-                    WHERE Id = :threadId
-                    LIMIT 1
-                ]
-            );
+            List<Thread__c> threads = [
+                SELECT
+                    Id,
+                    Pool__c,
+                    Thread_Key__c,
+                    Unique_Key__c,
+                    Status__c,
+                    Run_Key__c,
+                    Heartbeat__c,
+                    Pause_Reason__c
+                FROM Thread__c
+                WHERE Id = :threadId
+                LIMIT 1
+            ];
             return threads.isEmpty() ? null : threads[0];
         }
 
@@ -725,23 +758,20 @@ public virtual with sharing class Thread {
             if (String.isBlank(uniqueKey))
                 return null;
 
-            List<Thread__c> threads = (List<Thread__c>) Query.records(
-                [
-                    SELECT
-                        Id,
-                        Pool__c,
-                        Thread_Key__c,
-                        Unique_Key__c,
-                        Status__c,
-                        Run_Key__c,
-                        Heartbeat__c,
-                        Pause_Reason__c
-                    FROM Thread__c
-                    WHERE Unique_Key__c = :uniqueKey
-                    LIMIT 1
-                    FOR UPDATE
-                ]
-            );
+            List<Thread__c> threads = [
+                SELECT
+                    Id,
+                    Pool__c,
+                    Thread_Key__c,
+                    Unique_Key__c,
+                    Status__c,
+                    Run_Key__c,
+                    Heartbeat__c,
+                    Pause_Reason__c
+                FROM Thread__c
+                WHERE Unique_Key__c = :uniqueKey
+                LIMIT 1
+            ];
             return threads.isEmpty() ? null : threads[0];
         }
 
@@ -749,14 +779,27 @@ public virtual with sharing class Thread {
             if (threadIds == null || threadIds.isEmpty())
                 return new List<Thread__c>();
 
-            return (List<Thread__c>) Query.records(
-                [
-                    SELECT Id, Status__c
-                    FROM Thread__c
-                    WHERE Id IN :threadIds
-                    FOR UPDATE
-                ]
-            );
+            return [
+                SELECT Id, Status__c
+                FROM Thread__c
+                WHERE Id IN :threadIds
+                FOR UPDATE
+            ];
+        }
+
+        public virtual List<Thread__c> getDoneThreadsForUpdate(
+            Set<Id> threadIds
+        ) {
+            if (threadIds == null || threadIds.isEmpty())
+                return new List<Thread__c>();
+
+            String doneStatus = consts.DONE;
+            return [
+                SELECT Id, Status__c
+                FROM Thread__c
+                WHERE Id IN :threadIds AND Status__c = :doneStatus
+                FOR UPDATE
+            ];
         }
 
         public virtual Thread__c getNextPendingThread() {
@@ -764,6 +807,20 @@ public virtual with sharing class Thread {
         }
 
         public virtual Thread__c getNextPendingThread(String pool) {
+            List<Thread__c> threads = getNextPendingThreads(pool, 1);
+            return threads.isEmpty() ? null : threads[0];
+        }
+
+        public virtual List<Thread__c> getNextPendingThreads(
+            String pool,
+            Integer requestedCount
+        ) {
+            Integer safeCount = requestedCount == null
+                ? 0
+                : Math.max(0, requestedCount);
+            if (safeCount < 1)
+                return new List<Thread__c>();
+
             String normalizedPool = String.isBlank(pool)
                 ? consts.ASYNC_POOL
                 : pool.trim();
@@ -771,49 +828,48 @@ public virtual with sharing class Thread {
             Id userId = UserInfo.getUserId();
             List<Thread__c> candidates;
             if (normalizedPool == consts.ASYNC_POOL) {
-                candidates = (List<Thread__c>) Query.records(
-                    [
-                        SELECT Id
-                        FROM Thread__c
-                        WHERE
-                            Status__c = :pendingStatus
-                            AND CreatedById = :userId
-                            AND (Pool__c = :normalizedPool
-                            OR Pool__c = NULL)
-                        ORDER BY CreatedDate ASC
-                        LIMIT 1
-                    ]
-                );
+                candidates = [
+                    SELECT Id
+                    FROM Thread__c
+                    WHERE
+                        Status__c = :pendingStatus
+                        AND CreatedById = :userId
+                        AND (Pool__c = :normalizedPool
+                        OR Pool__c = NULL)
+                    ORDER BY CreatedDate ASC
+                    LIMIT :safeCount
+                ];
             } else if (!ThreadRunner.service.isUserScoped(normalizedPool)) {
-                candidates = (List<Thread__c>) Query.records(
-                    [
-                        SELECT Id
-                        FROM Thread__c
-                        WHERE
-                            Status__c = :pendingStatus
-                            AND Pool__c = :normalizedPool
-                        ORDER BY CreatedDate ASC
-                        LIMIT 1
-                    ]
-                );
+                candidates = [
+                    SELECT Id
+                    FROM Thread__c
+                    WHERE
+                        Status__c = :pendingStatus
+                        AND Pool__c = :normalizedPool
+                    ORDER BY CreatedDate ASC
+                    LIMIT :safeCount
+                ];
             } else {
-                candidates = (List<Thread__c>) Query.records(
-                    [
-                        SELECT Id
-                        FROM Thread__c
-                        WHERE
-                            Status__c = :pendingStatus
-                            AND CreatedById = :userId
-                            AND Pool__c = :normalizedPool
-                        ORDER BY CreatedDate ASC
-                        LIMIT 1
-                    ]
-                );
+                candidates = [
+                    SELECT Id
+                    FROM Thread__c
+                    WHERE
+                        Status__c = :pendingStatus
+                        AND CreatedById = :userId
+                        AND Pool__c = :normalizedPool
+                    ORDER BY CreatedDate ASC
+                    LIMIT :safeCount
+                ];
             }
             if (candidates.isEmpty())
-                return null;
+                return new List<Thread__c>();
 
-            List<Thread__c> threads = (List<Thread__c>) Query.records(
+            List<Id> candidateIds = new List<Id>();
+            for (Thread__c candidate : candidates) {
+                candidateIds.add(candidate.Id);
+            }
+
+            Map<Id, Thread__c> lockedThreadsById = new Map<Id, Thread__c>(
                 [
                     SELECT
                         Id,
@@ -823,11 +879,17 @@ public virtual with sharing class Thread {
                         Heartbeat__c,
                         Pause_Reason__c
                     FROM Thread__c
-                    WHERE Id = :candidates[0].Id AND Status__c = :pendingStatus
+                    WHERE Id IN :candidateIds AND Status__c = :pendingStatus
                     FOR UPDATE
                 ]
             );
-            return threads.isEmpty() ? null : threads[0];
+            List<Thread__c> threads = new List<Thread__c>();
+            for (Id candidateId : candidateIds) {
+                if (lockedThreadsById.containsKey(candidateId)) {
+                    threads.add(lockedThreadsById.get(candidateId));
+                }
+            }
+            return threads;
         }
 
         public virtual Integer countRunningThreads(String pool) {
@@ -985,17 +1047,13 @@ public virtual with sharing class Thread {
                 ? 10
                 : batchSize;
             String doneStatus = consts.DONE;
-            List<Thread__c> candidates = (List<Thread__c>) Query.records(
-                [
-                    SELECT Id
-                    FROM Thread__c
-                    WHERE
-                        Status__c != :doneStatus
-                        AND Heartbeat__c < :staleBefore
-                    ORDER BY Heartbeat__c ASC
-                    LIMIT :safeBatchSize
-                ]
-            );
+            List<Thread__c> candidates = [
+                SELECT Id
+                FROM Thread__c
+                WHERE Status__c != :doneStatus AND Heartbeat__c < :staleBefore
+                ORDER BY Heartbeat__c ASC
+                LIMIT :safeBatchSize
+            ];
             if (candidates.isEmpty())
                 return new List<Thread__c>();
 
@@ -1005,23 +1063,21 @@ public virtual with sharing class Thread {
             }
 
             Map<Id, Thread__c> lockedThreadsById = new Map<Id, Thread__c>(
-                (List<Thread__c>) Query.records(
-                    [
-                        SELECT
-                            Id,
-                            Pool__c,
-                            Status__c,
-                            Run_Key__c,
-                            Heartbeat__c,
-                            Pause_Reason__c
-                        FROM Thread__c
-                        WHERE
-                            Id IN :candidateIds
-                            AND Status__c != :doneStatus
-                            AND Heartbeat__c < :staleBefore
-                        FOR UPDATE
-                    ]
-                )
+                [
+                    SELECT
+                        Id,
+                        Pool__c,
+                        Status__c,
+                        Run_Key__c,
+                        Heartbeat__c,
+                        Pause_Reason__c
+                    FROM Thread__c
+                    WHERE
+                        Id IN :candidateIds
+                        AND Status__c != :doneStatus
+                        AND Heartbeat__c < :staleBefore
+                    FOR UPDATE
+                ]
             );
             List<Thread__c> lockedThreads = new List<Thread__c>();
             for (Id candidateId : candidateIds) {
@@ -1038,15 +1094,13 @@ public virtual with sharing class Thread {
                 ? 10
                 : batchSize;
             String pausedStatus = consts.PAUSED;
-            List<Thread__c> candidates = (List<Thread__c>) Query.records(
-                [
-                    SELECT Id
-                    FROM Thread__c
-                    WHERE Status__c = :pausedStatus
-                    ORDER BY Heartbeat__c ASC
-                    LIMIT :safeBatchSize
-                ]
-            );
+            List<Thread__c> candidates = [
+                SELECT Id
+                FROM Thread__c
+                WHERE Status__c = :pausedStatus
+                ORDER BY Heartbeat__c ASC
+                LIMIT :safeBatchSize
+            ];
             if (candidates.isEmpty())
                 return new List<Thread__c>();
 
@@ -1056,20 +1110,18 @@ public virtual with sharing class Thread {
             }
 
             Map<Id, Thread__c> lockedThreadsById = new Map<Id, Thread__c>(
-                (List<Thread__c>) Query.records(
-                    [
-                        SELECT
-                            Id,
-                            Pool__c,
-                            Status__c,
-                            Run_Key__c,
-                            Heartbeat__c,
-                            Pause_Reason__c
-                        FROM Thread__c
-                        WHERE Id IN :candidateIds AND Status__c = :pausedStatus
-                        FOR UPDATE
-                    ]
-                )
+                [
+                    SELECT
+                        Id,
+                        Pool__c,
+                        Status__c,
+                        Run_Key__c,
+                        Heartbeat__c,
+                        Pause_Reason__c
+                    FROM Thread__c
+                    WHERE Id IN :candidateIds AND Status__c = :pausedStatus
+                    FOR UPDATE
+                ]
             );
             List<Thread__c> lockedThreads = new List<Thread__c>();
             for (Id candidateId : candidateIds) {

@@ -25,7 +25,7 @@ public with sharing class AsyncArchiveCleanupBatch implements Database.Batchable
         if (scope == null || scope.isEmpty())
             return;
 
-        DML.deleteRecords(scope);
+        delete scope;
     }
 
     public void finish(Database.BatchableContext context) {

@@ -81,7 +81,7 @@ public virtual inherited sharing class Selector {
     }
 
     public virtual List<SObject> query(Set<Id> ids) {
-        return Query.records(Database.query(this.queryText(ids)));
+        return Database.query(this.queryText(ids));
     }
 
     public virtual String key() {

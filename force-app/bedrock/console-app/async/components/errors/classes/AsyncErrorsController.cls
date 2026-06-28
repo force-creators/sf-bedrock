@@ -61,7 +61,7 @@ public with sharing class AsyncErrorsController {
         assertCanDelete();
 
         List<Async__c> workItems = errorWorkItems(workItemIds);
-        DML.deleteRecords(workItems);
+        delete workItems;
         return workItems.size();
     }
 

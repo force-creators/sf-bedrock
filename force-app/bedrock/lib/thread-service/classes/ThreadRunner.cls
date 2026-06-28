@@ -99,6 +99,10 @@ public virtual with sharing class ThreadRunner implements Queueable {
             return dispatcherForWork(threadId).hasPendingWork(threadId);
         }
 
+        public virtual void afterComplete(Id threadId, String pool) {
+            dispatcherForPool(pool).afterComplete(threadId);
+        }
+
         public virtual Id claimNextAfterDrain(String pool) {
             String normalizedPool = normalizePool(pool);
             Id nextThreadId = Thread.service.claimNext(normalizedPool);
@@ -219,6 +223,9 @@ public virtual with sharing class ThreadRunner implements Queueable {
         }
 
         public virtual void prepareRecovery(Id threadId) {
+        }
+
+        public virtual void afterComplete(Id threadId) {
         }
 
         public virtual Integer maxThreads() {

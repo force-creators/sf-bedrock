@@ -71,7 +71,7 @@ public virtual with sharing class Scheduler implements Queueable {
         if (schedulerJobId == null)
             return;
 
-        DML.updateRecords(
+        jobs.updateRecords(
             new List<SObject>{
                 new Scheduler__c(Id = schedulerJobId, Next_Run__c = nextRunAt)
             }
@@ -86,7 +86,7 @@ public virtual with sharing class Scheduler implements Queueable {
         if (schedulerJobId == null)
             return;
 
-        DML.updateRecords(
+        jobs.updateRecords(
             new List<SObject>{
                 new Scheduler__c(
                     Id = schedulerJobId,
@@ -101,7 +101,7 @@ public virtual with sharing class Scheduler implements Queueable {
         if (schedulerJobId == null)
             return;
 
-        DML.updateRecords(
+        jobs.updateRecords(
             new List<SObject>{
                 new Scheduler__c(
                     Id = schedulerJobId,
@@ -230,7 +230,7 @@ public virtual with sharing class Scheduler implements Queueable {
             }
 
             if (!jobs.isEmpty()) {
-                DML.upsertRecords(jobs, Scheduler__c.Fields.Apex__c);
+                upsertRecords(jobs, Scheduler__c.Fields.Apex__c);
             }
         }
 
@@ -368,6 +368,17 @@ public virtual with sharing class Scheduler implements Queueable {
         public virtual void attachFinalizer(Finalizer finalizer) {
             System.attachFinalizer(finalizer);
         }
+
+        protected virtual void updateRecords(List<SObject> records) {
+            update records;
+        }
+
+        protected virtual void upsertRecords(
+            List<SObject> records,
+            SObjectField externalIdField
+        ) {
+            Database.upsert(records, externalIdField, true);
+        }
     }
 
     public virtual with sharing class MetadataService {
@@ -434,22 +445,20 @@ public virtual with sharing class Scheduler implements Queueable {
         ) {
             if (apexClasses == null || apexClasses.isEmpty())
                 return new List<Scheduler__c>();
-            return (List<Scheduler__c>) Query.records(
-                [
-                    SELECT
-                        Id,
-                        Apex__c,
-                        Enabled__c,
-                        Frequency__c,
-                        Interval__c,
-                        Hash__c,
-                        Next_Run__c,
-                        Last_Executed__c,
-                        Error_Message__c
-                    FROM Scheduler__c
-                    WHERE Apex__c IN :apexClasses
-                ]
-            );
+            return [
+                SELECT
+                    Id,
+                    Apex__c,
+                    Enabled__c,
+                    Frequency__c,
+                    Interval__c,
+                    Hash__c,
+                    Next_Run__c,
+                    Last_Executed__c,
+                    Error_Message__c
+                FROM Scheduler__c
+                WHERE Apex__c IN :apexClasses
+            ];
         }
 
         public virtual List<Scheduler__c> getJobsByApexClassesAndMetadataHash(
@@ -458,50 +467,28 @@ public virtual with sharing class Scheduler implements Queueable {
         ) {
             if (apexClasses == null || apexClasses.isEmpty())
                 return new List<Scheduler__c>();
-            return (List<Scheduler__c>) Query.records(
-                [
-                    SELECT Id, Apex__c, Enabled__c, Hash__c, Next_Run__c
-                    FROM Scheduler__c
-                    WHERE Apex__c IN :apexClasses AND Hash__c = :metadataHash
-                ]
-            );
+            return [
+                SELECT Id, Apex__c, Enabled__c, Hash__c, Next_Run__c
+                FROM Scheduler__c
+                WHERE Apex__c IN :apexClasses AND Hash__c = :metadataHash
+            ];
         }
 
         public virtual List<Scheduler__c> getJobsByMetadataHash(
             String metadataHash
         ) {
-            return (List<Scheduler__c>) Query.records(
-                [
-                    SELECT Id, Apex__c, Hash__c, Next_Run__c
-                    FROM Scheduler__c
-                    WHERE Hash__c = :metadataHash
-                ]
-            );
+            return [
+                SELECT Id, Apex__c, Hash__c, Next_Run__c
+                FROM Scheduler__c
+                WHERE Hash__c = :metadataHash
+            ];
         }
 
         public virtual List<Scheduler__c> getJobsNotInApexClasses(
             Set<String> apexClasses
         ) {
             if (apexClasses == null || apexClasses.isEmpty()) {
-                return (List<Scheduler__c>) Query.records(
-                    [
-                        SELECT
-                            Id,
-                            Apex__c,
-                            Enabled__c,
-                            Frequency__c,
-                            Interval__c,
-                            Hash__c,
-                            Next_Run__c,
-                            Last_Executed__c,
-                            Error_Message__c
-                        FROM Scheduler__c
-                    ]
-                );
-            }
-
-            return (List<Scheduler__c>) Query.records(
-                [
+                return [
                     SELECT
                         Id,
                         Apex__c,
@@ -513,29 +500,41 @@ public virtual with sharing class Scheduler implements Queueable {
                         Last_Executed__c,
                         Error_Message__c
                     FROM Scheduler__c
-                    WHERE Apex__c NOT IN :apexClasses
-                ]
-            );
+                ];
+            }
+
+            return [
+                SELECT
+                    Id,
+                    Apex__c,
+                    Enabled__c,
+                    Frequency__c,
+                    Interval__c,
+                    Hash__c,
+                    Next_Run__c,
+                    Last_Executed__c,
+                    Error_Message__c
+                FROM Scheduler__c
+                WHERE Apex__c NOT IN :apexClasses
+            ];
         }
 
         public virtual List<Scheduler__c> getEnabledJobs() {
-            return (List<Scheduler__c>) Query.records(
-                [
-                    SELECT
-                        Id,
-                        Apex__c,
-                        Enabled__c,
-                        Frequency__c,
-                        Interval__c,
-                        Hash__c,
-                        Next_Run__c,
-                        Last_Executed__c,
-                        Error_Message__c
-                    FROM Scheduler__c
-                    WHERE Enabled__c = TRUE
-                    ORDER BY Apex__c
-                ]
-            );
+            return [
+                SELECT
+                    Id,
+                    Apex__c,
+                    Enabled__c,
+                    Frequency__c,
+                    Interval__c,
+                    Hash__c,
+                    Next_Run__c,
+                    Last_Executed__c,
+                    Error_Message__c
+                FROM Scheduler__c
+                WHERE Enabled__c = TRUE
+                ORDER BY Apex__c
+            ];
         }
     }
 

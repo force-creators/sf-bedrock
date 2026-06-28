@@ -7,15 +7,16 @@
 
 @istest(testFor='ApexClass:RecordBuffer')
 private class RecordBufferTest {
-    static DMLMock setupDmlMock() {
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
-        return dmlMock;
+    static RecordBufferMock setupRecordBufferMock() {
+        RecordBuffer.reset();
+        RecordBufferMock mock = new RecordBufferMock().mockDml();
+        RecordBuffer.setMock(mock);
+        return mock;
     }
 
     @istest
     static void testFlushUpsertsBasicInsertAndBasicUpdate() {
-        DMLMock dmlMock = setupDmlMock();
+        RecordBufferMock mock = setupRecordBufferMock();
 
         Account account = (Account) new TestData(Account.sObjectType)
             .put(Account.Name, 'Bedrock')
@@ -33,24 +34,24 @@ private class RecordBufferTest {
 
         Assert.areEqual(
             2,
-            dmlMock.upserts.size(),
+            mock.dml.upserts.size(),
             'Expected flush() to issue one upsert call per object type staged in the buffer.'
         );
         Assert.areEqual(
             1,
-            dmlMock.upserts[0].size(),
+            mock.dml.upserts[0].size(),
             'Expected the first upsert call to contain exactly one staged record.'
         );
         Assert.areEqual(
             1,
-            dmlMock.upserts[1].size(),
+            mock.dml.upserts[1].size(),
             'Expected the second upsert call to contain exactly one staged record.'
         );
     }
 
     @istest
     static void testPutNullInputsAreIgnored() {
-        DMLMock dmlMock = setupDmlMock();
+        RecordBufferMock mock = setupRecordBufferMock();
 
         RecordBuffer.start();
         RecordBuffer.put((SObject) null);
@@ -60,14 +61,14 @@ private class RecordBufferTest {
 
         Assert.areEqual(
             0,
-            dmlMock.upserts.size(),
+            mock.dml.upserts.size(),
             'Expected null put() inputs to stage no records and produce no DML calls.'
         );
     }
 
     @istest
     static void testPutListWithNullElementStagesOnlyRealRecords() {
-        DMLMock dmlMock = setupDmlMock();
+        RecordBufferMock mock = setupRecordBufferMock();
         Account account = (Account) new TestData(Account.sObjectType)
             .put(Account.Name, 'Only Real Record')
             .build()[0];
@@ -78,24 +79,24 @@ private class RecordBufferTest {
 
         Assert.areEqual(
             1,
-            dmlMock.upserts.size(),
+            mock.dml.upserts.size(),
             'Expected one upsert call when one non-null record is staged.'
         );
         Assert.areEqual(
             1,
-            dmlMock.upserts[0].size(),
+            mock.dml.upserts[0].size(),
             'Expected only the non-null list member to be staged.'
         );
         Assert.areEqual(
             'Only Real Record',
-            ((Account) dmlMock.upserts[0][0]).Name,
+            ((Account) mock.dml.upserts[0][0]).Name,
             'Expected the staged account values to be preserved.'
         );
     }
 
     @istest
     static void testFlushDedupesUpdatesById() {
-        DMLMock dmlMock = setupDmlMock();
+        RecordBufferMock mock = setupRecordBufferMock();
 
         Account original = (Account) new TestData(Account.sObjectType)
             .put(Account.Name, 'Original')
@@ -111,17 +112,17 @@ private class RecordBufferTest {
 
         Assert.areEqual(
             1,
-            dmlMock.upserts.size(),
+            mock.dml.upserts.size(),
             'Expected a single upsert call for one object type.'
         );
         Assert.areEqual(
             1,
-            dmlMock.upserts[0].size(),
+            mock.dml.upserts[0].size(),
             'Expected only one record after deduping updates by record Id.'
         );
         Assert.areEqual(
             'Latest',
-            ((Account) dmlMock.upserts[0][0]).Name,
+            ((Account) mock.dml.upserts[0][0]).Name,
             'Expected the latest staged update to win for duplicate Ids.'
         );
     }
@@ -198,7 +199,7 @@ private class RecordBufferTest {
 
     @istest
     static void testAutoStartContextOnPutAndFlush() {
-        DMLMock dmlMock = setupDmlMock();
+        RecordBufferMock mock = setupRecordBufferMock();
         Account account = (Account) new TestData(Account.sObjectType)
             .put(Account.Name, 'Auto Start')
             .build()[0];
@@ -208,19 +209,44 @@ private class RecordBufferTest {
 
         Assert.areEqual(
             1,
-            dmlMock.upserts.size(),
+            mock.dml.upserts.size(),
             'Expected put() to lazily create a context when start() is not called first.'
         );
         Assert.areEqual(
             1,
-            dmlMock.upserts[0].size(),
+            mock.dml.upserts[0].size(),
             'Expected flush() to process records staged in an auto-started context.'
         );
     }
 
     @istest
+    static void testFlush_ignoresSubscriberDmlMock() {
+        RecordBuffer.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+
+        RecordBuffer.put(new Account(Name = 'Subscriber Mock Bypass'));
+        RecordBuffer.flush();
+
+        Assert.areEqual(
+            0,
+            dmlMock.upserts.size(),
+            'Subscriber DML mocks should not intercept RecordBuffer flushes.'
+        );
+        Assert.areEqual(
+            1,
+            [
+                SELECT COUNT()
+                FROM Account
+                WHERE Name = 'Subscriber Mock Bypass'
+            ],
+            'RecordBuffer should persist buffered records directly.'
+        );
+    }
+
+    @istest
     static void testNestedContextsFlushTopFirst() {
-        DMLMock dmlMock = setupDmlMock();
+        RecordBufferMock mock = setupRecordBufferMock();
         Account outerRecord = (Account) new TestData(Account.sObjectType)
             .put(Account.Name, 'Outer')
             .build()[0];
@@ -236,24 +262,24 @@ private class RecordBufferTest {
         RecordBuffer.flush();
         Assert.areEqual(
             1,
-            dmlMock.upserts.size(),
+            mock.dml.upserts.size(),
             'Expected first flush() to process only the most recent context.'
         );
         Assert.areEqual(
             'Inner',
-            ((Account) dmlMock.upserts[0][0]).Name,
+            ((Account) mock.dml.upserts[0][0]).Name,
             'Expected first flush() to process inner-context records first.'
         );
 
         RecordBuffer.flush();
         Assert.areEqual(
             2,
-            dmlMock.upserts.size(),
+            mock.dml.upserts.size(),
             'Expected second flush() to process the outer context after inner context is removed.'
         );
         Assert.areEqual(
             'Outer',
-            ((Account) dmlMock.upserts[1][0]).Name,
+            ((Account) mock.dml.upserts[1][0]).Name,
             'Expected second flush() to process outer-context records.'
         );
     }

@@ -10,8 +10,7 @@ class EventRelayTest {
     @istest
     static void publish_platformEvents_createsDurablePublishWork() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         MockWakeService wakeSignal = new MockWakeService();
         EventRelay.wakeSignal = wakeSignal;
@@ -22,7 +21,7 @@ class EventRelayTest {
             }
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             1,
             insertedEvents.size(),
@@ -62,10 +61,71 @@ class EventRelayTest {
     }
 
     @istest
-    static void publish_sObjectPublisherType_createsDurablePublishWork() {
+    static void publish_ignoresSubscriberQueryAndDmlMocks() {
         EventRelay.reset();
         DMLMock dmlMock = new DMLMock();
         DML.setMock(dmlMock);
+        Query.setMock(new QueryMock.Multiple());
+        MockWakeService wakeSignal = new MockWakeService();
+        EventRelay.wakeSignal = wakeSignal;
+
+        List<Id> workItemIds = EventRelay.publish(
+            new List<SObject>{
+                new Bedrock_Test_Event__e(Message__c = 'subscriber mocks')
+            }
+        );
+
+        Assert.areEqual(
+            0,
+            dmlMock.inserts.size(),
+            'Subscriber DML mocks should not intercept EventRelay runtime inserts.'
+        );
+        Assert.areEqual(
+            0,
+            dmlMock.updates.size(),
+            'Subscriber DML mocks should not intercept EventRelay runtime updates.'
+        );
+        Assert.areEqual(
+            1,
+            workItemIds.size(),
+            'EventRelay should persist real work even when subscriber DML mocks are installed.'
+        );
+
+        Event__c workItem = [
+            SELECT Job_Type__c, Status__c, Payload_Type__c, Thread__c
+            FROM Event__c
+            WHERE Id = :workItemIds[0]
+        ];
+        Assert.areEqual(
+            EventRelay.consts.PUBLISH,
+            workItem.Job_Type__c,
+            'EventRelay should create publish work with direct DML.'
+        );
+        Assert.areEqual(
+            EventRelay.consts.PENDING,
+            workItem.Status__c,
+            'Directly persisted EventRelay work should start pending.'
+        );
+        Assert.areEqual(
+            'Bedrock_Test_Event__e',
+            workItem.Payload_Type__c,
+            'Directly persisted EventRelay work should preserve the payload type.'
+        );
+        Assert.isNotNull(
+            workItem.Thread__c,
+            'EventRelay should create its owning Thread without subscriber DML mocks.'
+        );
+        Assert.areEqual(
+            1,
+            wakeSignal.signalCalls,
+            'EventRelay should still signal wake processing after direct persistence.'
+        );
+    }
+
+    @istest
+    static void publish_sObjectPublisherType_createsDurablePublishWork() {
+        EventRelay.reset();
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
 
@@ -76,7 +136,7 @@ class EventRelayTest {
             MockSObjectPublisher.class
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             1,
             insertedEvents.size(),
@@ -110,8 +170,7 @@ class EventRelayTest {
     @istest
     static void publish_sObjectMetadata_createsDurablePublishWork() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
         EventRelay.routes = new MockRouteService(
@@ -131,7 +190,7 @@ class EventRelayTest {
             }
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             1,
             insertedEvents.size(),
@@ -149,8 +208,7 @@ class EventRelayTest {
     @istest
     static void publish_sObjectConfig_createsDurablePublishWork() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
         EventRelay.metadata = new MockMetadataService(
@@ -173,7 +231,7 @@ class EventRelayTest {
             }
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             1,
             insertedEvents.size(),
@@ -201,8 +259,7 @@ class EventRelayTest {
     @istest
     static void publish_withConfiguredDuplicateIdempotencyKey_marksLaterBatchWorkStale() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
 
@@ -227,7 +284,7 @@ class EventRelayTest {
             }
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             2,
             insertedEvents.size(),
@@ -258,8 +315,7 @@ class EventRelayTest {
     @istest
     static void publish_explicitPublisherWithConfiguredIdempotencyKey_marksDuplicateWorkStale() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
 
@@ -285,7 +341,7 @@ class EventRelayTest {
             MockSObjectPublisher.class
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             2,
             insertedEvents.size(),
@@ -377,8 +433,7 @@ class EventRelayTest {
     @istest
     static void publish_genericWithConfiguredIdempotencyKey_marksDuplicateWorkStale() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
 
@@ -413,7 +468,7 @@ class EventRelayTest {
             }
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             2,
             insertedEvents.size(),
@@ -439,8 +494,7 @@ class EventRelayTest {
     @istest
     static void publish_sObjectMetadata_fansOutToMultipleRouteLanes() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
         EventRelay.routes = new MockRouteService(
@@ -466,7 +520,7 @@ class EventRelayTest {
             }
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             2,
             insertedEvents.size(),
@@ -517,8 +571,7 @@ class EventRelayTest {
     @istest
     static void publish_genericMetadata_createsDurablePublishWork() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
         EventRelay.routes = new MockRouteService(
@@ -543,7 +596,7 @@ class EventRelayTest {
             }
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             1,
             insertedEvents.size(),
@@ -599,8 +652,7 @@ class EventRelayTest {
     @istest
     static void ingest_platformEventsWithHandler_createsDurableProcessWork() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         MockWakeService wakeSignal = new MockWakeService();
         EventRelay.wakeSignal = wakeSignal;
@@ -612,7 +664,7 @@ class EventRelayTest {
             MockHandler.class
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             1,
             insertedEvents.size(),
@@ -660,8 +712,7 @@ class EventRelayTest {
     @istest
     static void ingest_genericWithHandler_createsDurableProcessWork() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
 
@@ -677,7 +728,7 @@ class EventRelayTest {
             MockHandler.class
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             1,
             insertedEvents.size(),
@@ -714,8 +765,7 @@ class EventRelayTest {
     @istest
     static void ingest_genericConfig_createsDurableProcessWork() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
         EventRelay.metadata = new MockMetadataService(
@@ -743,7 +793,7 @@ class EventRelayTest {
             }
         );
 
-        List<Event__c> insertedEvents = eventInserts(dmlMock);
+        List<Event__c> insertedEvents = eventInserts(work);
         Assert.areEqual(
             1,
             insertedEvents.size(),
@@ -805,8 +855,7 @@ class EventRelayTest {
     @istest
     static void flush_stagedEvents_createsWorkAndClearsBuffer() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
         Thread.setMock(new ThreadMock().mockIds());
         EventRelay.wakeSignal = new MockWakeService();
 
@@ -818,7 +867,7 @@ class EventRelayTest {
 
         Assert.areEqual(
             0,
-            eventInserts(dmlMock).size(),
+            eventInserts(work).size(),
             'Staging should not insert durable work before flush.'
         );
 
@@ -827,7 +876,7 @@ class EventRelayTest {
 
         Assert.areEqual(
             1,
-            eventInserts(dmlMock).size(),
+            eventInserts(work).size(),
             'The staged platform event should become one Event__c row.'
         );
     }
@@ -860,8 +909,7 @@ class EventRelayTest {
     @istest
     static void publishJob_updatesEachWorkItemFromPublisherResults() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
 
         Id threadId = (Id) new TestData(Thread__c.sObjectType)
                 .mockIds()
@@ -908,12 +956,12 @@ class EventRelayTest {
         );
         Assert.areEqual(
             1,
-            dmlMock.updates.size(),
+            work.updates.size(),
             'Publisher results should be written in a single DML update call.'
         );
 
         Map<Id, Event__c> updatesById = new Map<Id, Event__c>();
-        for (SObject updateRecord : dmlMock.updates[0]) {
+        for (SObject updateRecord : work.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
         Assert.areEqual(
@@ -936,8 +984,7 @@ class EventRelayTest {
     @istest
     static void publishJob_retriesFailedResultUntilConfiguredCap() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
 
         Id threadId = (Id) new TestData(Thread__c.sObjectType)
                 .mockIds()
@@ -981,7 +1028,7 @@ class EventRelayTest {
             .execute(null);
 
         Map<Id, Event__c> updatesById = new Map<Id, Event__c>();
-        for (SObject updateRecord : dmlMock.updates[0]) {
+        for (SObject updateRecord : work.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
         Assert.areEqual(
@@ -1017,10 +1064,80 @@ class EventRelayTest {
     }
 
     @istest
+    static void publishWatcher_successContinuesThroughThreadRunner() {
+        EventRelay.reset();
+        Thread.setMock(new ThreadMock().mockIds());
+        MockThreadRunnerService runner = new MockThreadRunnerService();
+        ThreadRunner.setMock(runner);
+
+        Id threadId = (Id) new TestData(Thread__c.sObjectType)
+                .mockIds()
+                .build()[0]
+            .Id;
+
+        new EventRelay.PublishWatcher(threadId, new List<Id>(), 2, 'run-key')
+            .execute(new MockFinalizerContext(ParentJobResult.SUCCESS, null));
+
+        Assert.areEqual(
+            1,
+            runner.startCalls,
+            'A successful publish finalizer should trampoline through ThreadRunner instead of directly chaining another publish job.'
+        );
+        Assert.areEqual(
+            threadId,
+            runner.startedThreadId,
+            'The continuation should preserve the current thread.'
+        );
+        Assert.areEqual(
+            2,
+            runner.failures,
+            'The continuation should preserve the current failure count.'
+        );
+        Assert.areEqual(
+            'run-key',
+            runner.runKey,
+            'The continuation should preserve the current run fence.'
+        );
+        Assert.isFalse(
+            Thread.service.isFinalizer,
+            'The finalizer flag should be cleared after continuation dispatch.'
+        );
+    }
+
+    @istest
+    static void threadDispatcher_afterCompleteSignalsWake() {
+        EventRelay.reset();
+        MockWakeService wakeSignal = new MockWakeService();
+        EventRelay.wakeSignal = wakeSignal;
+
+        new EventRelay.ThreadDispatcher().afterComplete(null);
+
+        Assert.areEqual(
+            1,
+            wakeSignal.signalCalls,
+            'Expected completed publish lanes to signal a follow-up EventRelay wake.'
+        );
+    }
+
+    @istest
+    static void processThreadDispatcher_afterCompleteSignalsWake() {
+        EventRelay.reset();
+        MockWakeService wakeSignal = new MockWakeService();
+        EventRelay.wakeSignal = wakeSignal;
+
+        new EventRelay.ProcessThreadDispatcher().afterComplete(null);
+
+        Assert.areEqual(
+            1,
+            wakeSignal.signalCalls,
+            'Expected completed process lanes to signal a follow-up EventRelay wake.'
+        );
+    }
+
+    @istest
     static void processJob_executesHandlerAndCompletesWorkItems() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
 
         Id threadId = (Id) new TestData(Thread__c.sObjectType)
                 .mockIds()
@@ -1060,12 +1177,12 @@ class EventRelayTest {
         );
         Assert.areEqual(
             1,
-            dmlMock.updates.size(),
+            work.updates.size(),
             'Successful handler execution should update process work in one DML call.'
         );
 
         Map<Id, Event__c> updatesById = new Map<Id, Event__c>();
-        for (SObject updateRecord : dmlMock.updates[0]) {
+        for (SObject updateRecord : work.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
         Assert.areEqual(
@@ -1168,8 +1285,7 @@ class EventRelayTest {
     @istest
     static void processJob_appliesExplicitHandlerFailures() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
 
         Id threadId = (Id) new TestData(Thread__c.sObjectType)
                 .mockIds()
@@ -1216,7 +1332,7 @@ class EventRelayTest {
             'The process job should pass every selected work item payload to the handler.'
         );
         Map<Id, Event__c> updatesById = new Map<Id, Event__c>();
-        for (SObject updateRecord : dmlMock.updates[0]) {
+        for (SObject updateRecord : work.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
         Assert.areEqual(
@@ -1249,8 +1365,7 @@ class EventRelayTest {
     @istest
     static void workFail_retriesProcessWorkUntilConfiguredCap() {
         EventRelay.reset();
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        MockWorkService work = mockWorkDml();
 
         Event__c retryable = processWorkItem('1001');
         Event__c terminal = processWorkItem('1002');
@@ -1279,7 +1394,7 @@ class EventRelayTest {
         );
 
         Map<Id, Event__c> updatesById = new Map<Id, Event__c>();
-        for (SObject updateRecord : dmlMock.updates[0]) {
+        for (SObject updateRecord : work.updates[0]) {
             updatesById.put(updateRecord.Id, (Event__c) updateRecord);
         }
         Assert.areEqual(
@@ -1550,6 +1665,88 @@ class EventRelayTest {
             1,
             wakeSignal.signalCalls,
             'Manual retry should signal EventRelay wake processing.'
+        );
+    }
+
+    @istest
+    static void reopenDrainedThreadsWithPendingWork_reopensOnlyMatchingDoneLanes() {
+        EventRelay.reset();
+        Thread__c drainedPublishThread = eventThread(
+            EventRelay.consts.PUBLISH_POOL,
+            'publish-drained',
+            Thread.consts.DONE
+        );
+        Thread__c runningPublishThread = eventThread(
+            EventRelay.consts.PUBLISH_POOL,
+            'publish-running',
+            Thread.consts.RUNNING
+        );
+        Thread__c drainedProcessThread = eventThread(
+            EventRelay.consts.PROCESS_POOL,
+            'process-drained',
+            Thread.consts.DONE
+        );
+        insert new List<Thread__c>{
+            drainedPublishThread,
+            runningPublishThread,
+            drainedProcessThread
+        };
+
+        Event__c pendingPublish = workItem('publish');
+        pendingPublish.Id = null;
+        pendingPublish.Thread__c = drainedPublishThread.Id;
+        pendingPublish.Status__c = EventRelay.consts.PENDING;
+        pendingPublish.Job_Type__c = EventRelay.consts.PUBLISH;
+
+        Event__c runningThreadPublish = workItem('running');
+        runningThreadPublish.Id = null;
+        runningThreadPublish.Thread__c = runningPublishThread.Id;
+        runningThreadPublish.Status__c = EventRelay.consts.PENDING;
+        runningThreadPublish.Job_Type__c = EventRelay.consts.PUBLISH;
+
+        Event__c pendingProcess = processWorkItem('1001');
+        pendingProcess.Id = null;
+        pendingProcess.Thread__c = drainedProcessThread.Id;
+        pendingProcess.Status__c = EventRelay.consts.PENDING;
+        pendingProcess.Job_Type__c = EventRelay.consts.PROCESS;
+
+        insert new List<Event__c>{
+            pendingPublish,
+            runningThreadPublish,
+            pendingProcess
+        };
+
+        EventRelay.work.reopenDrainedThreadsWithPendingWork(
+            EventRelay.consts.PUBLISH_POOL,
+            EventRelay.consts.PUBLISH
+        );
+
+        Map<Id, Thread__c> threadsById = new Map<Id, Thread__c>(
+            [
+                SELECT Status__c, Run_Key__c, Completed__c
+                FROM Thread__c
+                WHERE
+                    Id IN :new Set<Id>{
+                        drainedPublishThread.Id,
+                        runningPublishThread.Id,
+                        drainedProcessThread.Id
+                    }
+            ]
+        );
+        Assert.areEqual(
+            Thread.consts.PENDING,
+            threadsById.get(drainedPublishThread.Id).Status__c,
+            'Expected wake preparation to reopen Done publish lanes that have pending publish work.'
+        );
+        Assert.areEqual(
+            Thread.consts.RUNNING,
+            threadsById.get(runningPublishThread.Id).Status__c,
+            'Expected wake preparation not to touch active publish lanes.'
+        );
+        Assert.areEqual(
+            Thread.consts.DONE,
+            threadsById.get(drainedProcessThread.Id).Status__c,
+            'Expected publish wake preparation not to touch process lanes.'
         );
     }
 
@@ -1894,9 +2091,37 @@ class EventRelayTest {
         return workItem;
     }
 
-    static List<Event__c> eventInserts(DMLMock dmlMock) {
+    static Thread__c eventThread(String pool, String threadKey, String status) {
+        Thread__c threadRecord = new Thread__c(
+            Status__c = status,
+            Pool__c = pool,
+            Thread_Key__c = threadKey,
+            Heartbeat__c = System.now(),
+            Unique_Key__c = EncodingUtil.convertToHex(
+                Crypto.generateDigest(
+                    'SHA-256',
+                    Blob.valueOf(pool + ':' + threadKey)
+                )
+            )
+        );
+        if (status == Thread.consts.DONE) {
+            threadRecord.Completed__c = System.now();
+            threadRecord.Run_Key__c = 'old-run-key';
+        } else if (status == Thread.consts.RUNNING) {
+            threadRecord.Run_Key__c = 'active-run-key';
+        }
+        return threadRecord;
+    }
+
+    static MockWorkService mockWorkDml() {
+        MockWorkService work = new MockWorkService().mockDml();
+        EventRelay.work = work;
+        return work;
+    }
+
+    static List<Event__c> eventInserts(MockWorkService work) {
         List<Event__c> events = new List<Event__c>();
-        for (List<SObject> insertCall : dmlMock.inserts) {
+        for (List<SObject> insertCall : work.inserts) {
             for (SObject record : insertCall) {
                 if (record instanceof Event__c) {
                     events.add((Event__c) record);
@@ -1926,6 +2151,31 @@ class EventRelayTest {
             Apex__c = apexClass,
             Batch_Size__c = batchSize
         );
+    }
+
+    class MockWorkService extends EventRelay.WorkService {
+        List<List<SObject>> inserts = new List<List<SObject>>();
+        List<List<SObject>> updates = new List<List<SObject>>();
+        Boolean useMockDml = false;
+
+        MockWorkService mockDml() {
+            this.useMockDml = true;
+            return this;
+        }
+
+        protected override void insertRecords(List<SObject> records) {
+            this.inserts.add(records);
+            if (!this.useMockDml) {
+                super.insertRecords(records);
+            }
+        }
+
+        protected override void updateRecords(List<SObject> records) {
+            this.updates.add(records);
+            if (!this.useMockDml) {
+                super.updateRecords(records);
+            }
+        }
     }
 
     class MockQueryService extends EventRelay.QueryService {
@@ -2107,6 +2357,50 @@ class EventRelayTest {
 
     class MockJobService extends EventRelay.JobService {
         public override void attachFinalizer(Finalizer finalizer) {
+        }
+    }
+
+    class MockThreadRunnerService extends ThreadRunner.Service {
+        Integer startCalls = 0;
+        Id startedThreadId;
+        Integer failures;
+        String runKey;
+
+        public override void start(
+            Id threadId,
+            Integer failures,
+            String runKey
+        ) {
+            this.startCalls++;
+            this.startedThreadId = threadId;
+            this.failures = failures;
+            this.runKey = runKey;
+        }
+    }
+
+    class MockFinalizerContext implements FinalizerContext {
+        ParentJobResult result;
+        Exception error;
+
+        MockFinalizerContext(ParentJobResult result, Exception error) {
+            this.result = result;
+            this.error = error;
+        }
+
+        public Id getAsyncApexJobId() {
+            return null;
+        }
+
+        public String getRequestId() {
+            return 'mock-request';
+        }
+
+        public ParentJobResult getResult() {
+            return result;
+        }
+
+        public Exception getException() {
+            return error;
         }
     }
 }

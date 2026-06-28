@@ -49,7 +49,7 @@ public with sharing class EventConsoleController {
         assertCanDelete();
 
         List<Event__c> workItems = queries.getErrorWorkItems(workItemIds);
-        DML.deleteRecords(workItems);
+        delete workItems;
         return workItems.size();
     }
 

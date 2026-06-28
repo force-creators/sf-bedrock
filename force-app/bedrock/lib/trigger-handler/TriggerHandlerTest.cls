@@ -139,10 +139,11 @@ public class TriggerHandlerTest {
         }
     }
 
-    static DMLMock setupDmlMock() {
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
-        return dmlMock;
+    static RecordBufferMock setupRecordBufferMock() {
+        RecordBuffer.reset();
+        RecordBufferMock mock = new RecordBufferMock().mockDml();
+        RecordBuffer.setMock(mock);
+        return mock;
     }
 
     static Account account(String name) {
@@ -167,7 +168,7 @@ public class TriggerHandlerTest {
 
     @istest
     static void testRunDispatchesTriggerOperationsAndFlushesBuffers() {
-        DMLMock dmlMock = setupDmlMock();
+        RecordBufferMock mock = setupRecordBufferMock();
         Harness harness = new Harness();
         Account newAccount = account('New');
         Account oldAccount = account('Old');
@@ -320,7 +321,7 @@ public class TriggerHandlerTest {
         );
         Assert.areEqual(
             7,
-            dmlMock.upserts.size(),
+            mock.dml.upserts.size(),
             'Expected run() to flush buffered records after each dispatched trigger operation.'
         );
     }

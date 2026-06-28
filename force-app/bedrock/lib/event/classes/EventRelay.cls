@@ -93,7 +93,15 @@ public virtual with sharing class EventRelay {
         )
             return;
 
+        work.reopenDrainedThreadsWithPendingWork(
+            consts.PUBLISH_POOL,
+            consts.PUBLISH
+        );
         Thread.service.fillAvailableSlots(consts.PUBLISH_POOL);
+        work.reopenDrainedThreadsWithPendingWork(
+            consts.PROCESS_POOL,
+            consts.PROCESS
+        );
         Thread.service.fillAvailableSlots(consts.PROCESS_POOL);
     }
 
@@ -453,7 +461,7 @@ public virtual with sharing class EventRelay {
         Thread.service.isFinalizer = true;
         try {
             if (context.getResult() == ParentJobResult.SUCCESS) {
-                Thread.continueCurrent(runKey);
+                ThreadRunner.service.start(threadId, failures, runKey);
                 return;
             }
 
@@ -665,6 +673,10 @@ public virtual with sharing class EventRelay {
             work.prepareRecovery(threadId);
         }
 
+        public override void afterComplete(Id threadId) {
+            wakeSignal.signal();
+        }
+
         public override Boolean isUserScoped() {
             return false;
         }
@@ -699,6 +711,10 @@ public virtual with sharing class EventRelay {
 
         public override void prepareRecovery(Id threadId) {
             work.prepareRecovery(threadId, consts.PROCESS);
+        }
+
+        public override void afterComplete(Id threadId) {
+            wakeSignal.signal();
         }
 
         public override Boolean isUserScoped() {

@@ -373,7 +373,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
 
             if (workItems.isEmpty())
                 return new List<Id>();
-            DML.insertRecords(workItems);
+            insertRecords(workItems);
             return idsFrom(workItems);
         }
 
@@ -485,7 +485,7 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 updates.add(updateRecord);
             }
 
-            DML.updateRecords(updates);
+            updateRecords(updates);
         }
 
         public virtual void running(Set<Id> workItemIds) {
@@ -531,7 +531,15 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
                 updates.add(updateRecord);
             }
 
-            DML.updateRecords(updates);
+            updateRecords(updates);
+        }
+
+        protected virtual void insertRecords(List<SObject> records) {
+            insert records;
+        }
+
+        protected virtual void updateRecords(List<SObject> records) {
+            update records;
         }
 
         String truncate(String value) {
@@ -546,15 +554,13 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
     public virtual with sharing class QueryService {
         public virtual Async__c getNextWorkItem(Id threadId) {
             String pendingStatus = consts.PENDING;
-            List<Async__c> workItems = (List<Async__c>) Query.records(
-                Database.query(
-                    'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
-                        'FROM Async__c ' +
-                        'WHERE Thread__c = :threadId ' +
-                        'AND Status__c = :pendingStatus ' +
-                        'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
-                        'LIMIT 1'
-                )
+            List<Async__c> workItems = (List<Async__c>) Database.query(
+                'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
+                    'FROM Async__c ' +
+                    'WHERE Thread__c = :threadId ' +
+                    'AND Status__c = :pendingStatus ' +
+                    'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
+                    'LIMIT 1'
             );
             return workItems.isEmpty() ? null : workItems[0];
         }
@@ -565,16 +571,14 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
             Integer batchSize
         ) {
             String pendingStatus = consts.PENDING;
-            return (List<Async__c>) Query.records(
-                Database.query(
-                    'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
-                        'FROM Async__c ' +
-                        'WHERE Thread__c = :threadId ' +
-                        'AND Apex__c = :apexClass ' +
-                        'AND Status__c = :pendingStatus ' +
-                        'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
-                        'LIMIT :batchSize'
-                )
+            return (List<Async__c>) Database.query(
+                'SELECT Apex__c, Thread__c, Record_Id__c, Priority__c ' +
+                    'FROM Async__c ' +
+                    'WHERE Thread__c = :threadId ' +
+                    'AND Apex__c = :apexClass ' +
+                    'AND Status__c = :pendingStatus ' +
+                    'ORDER BY Priority__c ASC NULLS LAST, CreatedDate ASC ' +
+                    'LIMIT :batchSize'
             );
         }
 
@@ -590,31 +594,31 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         public virtual Set<Id> getRunningWorkItemIds(Id threadId) {
             Set<Id> workItemIds = new Set<Id>();
             String runningStatus = consts.RUNNING;
-            for (
-                Async__c workItem : (List<Async__c>) Query.records(
-                    [
-                        SELECT Id
-                        FROM Async__c
-                        WHERE
-                            Thread__c = :threadId
-                            AND Status__c = :runningStatus
-                    ]
-                )
-            ) {
+            for (Async__c workItem : [
+                SELECT Id
+                FROM Async__c
+                WHERE Thread__c = :threadId AND Status__c = :runningStatus
+            ]) {
                 workItemIds.add(workItem.Id);
             }
             return workItemIds;
         }
 
         public virtual List<Async__c> getWorkItemsById(Set<Id> workItemIds) {
-            List<Async__c> workItems = (List<Async__c>) Query.records(
-                Database.query(
-                    'SELECT Id, Apex__c, Thread__c, Record_Id__c, Priority__c, Retry_Count__c ' +
-                        'FROM Async__c ' +
-                        'WHERE Id IN :workItemIds'
-                )
-            );
-            return workItems;
+            if (workItemIds == null || workItemIds.isEmpty())
+                return new List<Async__c>();
+
+            return [
+                SELECT
+                    Id,
+                    Apex__c,
+                    Thread__c,
+                    Record_Id__c,
+                    Priority__c,
+                    Retry_Count__c
+                FROM Async__c
+                WHERE Id IN :workItemIds
+            ];
         }
 
         public virtual Async_Job__mdt getJobConfig(String apexClass) {
@@ -641,14 +645,12 @@ public virtual with sharing class Async implements Queueable, Database.AllowsCal
         }
 
         protected virtual Async_Job__mdt loadConfig(String apexClass) {
-            List<Async_Job__mdt> configs = (List<Async_Job__mdt>) Query.records(
-                [
-                    SELECT Apex__c, Batch_Size__c, Max_Retries__c, Priority__c
-                    FROM Async_Job__mdt
-                    WHERE Apex__c = :apexClass
-                    LIMIT 1
-                ]
-            );
+            List<Async_Job__mdt> configs = [
+                SELECT Apex__c, Batch_Size__c, Max_Retries__c, Priority__c
+                FROM Async_Job__mdt
+                WHERE Apex__c = :apexClass
+                LIMIT 1
+            ];
             return !configs.isEmpty()
                 ? configs[0]
                 : new Async_Job__mdt(Batch_Size__c = 5);

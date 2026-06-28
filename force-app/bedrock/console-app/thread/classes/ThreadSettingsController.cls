@@ -131,7 +131,7 @@ public with sharing class ThreadSettingsController {
 
         if (settings != null) {
             assertCanDelete();
-            DML.deleteRecords(new List<SObject>{ settings });
+            delete settings;
         }
 
         return getSettings(userId);
@@ -172,12 +172,12 @@ public with sharing class ThreadSettingsController {
     static void saveSettingsRecord(Thread_Settings__c settings, Boolean isNew) {
         if (isNew) {
             assertCanCreate();
-            DML.insertRecords(new List<SObject>{ settings });
+            insert settings;
             return;
         }
 
         assertCanUpdate();
-        DML.updateRecords(new List<SObject>{ settings });
+        update settings;
     }
 
     static void assertCanCreate() {

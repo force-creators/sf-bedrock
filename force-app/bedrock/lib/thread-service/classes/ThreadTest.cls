@@ -45,6 +45,50 @@ public with sharing class ThreadTest {
     }
 
     @istest
+    static void testCurrentOrCreate_ignoresSubscriberQueryAndDmlMocks() {
+        Thread.reset();
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Query.setMock(new QueryMock.Multiple());
+
+        Id threadId = Thread.currentOrCreate(
+            'SubscriberPool',
+            'subscriber-key'
+        );
+
+        Assert.areEqual(
+            0,
+            dmlMock.inserts.size(),
+            'Subscriber DML mocks should not intercept Thread runtime inserts.'
+        );
+        Assert.isNotNull(
+            threadId,
+            'Thread.currentOrCreate should return a real Thread__c id even when subscriber mocks are installed.'
+        );
+
+        Thread__c threadRecord = [
+            SELECT Pool__c, Thread_Key__c, Status__c
+            FROM Thread__c
+            WHERE Id = :threadId
+        ];
+        Assert.areEqual(
+            'SubscriberPool',
+            threadRecord.Pool__c,
+            'Thread should persist the requested pool through direct DML.'
+        );
+        Assert.areEqual(
+            'subscriber-key',
+            threadRecord.Thread_Key__c,
+            'Thread should persist the requested key through direct DML.'
+        );
+        Assert.areEqual(
+            Thread.consts.PENDING,
+            threadRecord.Status__c,
+            'Thread should create claimable pending work.'
+        );
+    }
+
+    @istest
     static void testCurrentOrCreate_cachesByPoolAndThreadKey() {
         Thread.setMock(new ThreadMock());
 
@@ -217,6 +261,39 @@ public with sharing class ThreadTest {
             nextThread.Id,
             mock.service.startedThreads[0],
             'Expected Thread to start the claimed pending thread id.'
+        );
+    }
+
+    @istest
+    static void testContinueCurrent_restartsCurrentThreadWhenWorkArrivesDuringDrain() {
+        ThreadMock mock = new ThreadMock();
+        Thread.setMock(mock);
+        WorkAppearsAfterDrainRunnerService runner = new WorkAppearsAfterDrainRunnerService();
+        ThreadRunner.setMock(runner);
+        Id threadId = Thread.currentOrCreate();
+        String runKey = Thread.service.startRun(threadId);
+
+        Thread.continueCurrent(runKey);
+
+        Assert.areEqual(
+            2,
+            runner.hasPendingWorkCalls,
+            'Expected Thread to recheck the drained lane after completing it.'
+        );
+        Assert.areEqual(
+            1,
+            mock.service.startCalls,
+            'Expected Thread to restart the same lane when work arrives during completion.'
+        );
+        Assert.areEqual(
+            threadId,
+            mock.service.startedThreads[0],
+            'Expected the drained lane to keep ownership of the new work.'
+        );
+        Assert.areEqual(
+            0,
+            runner.claimNextAfterDrainCalls,
+            'Expected Thread not to claim another lane while the drained lane has new work.'
         );
     }
 
@@ -658,16 +735,13 @@ public with sharing class ThreadTest {
         Thread__c activeThread = new Thread__c(Status__c = Thread.consts.DONE);
         insert new List<Thread__c>{ drainedThread, activeThread };
 
-        DML.insertRecords(
-            new List<SObject>{
-                workItem(
-                    String.valueOf(ThreadTest.class),
-                    UserInfo.getUserId(),
-                    'Done',
-                    activeThread.Id
-                )
-            }
+        Async__c activeWork = workItem(
+            String.valueOf(ThreadTest.class),
+            UserInfo.getUserId(),
+            'Done',
+            activeThread.Id
         );
+        insert activeWork;
 
         Thread.deleteDrained(new Set<Id>{ drainedThread.Id, activeThread.Id });
 
@@ -1207,6 +1281,36 @@ public with sharing class ThreadTest {
         );
     }
 
+    @istest
+    static void testGetDoneThreadsForUpdate_excludesActiveThreads() {
+        Thread__c drainedThread = thread(
+            'EventRelayPublish',
+            'Bedrock_Test_Drained__e'
+        );
+        drainedThread.Status__c = Thread.consts.DONE;
+        Thread__c runningThread = thread(
+            'EventRelayPublish',
+            'Bedrock_Test_Running__e'
+        );
+        runningThread.Status__c = Thread.consts.RUNNING;
+        insert new List<Thread__c>{ drainedThread, runningThread };
+
+        List<Thread__c> threads = Thread.queries.getDoneThreadsForUpdate(
+            new Set<Id>{ drainedThread.Id, runningThread.Id }
+        );
+
+        Assert.areEqual(
+            1,
+            threads.size(),
+            'Expected the reopen query to lock only drained threads.'
+        );
+        Assert.areEqual(
+            drainedThread.Id,
+            threads[0].Id,
+            'Expected active threads to stay out of the reopen lock set.'
+        );
+    }
+
     public with sharing class EmptyWorkQueryService extends Async.QueryService {
         public override Boolean hasPendingWork(Id threadId) {
             return false;
@@ -1268,6 +1372,21 @@ public with sharing class ThreadTest {
 
         public override ThreadRunner.Dispatcher dispatcherForPool(String pool) {
             return this.dispatcher;
+        }
+    }
+
+    public with sharing class WorkAppearsAfterDrainRunnerService extends ThreadRunner.Service {
+        public Integer hasPendingWorkCalls = 0;
+        public Integer claimNextAfterDrainCalls = 0;
+
+        public override Boolean hasPendingWork(Id threadId) {
+            hasPendingWorkCalls++;
+            return hasPendingWorkCalls > 1;
+        }
+
+        public override Id claimNextAfterDrain(String pool) {
+            claimNextAfterDrainCalls++;
+            return null;
         }
     }
 

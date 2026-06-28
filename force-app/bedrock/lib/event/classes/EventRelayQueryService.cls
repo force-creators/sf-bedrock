@@ -40,17 +40,15 @@ public virtual with sharing class EventRelayQueryService {
         String safeJobType = String.isBlank(jobType)
             ? EventRelay.consts.PUBLISH
             : jobType.trim();
-        List<Event__c> heads = (List<Event__c>) Query.records(
-            Database.query(
-                'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
-                    ', Apex__c, Route__c, Retry_Count__c ' +
-                    'FROM Event__c ' +
-                    'WHERE Thread__c = :threadId ' +
-                    'AND Job_Type__c = :safeJobType ' +
-                    'AND Status__c = \'Pending\' ' +
-                    'ORDER BY CreatedDate ASC, Order__c ASC, Name ASC ' +
-                    'LIMIT 1'
-            )
+        List<Event__c> heads = (List<Event__c>) Database.query(
+            'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
+                ', Apex__c, Route__c, Retry_Count__c ' +
+                'FROM Event__c ' +
+                'WHERE Thread__c = :threadId ' +
+                'AND Job_Type__c = :safeJobType ' +
+                'AND Status__c = \'Pending\' ' +
+                'ORDER BY CreatedDate ASC, Order__c ASC, Name ASC ' +
+                'LIMIT 1'
         );
         if (heads.isEmpty())
             return new List<Event__c>();
@@ -61,17 +59,15 @@ public virtual with sharing class EventRelayQueryService {
             safeBatchSize
         );
 
-        List<Event__c> workItems = (List<Event__c>) Query.records(
-            Database.query(
-                'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
-                    ', Apex__c, Route__c, Retry_Count__c ' +
-                    'FROM Event__c ' +
-                    'WHERE Thread__c = :threadId ' +
-                    'AND Job_Type__c = :safeJobType ' +
-                    'AND Status__c = \'Pending\' ' +
-                    'ORDER BY CreatedDate ASC, Order__c ASC, Name ASC ' +
-                    'LIMIT :safeBatchSize'
-            )
+        List<Event__c> workItems = (List<Event__c>) Database.query(
+            'SELECT Id, Payload_Type__c, Payload1__c, Payload2__c, Payload3__c, Payload4__c ' +
+                ', Apex__c, Route__c, Retry_Count__c ' +
+                'FROM Event__c ' +
+                'WHERE Thread__c = :threadId ' +
+                'AND Job_Type__c = :safeJobType ' +
+                'AND Status__c = \'Pending\' ' +
+                'ORDER BY CreatedDate ASC, Order__c ASC, Name ASC ' +
+                'LIMIT :safeBatchSize'
         );
         return firstCompatibleBatch(workItems);
     }
@@ -83,6 +79,36 @@ public virtual with sharing class EventRelayQueryService {
     public virtual Boolean hasRecoverableWork(Id threadId) {
         return hasPendingWork(threadId) ||
             !getRunningWorkItemIds(threadId).isEmpty();
+    }
+
+    public virtual Set<Id> getDrainedThreadIdsWithPendingWork(
+        String pool,
+        String jobType
+    ) {
+        Set<Id> threadIds = new Set<Id>();
+        String safePool = String.isBlank(pool)
+            ? EventRelay.consts.PUBLISH_POOL
+            : pool.trim();
+        String safeJobType = String.isBlank(jobType)
+            ? EventRelay.consts.PUBLISH
+            : jobType.trim();
+        String pendingStatus = EventRelay.consts.PENDING;
+        String doneStatus = Thread.consts.DONE;
+        for (AggregateResult result : [
+            SELECT Thread__c
+            FROM Event__c
+            WHERE
+                Thread__c != NULL
+                AND Thread__r.Pool__c = :safePool
+                AND Thread__r.Status__c = :doneStatus
+                AND Job_Type__c = :safeJobType
+                AND Status__c = :pendingStatus
+            GROUP BY Thread__c
+            LIMIT 200
+        ]) {
+            threadIds.add((Id) result.get('Thread__c'));
+        }
+        return threadIds;
     }
 
     public virtual Set<Id> getPendingWorkItemIds(
@@ -105,18 +131,14 @@ public virtual with sharing class EventRelayQueryService {
             ? EventRelay.consts.PUBLISH
             : jobType.trim();
         String runningStatus = EventRelay.consts.RUNNING;
-        for (
-            Event__c workItem : (List<Event__c>) Query.records(
-                [
-                    SELECT Id
-                    FROM Event__c
-                    WHERE
-                        Thread__c = :threadId
-                        AND Job_Type__c = :safeJobType
-                        AND Status__c = :runningStatus
-                ]
-            )
-        ) {
+        for (Event__c workItem : [
+            SELECT Id
+            FROM Event__c
+            WHERE
+                Thread__c = :threadId
+                AND Job_Type__c = :safeJobType
+                AND Status__c = :runningStatus
+        ]) {
             workItemIds.add(workItem.Id);
         }
         return workItemIds;
@@ -127,22 +149,20 @@ public virtual with sharing class EventRelayQueryService {
             return new List<Event__c>();
 
         Map<Id, Event__c> workItemsById = new Map<Id, Event__c>(
-            (List<Event__c>) Query.records(
-                [
-                    SELECT
-                        Id,
-                        Apex__c,
-                        Route__c,
-                        Payload_Type__c,
-                        Retry_Count__c,
-                        Payload1__c,
-                        Payload2__c,
-                        Payload3__c,
-                        Payload4__c
-                    FROM Event__c
-                    WHERE Id IN :workItemIds
-                ]
-            )
+            [
+                SELECT
+                    Id,
+                    Apex__c,
+                    Route__c,
+                    Payload_Type__c,
+                    Retry_Count__c,
+                    Payload1__c,
+                    Payload2__c,
+                    Payload3__c,
+                    Payload4__c
+                FROM Event__c
+                WHERE Id IN :workItemIds
+            ]
         );
 
         List<Event__c> orderedWorkItems = new List<Event__c>();
@@ -162,14 +182,12 @@ public virtual with sharing class EventRelayQueryService {
             return new List<Event__c>();
 
         String errorStatus = EventRelay.consts.ERROR;
-        return (List<Event__c>) Query.records(
-            [
-                SELECT Id, Thread__c
-                FROM Event__c
-                WHERE Id IN :workItemIds AND Status__c = :errorStatus
-                ORDER BY CreatedDate ASC, Order__c ASC, Name ASC
-            ]
-        );
+        return [
+            SELECT Id, Thread__c
+            FROM Event__c
+            WHERE Id IN :workItemIds AND Status__c = :errorStatus
+            ORDER BY CreatedDate ASC, Order__c ASC, Name ASC
+        ];
     }
 
     public virtual Map<String, Event__c> getAcceptedWorkByIdempotencyKey(
@@ -196,18 +214,14 @@ public virtual with sharing class EventRelayQueryService {
             EventRelay.consts.RUNNING,
             EventRelay.consts.DONE
         };
-        for (
-            Event__c workItem : (List<Event__c>) Query.records(
-                [
-                    SELECT Id, Job_Type__c, Route__c, Idempotency_Key__c
-                    FROM Event__c
-                    WHERE
-                        Idempotency_Key__c IN :idempotencyKeys
-                        AND Status__c IN :acceptedStatuses
-                    ORDER BY CreatedDate ASC, Order__c ASC, Name ASC
-                ]
-            )
-        ) {
+        for (Event__c workItem : [
+            SELECT Id, Job_Type__c, Route__c, Idempotency_Key__c
+            FROM Event__c
+            WHERE
+                Idempotency_Key__c IN :idempotencyKeys
+                AND Status__c IN :acceptedStatuses
+            ORDER BY CreatedDate ASC, Order__c ASC, Name ASC
+        ]) {
             String lookupKey = idempotencyLookupKey(workItem);
             if (
                 lookupKeys.contains(lookupKey) &&

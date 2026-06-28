@@ -209,12 +209,12 @@ public with sharing class RestConsoleController {
     static void saveSettingsRecord(Rest_Settings__c settings, Boolean isNew) {
         if (isNew) {
             assertCanCreateSettings();
-            DML.insertRecords(new List<SObject>{ settings });
+            insert settings;
             return;
         }
 
         assertCanUpdateSettings();
-        DML.updateRecords(new List<SObject>{ settings });
+        update settings;
     }
 
     static void assertCanCreateSettings() {
@@ -279,53 +279,47 @@ public with sharing class RestConsoleController {
 
     public virtual with sharing class QueryService {
         public virtual List<Rest_Config__mdt> getConfigs() {
-            return (List<Rest_Config__mdt>) Query.records(
-                [
-                    SELECT
-                        Id,
-                        DeveloperName,
-                        MasterLabel,
-                        Active__c,
-                        Default__c,
-                        Route__c,
-                        Version__c,
-                        Apex__c
-                    FROM Rest_Config__mdt
-                    ORDER BY Route__c ASC, Version__c DESC, DeveloperName ASC
-                ]
-            );
+            return [
+                SELECT
+                    Id,
+                    DeveloperName,
+                    MasterLabel,
+                    Active__c,
+                    Default__c,
+                    Route__c,
+                    Version__c,
+                    Apex__c
+                FROM Rest_Config__mdt
+                ORDER BY Route__c ASC, Version__c DESC, DeveloperName ASC
+            ];
         }
 
         public virtual Rest_Settings__c getOrganizationSettings() {
-            List<Rest_Settings__c> settings = (List<Rest_Settings__c>) Query.records(
-                [
-                    SELECT
-                        Id,
-                        SetupOwnerId,
-                        Unknown_Route_Status_Code__c,
-                        Inactive_Route_Status_Code__c,
-                        Unsupported_Method_Status_Code__c,
-                        Access_Denied_Status_Code__c,
-                        Expose_Error_Details__c
-                    FROM Rest_Settings__c
-                    WHERE SetupOwnerId = :UserInfo.getOrganizationId()
-                    LIMIT 1
-                ]
-            );
+            List<Rest_Settings__c> settings = [
+                SELECT
+                    Id,
+                    SetupOwnerId,
+                    Unknown_Route_Status_Code__c,
+                    Inactive_Route_Status_Code__c,
+                    Unsupported_Method_Status_Code__c,
+                    Access_Denied_Status_Code__c,
+                    Expose_Error_Details__c
+                FROM Rest_Settings__c
+                WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+                LIMIT 1
+            ];
             return settings.isEmpty() ? null : settings[0];
         }
 
         public virtual List<ApexClass> getRestClasses() {
             List<ApexClass> classes;
             try {
-                classes = (List<ApexClass>) Query.records(
-                    [
-                        SELECT Name, Body
-                        FROM ApexClass
-                        WHERE Status = 'Active'
-                        ORDER BY Name ASC
-                    ]
-                );
+                classes = [
+                    SELECT Name, Body
+                    FROM ApexClass
+                    WHERE Status = 'Active'
+                    ORDER BY Name ASC
+                ];
             } catch (Exception e) {
                 return new List<ApexClass>();
             }

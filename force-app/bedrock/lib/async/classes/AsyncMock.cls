@@ -43,7 +43,34 @@ public with sharing class AsyncMock {
         return this;
     }
 
+    public AsyncMock mockWork() {
+        this.work.mockDml();
+        return this;
+    }
+
     public with sharing class WorkService extends Async.WorkService {
+        public List<List<SObject>> inserts = new List<List<SObject>>();
+        public List<List<SObject>> updates = new List<List<SObject>>();
+        public Boolean useMockDml = false;
+
+        public WorkService mockDml() {
+            this.useMockDml = true;
+            return this;
+        }
+
+        protected override void insertRecords(List<SObject> records) {
+            this.inserts.add(records);
+            if (!this.useMockDml) {
+                super.insertRecords(records);
+            }
+        }
+
+        protected override void updateRecords(List<SObject> records) {
+            this.updates.add(records);
+            if (!this.useMockDml) {
+                super.updateRecords(records);
+            }
+        }
     }
 
     public with sharing class JobService extends Async.JobService {

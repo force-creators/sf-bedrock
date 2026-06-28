@@ -76,7 +76,7 @@ private class SelectorTest {
     @istest
     static void testOnce_recordsUsesTransactionCache() {
         Account account = new Account(Name = 'Bedrock Once');
-        DML.insertRecords(new List<SObject>{ account });
+        insert account;
         Selector.Once selector = new AccountOnceSelector(
             new Set<String>{ 'Name' }
         );
@@ -112,6 +112,27 @@ private class SelectorTest {
             queriesAfterFirstResult,
             Limits.getQueries(),
             'Expected second selector call for the same Id to avoid a repeat query.'
+        );
+    }
+
+    @istest
+    static void testQuery_ignoresSubscriberQueryMock() {
+        Account account = new Account(Name = 'Bedrock Direct Query');
+        insert account;
+        Query.setMock(new QueryMock.Multiple());
+        Selector selector = new AccountSelector(new Set<String>{ 'Name' });
+
+        List<SObject> result = selector.records(new Set<Id>{ account.Id });
+
+        Assert.areEqual(
+            1,
+            result.size(),
+            'Selector should query real records without subscriber Query mocks.'
+        );
+        Assert.areEqual(
+            'Bedrock Direct Query',
+            ((Account) result[0]).Name,
+            'Selector should hydrate selected fields from direct SOQL.'
         );
     }
 
@@ -156,7 +177,7 @@ private class SelectorTest {
     @istest
     static void testCached_recordsWritesPlatformCacheAfterQuery() {
         Account account = new Account(Name = 'Bedrock Cache Write');
-        DML.insertRecords(new List<SObject>{ account });
+        insert account;
         PlatformCacheMock cacheMock = new PlatformCacheMock('SelectorTest');
         Selector.Cached selector = new AccountCachedSelector(
             new Set<String>{ 'Name' },

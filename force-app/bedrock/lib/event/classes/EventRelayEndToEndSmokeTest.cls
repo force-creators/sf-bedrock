@@ -131,8 +131,6 @@ class EventRelayEndToEndSmokeTest {
     static void resetSeams() {
         EventRelay.reset();
         ThreadRunner.reset();
-        DML.setMock(new DML.Service());
-        Query.setMock(new Query());
     }
 
     static Event__c workItem(Id workItemId) {

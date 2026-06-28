@@ -56,22 +56,20 @@ public virtual with sharing class EventRelayMetadataService {
     }
 
     protected virtual List<Event_Config__mdt> loadConfigs() {
-        return (List<Event_Config__mdt>) Query.records(
-            [
-                SELECT
-                    DeveloperName,
-                    Active__c,
-                    Direction__c,
-                    Source_Type__c,
-                    Routing_Key__c,
-                    Routing_Value__c,
-                    Apex__c,
-                    Batch_Size__c,
-                    Max_Retries__c,
-                    Idempotency_Key_Path__c
-                FROM Event_Config__mdt
-                WHERE Active__c = TRUE
-            ]
-        );
+        return [
+            SELECT
+                DeveloperName,
+                Active__c,
+                Direction__c,
+                Source_Type__c,
+                Routing_Key__c,
+                Routing_Value__c,
+                Apex__c,
+                Batch_Size__c,
+                Max_Retries__c,
+                Idempotency_Key_Path__c
+            FROM Event_Config__mdt
+            WHERE Active__c = TRUE
+        ];
     }
 }

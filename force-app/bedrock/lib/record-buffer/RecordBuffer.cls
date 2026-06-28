@@ -7,6 +7,18 @@
 
 public inherited sharing class RecordBuffer {
     static List<TriggerContext> contexts = new List<TriggerContext>();
+    static DmlService dml = new DmlService();
+
+    @testVisible
+    static void setMock(RecordBufferMock mock) {
+        dml = mock.dml;
+    }
+
+    @testVisible
+    static void reset() {
+        contexts = new List<TriggerContext>();
+        dml = new DmlService();
+    }
 
     public static void start() {
         TriggerContext context = new TriggerContext();
@@ -141,10 +153,17 @@ public inherited sharing class RecordBuffer {
 
             for (SObjectType sObjectType : upserts.keySet()) {
                 List<SObject> records = upserts.get(sObjectType);
-                DML.upsertRecords(records);
+                dml.upsertRecords(records);
             }
         }
     }
+
+    public virtual inherited sharing class DmlService {
+        public virtual void upsertRecords(List<SObject> records) {
+            upsert records;
+        }
+    }
+
     public class RecordBufferException extends Exception {
     }
 }

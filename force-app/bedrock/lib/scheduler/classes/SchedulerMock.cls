@@ -6,7 +6,7 @@
  */
 
 public with sharing class SchedulerMock {
-    public Scheduler.JobService jobs;
+    public JobService jobs;
     public MetadataService metadata;
     public QueryService queries;
     String currentHash;
@@ -38,9 +38,22 @@ public with sharing class SchedulerMock {
         return this;
     }
 
+    public SchedulerMock mockDml() {
+        jobs.mockDml();
+        return this;
+    }
+
     public with sharing class JobService extends Scheduler.JobService {
         public Finalizer finalizer;
         public List<Scheduler__c> ranJobs = new List<Scheduler__c>();
+        public List<List<SObject>> updates = new List<List<SObject>>();
+        public List<List<SObject>> upserts = new List<List<SObject>>();
+        public Boolean useMockDml = false;
+
+        public JobService mockDml() {
+            this.useMockDml = true;
+            return this;
+        }
 
         public override void run(Scheduler__c job) {
             ranJobs.add(job);
@@ -51,6 +64,23 @@ public with sharing class SchedulerMock {
 
         public override void attachFinalizer(Finalizer finalizer) {
             this.finalizer = finalizer;
+        }
+
+        protected override void updateRecords(List<SObject> records) {
+            this.updates.add(records);
+            if (!this.useMockDml) {
+                super.updateRecords(records);
+            }
+        }
+
+        protected override void upsertRecords(
+            List<SObject> records,
+            SObjectField externalIdField
+        ) {
+            this.upserts.add(records);
+            if (!this.useMockDml) {
+                super.upsertRecords(records, externalIdField);
+            }
         }
     }
 

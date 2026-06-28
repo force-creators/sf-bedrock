@@ -67,8 +67,7 @@ public with sharing class SchedulerTest {
             )
             .job(job('OldJob', 'OldSchedulerJob', true, null));
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -77,20 +76,23 @@ public with sharing class SchedulerTest {
 
         Assert.areEqual(
             1,
-            dmlMock.upserts.size(),
+            mock.jobs.upserts.size(),
             'Expected one upsert for translated scheduler jobs.'
         );
         Assert.areEqual(
             2,
-            dmlMock.upserts[0].size(),
+            mock.jobs.upserts[0].size(),
             'Expected the translated job and disabled stale job to be upserted together.'
         );
         String expectedHash = mock.metadata.getHash(mock.metadata.configs);
         Scheduler__c archiveJob = findJob(
-            dmlMock.upserts[0],
+            mock.jobs.upserts[0],
             'SchedulerTest.SchedulerSuccessfulJob'
         );
-        Scheduler__c staleJob = findJob(dmlMock.upserts[0], 'OldSchedulerJob');
+        Scheduler__c staleJob = findJob(
+            mock.jobs.upserts[0],
+            'OldSchedulerJob'
+        );
         Assert.areEqual(
             Scheduler.HOURS,
             archiveJob.Frequency__c,
@@ -165,8 +167,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -175,7 +176,7 @@ public with sharing class SchedulerTest {
 
         Assert.areEqual(
             0,
-            dmlMock.upserts.size(),
+            mock.jobs.upserts.size(),
             'Expected scheduler translation to be skipped when runtime rows already carry the current metadata hash.'
         );
         Assert.areEqual(
@@ -199,8 +200,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -214,11 +214,11 @@ public with sharing class SchedulerTest {
         );
         Assert.areEqual(
             2,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected due jobs to record the heartbeat attempt and the queueable result separately.'
         );
-        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
-        Scheduler__c completedJob = (Scheduler__c) dmlMock.updates[1][0];
+        Scheduler__c attemptedJob = (Scheduler__c) mock.jobs.updates[0][0];
+        Scheduler__c completedJob = (Scheduler__c) mock.jobs.updates[1][0];
         Assert.areEqual(
             heartbeatAt(System.now()).addMinutes(5),
             attemptedJob.Next_Run__c,
@@ -257,8 +257,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -272,10 +271,10 @@ public with sharing class SchedulerTest {
         );
         Assert.areEqual(
             2,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected due minute-based jobs to record the heartbeat attempt and queueable result.'
         );
-        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Scheduler__c attemptedJob = (Scheduler__c) mock.jobs.updates[0][0];
         Assert.areEqual(
             heartbeatAt(System.now()).addMinutes(5),
             attemptedJob.Next_Run__c,
@@ -301,8 +300,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -316,7 +314,7 @@ public with sharing class SchedulerTest {
         );
         Assert.areEqual(
             0,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected skipped minute-based jobs not to record a new execution.'
         );
     }
@@ -339,8 +337,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -354,7 +351,7 @@ public with sharing class SchedulerTest {
         );
         Assert.areEqual(
             0,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected skipped jobs not to record a new execution.'
         );
     }
@@ -376,8 +373,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -391,10 +387,10 @@ public with sharing class SchedulerTest {
         );
         Assert.areEqual(
             2,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected overdue hourly jobs to record the heartbeat attempt and queueable result.'
         );
-        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Scheduler__c attemptedJob = (Scheduler__c) mock.jobs.updates[0][0];
         Assert.areEqual(
             heartbeatAt(System.now()).addHours(2),
             attemptedJob.Next_Run__c,
@@ -419,8 +415,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -434,10 +429,10 @@ public with sharing class SchedulerTest {
         );
         Assert.areEqual(
             2,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected overdue daily jobs to record the heartbeat attempt and queueable result.'
         );
-        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Scheduler__c attemptedJob = (Scheduler__c) mock.jobs.updates[0][0];
         Assert.areEqual(
             heartbeatAt(System.now()).addDays(2),
             attemptedJob.Next_Run__c,
@@ -462,8 +457,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -477,10 +471,10 @@ public with sharing class SchedulerTest {
         );
         Assert.areEqual(
             2,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected overdue weekly jobs to record the heartbeat attempt and queueable result.'
         );
-        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Scheduler__c attemptedJob = (Scheduler__c) mock.jobs.updates[0][0];
         Assert.areEqual(
             heartbeatAt(System.now()).addDays(14),
             attemptedJob.Next_Run__c,
@@ -505,8 +499,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -520,10 +513,10 @@ public with sharing class SchedulerTest {
         );
         Assert.areEqual(
             2,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected overdue monthly jobs to record the heartbeat attempt and queueable result.'
         );
-        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Scheduler__c attemptedJob = (Scheduler__c) mock.jobs.updates[0][0];
         Assert.areEqual(
             heartbeatAt(System.now()).addMonths(2),
             attemptedJob.Next_Run__c,
@@ -544,8 +537,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -554,11 +546,11 @@ public with sharing class SchedulerTest {
 
         Assert.areEqual(
             2,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected failed jobs to record the heartbeat attempt and the queueable error separately.'
         );
-        Scheduler__c attemptedJob = (Scheduler__c) dmlMock.updates[0][0];
-        Scheduler__c failedJob = (Scheduler__c) dmlMock.updates[1][0];
+        Scheduler__c attemptedJob = (Scheduler__c) mock.jobs.updates[0][0];
+        Scheduler__c failedJob = (Scheduler__c) mock.jobs.updates[1][0];
         Assert.areEqual(
             heartbeatAt(System.now()).addMinutes(5),
             attemptedJob.Next_Run__c,
@@ -582,23 +574,23 @@ public with sharing class SchedulerTest {
 
     @istest
     static void testJobFinalizer_skipsSuccessfulQueueableResult() {
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        SchedulerMock mock = new SchedulerMock().mockDml();
+        Scheduler.setMock(mock);
 
         new Scheduler.JobFinalizer(schedulerId())
             .recordResult(ParentJobResult.SUCCESS, null);
 
         Assert.areEqual(
             0,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected successful queueable results to be recorded by the normal execution path only.'
         );
     }
 
     @istest
     static void testJobFinalizer_recordsUnhandledQueueableFailure() {
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        SchedulerMock mock = new SchedulerMock().mockDml();
+        Scheduler.setMock(mock);
         Id schedulerJobId = schedulerId();
 
         new Scheduler.JobFinalizer(schedulerJobId)
@@ -609,10 +601,10 @@ public with sharing class SchedulerTest {
 
         Assert.areEqual(
             1,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected finalizer failures to update the scheduler runtime row.'
         );
-        Scheduler__c updatedJob = (Scheduler__c) dmlMock.updates[0][0];
+        Scheduler__c updatedJob = (Scheduler__c) mock.jobs.updates[0][0];
         Assert.areEqual(
             schedulerJobId,
             updatedJob.Id,
@@ -626,6 +618,57 @@ public with sharing class SchedulerTest {
             'Too many SOQL queries: 101',
             updatedJob.Error_Message__c,
             'Expected finalizer failures to persist the unhandled queueable error message.'
+        );
+    }
+
+    @istest
+    static void testRuntimeServices_ignoreSubscriberQueryAndDmlMocks() {
+        Scheduler.reset();
+        Scheduler__c schedulerJob = new Scheduler__c(
+            Apex__c = 'SchedulerTest.SchedulerSuccessfulJob',
+            Enabled__c = true,
+            Frequency__c = Scheduler.MINUTES,
+            Interval__c = 5,
+            Next_Run__c = System.now().addMinutes(-5)
+        );
+        insert schedulerJob;
+
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Query.setMock(new QueryMock.Multiple());
+
+        List<Scheduler__c> enabledJobs = Scheduler.queries.getEnabledJobs();
+        new Scheduler.JobFinalizer(schedulerJob.Id)
+            .recordResult(
+                null,
+                new Scheduler.SchedulerException('subscriber mocks')
+            );
+
+        Assert.areEqual(
+            1,
+            enabledJobs.size(),
+            'Scheduler queries should ignore subscriber query mocks.'
+        );
+        Assert.areEqual(
+            schedulerJob.Id,
+            enabledJobs[0].Id,
+            'Scheduler queries should return real scheduler rows.'
+        );
+        Assert.areEqual(
+            0,
+            dmlMock.updates.size(),
+            'Scheduler runtime DML should ignore subscriber DML mocks.'
+        );
+
+        Scheduler__c updatedJob = [
+            SELECT Error_Message__c
+            FROM Scheduler__c
+            WHERE Id = :schedulerJob.Id
+        ];
+        Assert.areEqual(
+            'subscriber mocks',
+            updatedJob.Error_Message__c,
+            'Scheduler runtime DML should persist directly.'
         );
     }
 
@@ -644,8 +687,7 @@ public with sharing class SchedulerTest {
             .job(badJob)
             .job(goodJob);
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -654,13 +696,13 @@ public with sharing class SchedulerTest {
 
         Assert.areEqual(
             4,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected each due job to record one heartbeat attempt and one result update.'
         );
-        Scheduler__c failedAttempt = (Scheduler__c) dmlMock.updates[0][0];
-        Scheduler__c failedResult = (Scheduler__c) dmlMock.updates[1][0];
-        Scheduler__c successfulAttempt = (Scheduler__c) dmlMock.updates[2][0];
-        Scheduler__c successfulResult = (Scheduler__c) dmlMock.updates[3][0];
+        Scheduler__c failedAttempt = (Scheduler__c) mock.jobs.updates[0][0];
+        Scheduler__c failedResult = (Scheduler__c) mock.jobs.updates[1][0];
+        Scheduler__c successfulAttempt = (Scheduler__c) mock.jobs.updates[2][0];
+        Scheduler__c successfulResult = (Scheduler__c) mock.jobs.updates[3][0];
         Assert.areEqual(
             1,
             successfulExecutions,
@@ -804,8 +846,7 @@ public with sharing class SchedulerTest {
                 )
             );
 
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        mock.mockDml();
         Scheduler.setMock(mock);
 
         Test.startTest();
@@ -819,7 +860,7 @@ public with sharing class SchedulerTest {
         );
         Assert.areEqual(
             2,
-            dmlMock.updates.size(),
+            mock.jobs.updates.size(),
             'Expected jobs run through SchedulerTick to record the heartbeat attempt and queueable result.'
         );
     }

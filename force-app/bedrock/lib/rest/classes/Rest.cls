@@ -534,18 +534,18 @@ public virtual inherited sharing class Rest {
         }
 
         protected virtual List<Rest_Config__mdt> loadConfigs() {
-            return (List<Rest_Config__mdt>) Query.records(
-                [
-                    SELECT
-                        DeveloperName,
-                        Active__c,
-                        Default__c,
-                        Route__c,
-                        Version__c,
-                        Apex__c
-                    FROM Rest_Config__mdt
-                ]
-            );
+            return [
+                SELECT
+                    DeveloperName,
+                    MasterLabel,
+                    Active__c,
+                    Default__c,
+                    Route__c,
+                    Version__c,
+                    Apex__c
+                FROM Rest_Config__mdt
+                ORDER BY Route__c ASC, Version__c DESC, DeveloperName ASC
+            ];
         }
     }
 

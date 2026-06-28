@@ -94,9 +94,8 @@ public with sharing class AsyncTest {
 
     @istest
     static void testStageAndFlush_createsWorkInSingleDmlTransaction() {
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
-        Async.setMock(new AsyncMock().mockThreadIds());
+        AsyncMock mock = new AsyncMock().mockThreadIds().mockWork();
+        Async.setMock(mock);
 
         List<SObject> contacts = new TestData(Contact.sObjectType)
             .mockIds()
@@ -110,7 +109,7 @@ public with sharing class AsyncTest {
         Async.flush();
 
         List<List<SObject>> asyncInsertBatches = insertBatchesFor(
-            dmlMock,
+            mock.work.inserts,
             Async__c.sObjectType
         );
         Assert.areEqual(
@@ -122,6 +121,36 @@ public with sharing class AsyncTest {
             4,
             asyncInsertBatches[0].size(),
             'Expected flush() to merge duplicate staged ids by Apex class before creating work items.'
+        );
+    }
+
+    @istest
+    static void testEnqueue_ignoresSubscriberQueryAndDmlMocks() {
+        DMLMock dmlMock = new DMLMock();
+        DML.setMock(dmlMock);
+        Query.setMock(new QueryMock.Multiple());
+        String apexClass = String.valueOf(MyTestAsync.class);
+
+        Async.enqueue(MyTestAsync.class, new Set<Id>{ UserInfo.getUserId() });
+
+        Assert.areEqual(
+            0,
+            dmlMock.inserts.size(),
+            'Expected Async.enqueue to write through its own runtime service instead of the subscriber DML mock.'
+        );
+        Assert.areEqual(
+            0,
+            dmlMock.updates.size(),
+            'Expected Async.enqueue not to mutate the subscriber DML mock while creating work.'
+        );
+        Assert.areEqual(
+            1,
+            [
+                SELECT COUNT()
+                FROM Async__c
+                WHERE Apex__c = :apexClass
+            ],
+            'Expected Async.enqueue to create real async work even when subscriber query and DML mocks are installed.'
         );
     }
 
@@ -225,16 +254,14 @@ public with sharing class AsyncTest {
 
     @istest
     static void testCreate_seedsConfiguredPriorityOnWorkItems() {
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
-        Async.setMock(
-            new AsyncMock()
-                .mockThreadIds()
-                .config(
-                    MyPriorityAsync.class,
-                    new Async_Job__mdt(Priority__c = 42)
-                )
-        );
+        AsyncMock mock = new AsyncMock()
+            .mockThreadIds()
+            .mockWork()
+            .config(
+                MyPriorityAsync.class,
+                new Async_Job__mdt(Priority__c = 42)
+            );
+        Async.setMock(mock);
 
         List<SObject> contacts = new TestData(Contact.sObjectType)
             .mockIds()
@@ -244,7 +271,7 @@ public with sharing class AsyncTest {
         Async.enqueue(MyPriorityAsync.class, Pluck.ids(contacts));
 
         List<List<SObject>> asyncInsertBatches = insertBatchesFor(
-            dmlMock,
+            mock.work.inserts,
             Async__c.sObjectType
         );
         Assert.areEqual(
@@ -263,13 +290,11 @@ public with sharing class AsyncTest {
 
     @istest
     static void testCreate_leavesPriorityUnassignedWhenConfigMissingOrBlank() {
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
-        Async.setMock(
-            new AsyncMock()
-                .mockThreadIds()
-                .config(MyBlankPriorityAsync.class, new Async_Job__mdt())
-        );
+        AsyncMock mock = new AsyncMock()
+            .mockThreadIds()
+            .mockWork()
+            .config(MyBlankPriorityAsync.class, new Async_Job__mdt());
+        Async.setMock(mock);
 
         List<SObject> contacts = new TestData(Contact.sObjectType)
             .mockIds()
@@ -285,7 +310,7 @@ public with sharing class AsyncTest {
         List<Async__c> inserted = new List<Async__c>();
         for (
             List<SObject> batch : insertBatchesFor(
-                dmlMock,
+                mock.work.inserts,
                 Async__c.sObjectType
             )
         ) {
@@ -618,8 +643,7 @@ public with sharing class AsyncTest {
 
     @istest
     static void testAutoRetry_incrementsRetryCountAndRepends() {
-        DMLMock dmlMock = new DMLMock();
-        DML.setMock(dmlMock);
+        AsyncMock.WorkService work = new AsyncMock.WorkService().mockDml();
 
         List<Async__c> workItems = (List<Async__c>) new TestData(
                 Async__c.sObjectType
@@ -630,16 +654,16 @@ public with sharing class AsyncTest {
         workItems[0].Retry_Count__c = 0;
         workItems[1].Retry_Count__c = 4;
 
-        new Async.WorkService().autoRetry(workItems);
+        work.autoRetry(workItems);
 
         Assert.areEqual(
             1,
-            dmlMock.updates.size(),
+            work.updates.size(),
             'Expected a single update batch for the auto-retried work items.'
         );
 
         Map<Id, Async__c> updatedById = new Map<Id, Async__c>();
-        for (Async__c updated : (List<Async__c>) dmlMock.updates[0]) {
+        for (Async__c updated : (List<Async__c>) work.updates[0]) {
             updatedById.put(updated.Id, updated);
         }
 
@@ -1117,11 +1141,11 @@ public with sharing class AsyncTest {
     }
 
     static List<List<SObject>> insertBatchesFor(
-        DMLMock dmlMock,
+        List<List<SObject>> batches,
         Schema.SObjectType sObjectType
     ) {
         List<List<SObject>> matchingBatches = new List<List<SObject>>();
-        for (List<SObject> batch : dmlMock.inserts) {
+        for (List<SObject> batch : batches) {
             if (!batch.isEmpty() && batch[0].getSObjectType() == sObjectType) {
                 matchingBatches.add(batch);
             }
@@ -1181,14 +1205,10 @@ public with sharing class AsyncTest {
         public override void execute(Set<Id> ids) {
             String suffix = String.valueOf(Crypto.getRandomInteger())
                 .replace('-', '0');
-            DML.insertRecords(
-                new List<SObject>{
-                    new Group(
-                        Name = 'Async Setup Safe ' + suffix,
-                        DeveloperName = 'Async_Setup_Safe_' + suffix,
-                        Type = 'Regular'
-                    )
-                }
+            insert new Group(
+                Name = 'Async Setup Safe ' + suffix,
+                DeveloperName = 'Async_Setup_Safe_' + suffix,
+                Type = 'Regular'
             );
 
             Async.enqueue(SetupSafeChildAsync.class, ids);
@@ -1200,14 +1220,10 @@ public with sharing class AsyncTest {
         public override void execute(Set<Id> ids) {
             String suffix = String.valueOf(Crypto.getRandomInteger())
                 .replace('-', '0');
-            DML.insertRecords(
-                new List<SObject>{
-                    new Group(
-                        Name = 'Async Staged Setup Safe ' + suffix,
-                        DeveloperName = 'Async_Staged_Setup_Safe_' + suffix,
-                        Type = 'Regular'
-                    )
-                }
+            insert new Group(
+                Name = 'Async Staged Setup Safe ' + suffix,
+                DeveloperName = 'Async_Staged_Setup_Safe_' + suffix,
+                Type = 'Regular'
             );
 
             Async.stage(SetupSafeChildAsync.class, ids);

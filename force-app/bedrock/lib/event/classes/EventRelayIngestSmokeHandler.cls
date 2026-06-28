@@ -18,6 +18,6 @@ public with sharing class EventRelayIngestSmokeHandler extends EventRelay.Handle
             );
         }
 
-        DML.insertRecords(contacts);
+        insert contacts;
     }
 }

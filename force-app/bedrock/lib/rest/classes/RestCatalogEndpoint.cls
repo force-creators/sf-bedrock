@@ -8,22 +8,7 @@
 public inherited sharing class RestCatalogEndpoint extends Rest {
     public override void get(Rest.Request request) {
         List<Object> routes = new List<Object>();
-        for (
-            Rest_Config__mdt config : (List<Rest_Config__mdt>) Query.records(
-                [
-                    SELECT
-                        DeveloperName,
-                        MasterLabel,
-                        Active__c,
-                        Default__c,
-                        Route__c,
-                        Version__c,
-                        Apex__c
-                    FROM Rest_Config__mdt
-                    ORDER BY Route__c ASC, Version__c DESC, DeveloperName ASC
-                ]
-            )
-        ) {
+        for (Rest_Config__mdt config : Rest.metadata.getConfigs()) {
             routes.add(
                 new Map<String, Object>{
                     'developerName' => config.DeveloperName,

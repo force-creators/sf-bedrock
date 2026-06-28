@@ -120,18 +120,36 @@ public with sharing class ThreadMock {
         }
 
         public override Thread__c getNextPendingThread(String pool) {
+            List<Thread__c> threads = getNextPendingThreads(pool, 1);
+            return threads.isEmpty() ? null : threads[0];
+        }
+
+        public override List<Thread__c> getNextPendingThreads(
+            String pool,
+            Integer requestedCount
+        ) {
             String normalizedPool = String.isBlank(pool)
                 ? Thread.consts.ASYNC_POOL
                 : pool.trim();
-            if (
-                pendingThreadsByPool.containsKey(normalizedPool) &&
-                !pendingThreadsByPool.get(normalizedPool).isEmpty()
-            ) {
-                return pendingThreadsByPool.get(normalizedPool).remove(0);
+            Integer safeCount = requestedCount == null
+                ? 0
+                : Math.max(0, requestedCount);
+            List<Thread__c> threads = new List<Thread__c>();
+            for (Integer i = 0; i < safeCount; i++) {
+                List<Thread__c> poolThreads = pendingThreadsByPool.get(
+                    normalizedPool
+                );
+                if (poolThreads != null && !poolThreads.isEmpty()) {
+                    threads.add(poolThreads.remove(0));
+                } else if (!pendingThreads.isEmpty()) {
+                    threads.add(pendingThreads.remove(0));
+                } else {
+                    break;
+                }
             }
-            return pendingThreads.isEmpty()
-                ? super.getNextPendingThread(pool)
-                : pendingThreads.remove(0);
+            return threads.isEmpty()
+                ? super.getNextPendingThreads(pool, requestedCount)
+                : threads;
         }
 
         public override Integer countRunningThreads(Id userId) {

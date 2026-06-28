@@ -47,9 +47,7 @@ public with sharing class AsyncArchiveBatchTest {
             'Pending',
             retainedThread.Id
         );
-        DML.insertRecords(
-            new List<SObject>{ oldDone, recentDone, remainingWork }
-        );
+        insert new List<Async__c>{ oldDone, recentDone, remainingWork };
         Test.setCreatedDate(oldDone.Id, System.now().addHours(-3));
         Test.setCreatedDate(recentDone.Id, System.now());
 
@@ -135,7 +133,7 @@ public with sharing class AsyncArchiveBatchTest {
             'Done',
             thread.Id
         );
-        DML.insertRecords(new List<SObject>{ workItem });
+        insert workItem;
 
         Async.settings.setSettings(
             new Async_Settings__c(Archive_Threshold_Hours__c = 0)

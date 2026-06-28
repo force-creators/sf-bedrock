@@ -18,6 +18,6 @@ public with sharing class EventRelayPublishSmokePublisher extends EventRelay.Pub
             );
         }
 
-        DML.insertRecords(contacts);
+        insert contacts;
     }
 }

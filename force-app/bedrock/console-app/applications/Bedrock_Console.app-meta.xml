@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <brand>
+        <headerColor>#0070D2</headerColor>
+        <logo>icon512</logo>
+        <logoVersion>1</logoVersion>
+        <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
+    </brand>
+    <formFactors>Large</formFactors>
+    <isNavAutoTempTabsDisabled>true</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>true</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
+    <isOmniPinnedViewEnabled>false</isOmniPinnedViewEnabled>
+    <label>Bedrock Console</label>
+    <navType>Standard</navType>
+    <tabs>Async</tabs>
+    <tabs>Events</tabs>
+    <tabs>Scheduler</tabs>
+    <tabs>REST</tabs>
+    <tabs>Threads</tabs>
+    <uiType>Lightning</uiType>
+    <utilityBar>Bedrock_Console_UtilityBar</utilityBar>
+</CustomApplication>

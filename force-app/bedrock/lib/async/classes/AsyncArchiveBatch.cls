@@ -49,8 +49,8 @@ public with sharing class AsyncArchiveBatch implements Database.Batchable<SObjec
             }
         }
 
-        DML.insertRecords(archives);
-        DML.deleteRecords(workItems);
+        insert archives;
+        delete workItems;
     }
 
     public void finish(Database.BatchableContext context) {
